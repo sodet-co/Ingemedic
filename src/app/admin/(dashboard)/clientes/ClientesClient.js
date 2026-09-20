@@ -10,9 +10,14 @@ import {
   HeartPulse
 } from 'lucide-react'
 import ConfirmDialog from '@/components/ui/ConfirmDialog'
+import ModalDevolucion from '@/components/entregas/ModalDevolucion'
+import Paginador from '@/components/ui/Paginador'
+import { Box } from '@/components/ui/Skeleton'
 import { IconoTipo } from '@/components/inventario/IconoTipo'
 import { useOrdenable } from '@/hooks/useOrdenable'
+import { usePaginacion } from '@/hooks/usePaginacion'
 import { formatear, formatearSoloFecha, hoyBogota } from '@/lib/fechas'
+import { devolverEquipo as devolverEquipoLib } from '@/lib/prestamos'
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
 const LOGO_URL = `${SUPABASE_URL}/storage/v1/object/public/logos/logo-ingemedic.png`
@@ -38,6 +43,11 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
   const [clientesInactivos, setClientesInactivos] = useState(clientesInactivosIniciales)
   const [mostrarInactivos, setMostrarInactivos] = useState(false)
   const [pacientes, setPacientes] = useState(pacientesIniciales)
+  // Copia local de equiposConPaciente — a diferencia de "clientes"/"pacientes", esta lista
+  // SÍ necesita actualizarse al instante (no esperar el round-trip de router.refresh()) porque
+  // de ella depende directamente que el equipo desaparezca de "Equipos actuales" al devolverlo
+  // desde el panel de Paciente (ver confirmarDevolucion).
+  const [equiposConPacienteLocal, setEquiposConPacienteLocal] = useState(equiposConPaciente)
 
   // Mantener el estado local sincronizado cuando el servidor manda datos frescos
   useEffect(() => {
@@ -63,6 +73,14 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
     }, 0)
     return () => clearTimeout(t)
   }, [pacientesIniciales])
+
+  useEffect(() => {
+    const t = setTimeout(() => {
+      if (Date.now() < skipSyncUntil.current) return
+      setEquiposConPacienteLocal(equiposConPaciente)
+    }, 0)
+    return () => clearTimeout(t)
+  }, [equiposConPaciente])
 
   // ── SINCRONIZACIÓN EN TIEMPO REAL ─────────────────────────
   // Sin esto, un dispositivo no se entera de cambios hechos en otro
@@ -102,6 +120,10 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
   const [tabHoja, setTabHoja] = useState('prestamo') // 'prestamo' | 'ordenes' | 'linea'
   const [pdfGenerando, setPdfGenerando] = useState(false)
   const [exportando, setExportando] = useState(false)
+
+  // ── DEVOLUCIÓN DE EQUIPOS (Cliente y Paciente) — mismo modal/lógica que Préstamos ──
+  const [modalDevolucion, setModalDevolucion] = useState(null) // { ordenEquipoId, equipoId, ordenId, contexto: 'cliente'|'paciente' } o null
+  const [formDevolucion, setFormDevolucion]   = useState({ fecha: '', observaciones: '' })
 
   // ── PESTAÑA PACIENTES ──
   const [searchPaciente, setSearchPaciente] = useState('')
@@ -186,6 +208,37 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
     ])
 
     setHistorial({ loading: false, ordenes: ordenes || [], entregas: entregas || [] })
+  }
+
+  // ── DEVOLUCIÓN DE EQUIPOS — misma lógica que Préstamos (src/lib/prestamos.js), reutilizada
+  // acá para los paneles de Cliente y Paciente. "contexto" dice de cuál de los dos vino el
+  // click, para saber qué actualizar localmente después: el drawer de Cliente arma su lista de
+  // "En préstamo" con un fetch propio (historial) que hay que volver a llamar; el de Paciente se
+  // arma del prop equiposConPaciente — probado que esperar a que router.refresh() lo actualice
+  // no es instantáneo, así que ahí se hace un splice optimista sobre la copia local del prop.
+  function abrirModalDevolucion(oe, contexto) {
+    setModalDevolucion({ ordenEquipoId: oe.ordenEquipoId, equipoId: oe.equipoId, ordenId: oe.ordenId, contexto })
+    setFormDevolucion({ fecha: hoyBogota(), observaciones: '' })
+  }
+
+  async function confirmarDevolucion() {
+    const { ordenEquipoId, equipoId, ordenId, contexto } = modalDevolucion
+    const { error, todosDevueltos } = await devolverEquipoLib({
+      supabase, ordenEquipoId, equipoId, ordenId,
+      fechaDevolucion: formDevolucion.fecha, observaciones: formDevolucion.observaciones,
+    })
+    if (error) { showToast('Error: ' + error.message, 'error'); return }
+
+    showToast(todosDevueltos ? 'Todos los equipos devueltos — préstamo finalizado' : 'Equipo devuelto')
+    setModalDevolucion(null)
+
+    if (contexto === 'cliente' && drawer) {
+      await abrirDrawer(drawer)
+    } else if (contexto === 'paciente') {
+      skipSyncUntil.current = Date.now() + 2500
+      setEquiposConPacienteLocal(prev => prev.filter(e => e.id !== equipoId))
+    }
+    router.refresh()
   }
 
   // Equipos actualmente en préstamo: tienen fecha_entrega pero no fecha_devolucion,
@@ -420,12 +473,12 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
   // ── PACIENTES: conteo de equipos activos por paciente ──
   const conteoEquiposPorPaciente = useMemo(() => {
     const mapa = {}
-    equiposConPaciente.forEach(e => {
+    equiposConPacienteLocal.forEach(e => {
       if (!e.paciente_actual_id) return
       mapa[e.paciente_actual_id] = (mapa[e.paciente_actual_id] || 0) + 1
     })
     return mapa
-  }, [equiposConPaciente])
+  }, [equiposConPacienteLocal])
 
   const statsPacientes = useMemo(() => {
     let conEquipo = 0
@@ -453,29 +506,31 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
   }, [pacientes, searchPaciente, filtroPaciente, conteoEquiposPorPaciente])
 
   const { itemsOrdenados: pacientesOrdenados, config: configPacientes, solicitarOrden: solicitarOrdenPacientes } = useOrdenable(pacientesFiltrados)
+  const paginacionPacientes = usePaginacion(pacientesOrdenados, 20)
+  const pacientesPagina = paginacionPacientes.itemsPagina
 
   const equiposDelPacienteDrawer = useMemo(() => {
     if (!drawerPaciente) return []
-    return equiposConPaciente.filter(e => e.paciente_actual_id === drawerPaciente.id)
-  }, [drawerPaciente, equiposConPaciente])
+    return equiposConPacienteLocal.filter(e => e.paciente_actual_id === drawerPaciente.id)
+  }, [drawerPaciente, equiposConPacienteLocal])
 
   // Categorías derivadas de los equipos ya cargados — evita traer categorias_equipo
   // completo solo para el fallback de ícono por categoría en IconoTipo.
   const categoriasParaIcono = useMemo(() => {
     const mapa = new Map()
-    equiposConPaciente.forEach(e => {
+    equiposConPacienteLocal.forEach(e => {
       const cat = e.tipo_equipo?.categoria
       if (cat?.id) mapa.set(cat.id, cat)
     })
     return [...mapa.values()]
-  }, [equiposConPaciente])
+  }, [equiposConPacienteLocal])
 
   // Abre el drawer y trae, en lazy-load, la orden de préstamo activa (fecha_devolucion IS NULL)
   // de cada equipo del paciente — se hace acá y no en la carga inicial porque solo se necesita
   // cuando el usuario realmente entra al detalle de un paciente puntual.
   async function abrirDrawerPaciente(paciente) {
     setDrawerPaciente(paciente)
-    const idsEquipos = equiposConPaciente
+    const idsEquipos = equiposConPacienteLocal
       .filter(e => e.paciente_actual_id === paciente.id)
       .map(e => e.id)
 
@@ -484,12 +539,14 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
     setOrdenesPorEquipo({ loading: true, mapa: {} })
     const { data } = await supabase
       .from('orden_equipos')
-      .select('equipo_id, orden:ordenes_servicio(id, codigo)')
+      .select('id, equipo_id, orden:ordenes_servicio(id, codigo, equipos:orden_equipos(id))')
       .in('equipo_id', idsEquipos)
       .is('fecha_devolucion', null)
 
     const mapa = {}
-    ;(data || []).forEach(oe => { mapa[oe.equipo_id] = oe.orden })
+    // Guarda también el id de este orden_equipos (para poder marcarlo como devuelto) y los
+    // equipos hermanos de la misma orden (para el criterio "Finalizar préstamo" si es el único).
+    ;(data || []).forEach(oe => { mapa[oe.equipo_id] = { ...oe.orden, ordenEquipoId: oe.id } })
     setOrdenesPorEquipo({ loading: false, mapa })
   }
 
@@ -536,6 +593,8 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
   }, [clientes, search, filtroCliente, conteoEquiposPorCliente])
 
   const { itemsOrdenados: clientesOrdenados, config: configClientes, solicitarOrden: solicitarOrdenClientes } = useOrdenable(clientesFiltrados)
+  const paginacionClientes = usePaginacion(clientesOrdenados, 20)
+  const clientesPagina = paginacionClientes.itemsPagina
 
   async function guardarCliente() {
     if (!form.nombre?.trim()) { showToast('El nombre es requerido', 'error'); return }
@@ -671,55 +730,303 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
       </div>
 
       {tabActiva === 'clientes' && (
-      <div className="flex-1 overflow-hidden flex flex-col">
-        {drawer ? (
-          /* ══════ VISTA DIVIDIDA — solo mientras hay un cliente seleccionado ══════ */
-          <div className="flex-1 overflow-hidden flex flex-col md:flex-row">
-            {/* LISTA angosta (oculta en móvil — el detalle ocupa toda la pantalla) */}
-            <div className="hidden md:flex flex-col md:w-[380px] md:flex-shrink-0 md:border-r md:border-slate-200 overflow-hidden">
-              {/* Buscador + filtros compactos — siguen activos aunque el detalle esté abierto */}
-              <div className="p-3 border-b border-slate-100 flex-shrink-0 space-y-2">
-                <div className="relative">
-                  <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <input value={search} onChange={e => setSearch(e.target.value)}
-                    placeholder="Buscar por nombre, NIT..."
-                    className="w-full pl-8 pr-3 py-1.5 border border-slate-200 rounded-[8px] text-[12.5px] outline-none focus:border-[#D81B43] bg-white" />
-                </div>
-                <div className="flex flex-wrap gap-1.5">
-                  {[
-                    { value: 'todos', label: `Todos (${stats.total})` },
-                    { value: 'con_prestamos', label: `Activos (${stats.conPrestamos})` },
-                    { value: 'sin_prestamos', label: `Sin activos (${stats.sinPrestamos})` },
-                  ].map(t => (
-                    <button key={t.value} onClick={() => setFiltroCliente(t.value)}
-                      className={`px-2.5 py-1 rounded-full text-[11px] font-medium transition-all whitespace-nowrap ${filtroCliente === t.value
-                        ? 'bg-[#D81B43] text-white'
-                        : 'bg-white border border-slate-200 text-slate-500 hover:border-[#D81B43] hover:text-[#D81B43]'
-                        }`}>
-                      {t.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
+      <div className="flex-1 overflow-hidden flex flex-col p-3 md:p-6 pb-28 md:pb-6">
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col flex-1 min-h-0">
 
-              <div className="flex-1 overflow-y-auto pb-4">
-                {clientesFiltrados.length === 0 ? (
-                  <div className="text-center py-10 px-4 text-slate-400 text-[12.5px]">Sin resultados</div>
-                ) : clientesFiltrados.map(c => (
-                  <div key={c.id} onClick={() => abrirDrawer(c)}
-                    className={`px-4 py-3 border-b border-slate-100 cursor-pointer transition-colors ${drawer?.id === c.id ? 'bg-[#FFF0F3] border-l-[3px] border-l-[#D81B43]' : 'hover:bg-slate-50'}`}>
-                    <div className="text-[13px] font-bold text-slate-800 truncate">{c.nombre}</div>
-                    <div className="text-[11.5px] text-slate-400 mt-0.5 flex items-center gap-1.5">
-                      <span className="font-medium" style={{ color: estiloTipo(c).color }}>{c.tipo_persona || '—'}</span>
-                      {c.nit_cc && <span>· {c.nit_cc}</span>}
-                    </div>
+          {/* FRANJA 1 — Filtros, SIEMPRE fija, nunca cambia con la selección */}
+          <div className="p-3 md:p-6 pb-3 md:pb-4 flex-shrink-0 border-b border-slate-200">
+              <div className="flex flex-col gap-2 md:flex-row md:items-center md:gap-3">
+                <div className="relative flex-1 md:max-w-[340px]">
+                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input value={search} onChange={e => setSearch(e.target.value)}
+                    placeholder="Buscar por nombre, NIT, email o teléfono..."
+                    className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-[9px] text-[13px] outline-none focus:border-[#D81B43] bg-white" />
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 overflow-x-auto flex-1">
+                    {[
+                      { value: 'todos', label: `Todos (${stats.total})` },
+                      { value: 'con_prestamos', label: `Con préstamos activos (${stats.conPrestamos})` },
+                      { value: 'sin_prestamos', label: `Sin préstamos activos (${stats.sinPrestamos})` },
+                    ].map(t => (
+                      <button key={t.value} onClick={() => setFiltroCliente(t.value)}
+                        className={`px-3 py-1.5 rounded-full text-[12px] font-medium transition-all whitespace-nowrap ${filtroCliente === t.value
+                          ? 'bg-[#D81B43] text-white'
+                          : 'bg-white border border-slate-200 text-slate-500 hover:border-[#D81B43] hover:text-[#D81B43]'
+                          }`}>
+                        {t.label}
+                      </button>
+                    ))}
                   </div>
-                ))}
+                  {!drawer && (
+                    <div className="hidden md:block text-[12px] text-slate-400 flex-shrink-0 md:ml-auto">
+                      {clientesFiltrados.length} cliente{clientesFiltrados.length !== 1 ? 's' : ''}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 
-            {/* DETALLE */}
-            <div className="flex flex-col flex-1 overflow-hidden">
+          {/* FRANJA 2 — aquí ocurre toda la transición: lista + panel */}
+          <div className="flex flex-1 overflow-hidden flex-col md:flex-row">
+
+            {/* Columna lista — SIEMPRE montada; solo cambia de ancho (100% ↔ 380px) según haya o no detalle abierto */}
+            <div className={`${drawer ? 'hidden md:flex' : 'flex'} flex-col overflow-hidden transition-all duration-300 w-full ${drawer ? 'md:w-[380px] md:flex-shrink-0 md:border-r md:border-slate-200' : ''}`}>
+
+              {/* Lista/tabla — un solo contenedor de scroll; adentro cambia cómo se pinta cada fila según el ancho disponible */}
+              <div className="flex-1 overflow-y-auto px-3 md:px-6 pt-3 md:pt-6 pb-28 md:pb-6">
+              {clientesFiltrados.length === 0 ? (
+                <div className="text-center py-16 text-slate-400">
+                    <Building2 className="w-12 h-12 mx-auto mb-3 opacity-20" />
+                    <div className="font-semibold mb-1">{search || filtroCliente !== 'todos' ? 'Sin resultados' : 'Sin clientes registrados'}</div>
+                    <div className="text-[13px]">{search || filtroCliente !== 'todos' ? 'Intenta con otros filtros' : 'Usa "Nuevo cliente" para agregar uno'}</div>
+                  </div>
+              ) : drawer ? (
+                /* Lista compacta — solo se ve cuando la columna está angosta (detalle abierto) */
+                <div className="-mx-3 md:-mx-6">
+                  {clientesFiltrados.map(c => (
+                    <div key={c.id} onClick={() => abrirDrawer(c)}
+                      className={`px-4 py-3 border-b border-slate-100 cursor-pointer transition-colors ${drawer?.id === c.id ? 'bg-[#FFF0F3] border-l-[3px] border-l-[#D81B43]' : 'hover:bg-slate-50'}`}>
+                      <div className="text-[13px] font-bold text-slate-800 truncate">{c.nombre}</div>
+                      <div className="text-[11.5px] text-slate-400 mt-0.5 flex items-center gap-1.5">
+                        <span className="font-medium" style={{ color: estiloTipo(c).color }}>{c.tipo_persona || '—'}</span>
+                        {c.nit_cc && <span>· {c.nit_cc}</span>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <>
+                  {/* Cards móvil */}
+                  <div className="md:hidden space-y-2">
+                    {clientesPagina.map(c => {
+                      const st = estiloTipo(c)
+                      return (
+                        <div key={c.id} onClick={() => abrirDrawer(c)}
+                          className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 cursor-pointer active:bg-slate-50 transition-colors">
+                          <div className="flex items-center gap-3 mb-2.5">
+                            <div className="w-10 h-10 rounded-full flex items-center justify-center text-[14px] font-bold flex-shrink-0"
+                              style={{ background: st.bg, color: st.color }}>
+                              {c.nombre?.charAt(0)?.toUpperCase()}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="text-[14px] font-semibold text-slate-700 truncate">{c.nombre}</div>
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold mt-0.5"
+                                style={{ background: st.bg, color: st.color }}>
+                                {st.icon} {c.tipo_persona || '—'}
+                              </span>
+                            </div>
+                            <ChevronRight size={16} className="text-slate-300 flex-shrink-0" />
+                          </div>
+                          <div className="space-y-1 pl-1">
+                            {c.nit_cc && (
+                              <div className="flex items-center gap-2 text-[12px] text-slate-500">
+                                <FileText size={11} className="text-slate-400" />
+                                <span className="font-mono">{c.nit_cc}{c.digito_verificacion ? `-${c.digito_verificacion}` : ''}</span>
+                              </div>
+                            )}
+                            {c.telefono && (
+                              <div className="flex items-center gap-2 text-[12px] text-slate-500">
+                                <Phone size={11} className="text-slate-400" /> {c.telefono}
+                              </div>
+                            )}
+                            {c.email && (
+                              <div className="flex items-center gap-2 text-[12px] text-slate-500">
+                                <Mail size={11} className="text-slate-400" /> {c.email}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+
+                  {/* Tabla desktop */}
+                  <div className="hidden md:block">
+                    <table className="w-full border-collapse">
+                      <thead>
+                        <tr className="border-b-2 border-slate-100">
+                          {[
+                            { label: 'Cliente', clave: 'nombre' },
+                            { label: 'Tipo', clave: 'tipo_persona' },
+                            { label: 'NIT / CC', clave: null },
+                            { label: 'Contacto', clave: null },
+                            { label: 'Ubicación', clave: 'ubicacion', accessor: c => c.municipio?.nombre || '' },
+                            { label: '', clave: null },
+                          ].map(col => (
+                            <th key={col.label || 'acciones'}
+                              onClick={col.clave ? () => solicitarOrdenClientes(col.clave, col.accessor) : undefined}
+                              className={`px-4 py-3 text-left text-[10.5px] font-bold uppercase tracking-[0.07em] text-slate-400 bg-slate-50 ${col.clave ? 'cursor-pointer select-none hover:bg-slate-100 transition-colors' : ''}`}>
+                              <div className="flex items-center gap-1">
+                                {col.label}
+                                {configClientes?.clave === col.clave && (
+                                  <span className="text-[10px]">{configClientes.direccion === 'asc' ? '▲' : '▼'}</span>
+                                )}
+                              </div>
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {clientesPagina.map(c => {
+                          const st = estiloTipo(c)
+                          return (
+                            <tr key={c.id} onClick={() => abrirDrawer(c)}
+                              className="border-b border-slate-100 hover:bg-slate-50 transition-colors cursor-pointer">
+                              <td className="px-4 py-3">
+                                <div className="flex items-center gap-2.5">
+                                  <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-[12px] font-bold"
+                                    style={{ background: st.bg, color: st.color }}>
+                                    {c.nombre?.charAt(0)?.toUpperCase()}
+                                  </div>
+                                  <span className="text-[13px] font-semibold text-slate-700">{c.nombre}</span>
+                                </div>
+                              </td>
+                              <td className="px-4 py-3">
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold"
+                                  style={{ background: st.bg, color: st.color }}>
+                                  {st.icon} {c.tipo_persona || '—'}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3">
+                                {c.nit_cc
+                                  ? <span className="font-mono text-[12.5px] text-slate-600">{c.nit_cc}{c.digito_verificacion ? `-${c.digito_verificacion}` : ''}</span>
+                                  : <span className="text-slate-300">—</span>}
+                              </td>
+                              <td className="px-4 py-3">
+                                <div className="space-y-0.5">
+                                  {c.telefono && <div className="flex items-center gap-1.5 text-[12px] text-slate-500"><Phone size={11} className="text-slate-400" />{c.telefono}</div>}
+                                  {c.email && <div className="flex items-center gap-1.5 text-[12px] text-slate-500"><Mail size={11} className="text-slate-400" />{c.email}</div>}
+                                  {!c.telefono && !c.email && <span className="text-slate-300 text-[12px]">—</span>}
+                                </div>
+                              </td>
+                              <td className="px-4 py-3 text-[12.5px] text-slate-500">
+                                {c.municipio?.nombre
+                                  ? <div className="flex items-center gap-1"><MapPin size={11} className="text-slate-400 flex-shrink-0" />{c.municipio.nombre}, {c.departamento?.nombre}</div>
+                                  : <span className="text-slate-300">—</span>}
+                              </td>
+                              <td className="px-3 py-3 text-slate-300"><ChevronRight size={14} /></td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                    <Paginador {...paginacionClientes} />
+                  </div>
+                  <div className="md:hidden mt-2">
+                    <Paginador {...paginacionClientes} />
+                  </div>
+
+                  {/* ── CLIENTES INACTIVOS ── */}
+                  {clientesInactivos.length > 0 && (
+                    <div className="mt-4">
+                      <button
+                        onClick={() => setMostrarInactivos(v => !v)}
+                        className="flex items-center gap-2 text-[12px] font-semibold text-slate-400 hover:text-slate-500 transition-colors mb-2 select-none">
+                        <ChevronRight size={14} className={`transition-transform duration-200 ${mostrarInactivos ? 'rotate-90' : ''}`} />
+                        Clientes inactivos ({clientesInactivos.length})
+                      </button>
+
+                      {mostrarInactivos && (
+                        <>
+                          {/* Mobile cards */}
+                          <div className="md:hidden space-y-2">
+                            {clientesInactivos.map(c => {
+                              const st = estiloTipo(c)
+                              return (
+                                <div key={c.id} onClick={() => abrirDrawer(c)}
+                                  className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 cursor-pointer opacity-60 hover:opacity-80 transition-opacity">
+                                  <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 rounded-full flex items-center justify-center text-[14px] font-bold flex-shrink-0"
+                                      style={{ background: st.bg, color: st.color }}>
+                                      {c.nombre?.charAt(0)?.toUpperCase()}
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                      <div className="text-[14px] font-semibold text-slate-600 truncate">{c.nombre}</div>
+                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold mt-0.5"
+                                        style={{ background: st.bg, color: st.color }}>
+                                        {st.icon} {c.tipo_persona || '—'}
+                                      </span>
+                                    </div>
+                                    <button
+                                      onClick={e => { e.stopPropagation(); toggleActivo(c.id, true) }}
+                                      className="flex-shrink-0 flex items-center gap-1 px-3 py-1.5 border border-green-200 text-[#0F7B55] rounded-[8px] text-[11.5px] font-semibold hover:bg-green-50 transition-colors">
+                                      <CheckCircle2 size={12} /> Activar
+                                    </button>
+                                  </div>
+                                </div>
+                              )
+                            })}
+                          </div>
+
+                          {/* Desktop table */}
+                          <div className="hidden md:block bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden opacity-70">
+                            <table className="w-full border-collapse">
+                              <thead>
+                                <tr className="border-b-2 border-slate-100">
+                                  {['Cliente', 'Tipo', 'NIT / CC', 'Contacto', ''].map(h => (
+                                    <th key={h} className="px-4 py-3 text-left text-[10.5px] font-bold uppercase tracking-[0.07em] text-slate-400 bg-slate-50">{h}</th>
+                                  ))}
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {clientesInactivos.map(c => {
+                                  const st = estiloTipo(c)
+                                  return (
+                                    <tr key={c.id} onClick={() => abrirDrawer(c)}
+                                      className="border-b border-slate-100 hover:bg-slate-50 transition-colors cursor-pointer">
+                                      <td className="px-4 py-3">
+                                        <div className="flex items-center gap-2.5">
+                                          <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-[12px] font-bold"
+                                            style={{ background: st.bg, color: st.color }}>
+                                            {c.nombre?.charAt(0)?.toUpperCase()}
+                                          </div>
+                                          <span className="text-[13px] font-semibold text-slate-500">{c.nombre}</span>
+                                        </div>
+                                      </td>
+                                      <td className="px-4 py-3">
+                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold"
+                                          style={{ background: st.bg, color: st.color }}>
+                                          {st.icon} {c.tipo_persona || '—'}
+                                        </span>
+                                      </td>
+                                      <td className="px-4 py-3">
+                                        {c.nit_cc
+                                          ? <span className="font-mono text-[12.5px] text-slate-500">{c.nit_cc}{c.digito_verificacion ? `-${c.digito_verificacion}` : ''}</span>
+                                          : <span className="text-slate-300">—</span>}
+                                      </td>
+                                      <td className="px-4 py-3">
+                                        <div className="space-y-0.5">
+                                          {c.telefono && <div className="flex items-center gap-1.5 text-[12px] text-slate-400"><Phone size={11} className="text-slate-300" />{c.telefono}</div>}
+                                          {c.email && <div className="flex items-center gap-1.5 text-[12px] text-slate-400"><Mail size={11} className="text-slate-300" />{c.email}</div>}
+                                          {!c.telefono && !c.email && <span className="text-slate-300 text-[12px]">—</span>}
+                                        </div>
+                                      </td>
+                                      <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
+                                        <button
+                                          onClick={() => toggleActivo(c.id, true)}
+                                          className="flex items-center gap-1.5 px-3 py-1.5 border border-green-200 text-[#0F7B55] rounded-[8px] text-[11.5px] font-semibold hover:bg-green-50 transition-colors whitespace-nowrap">
+                                          <CheckCircle2 size={12} /> Activar
+                                        </button>
+                                      </td>
+                                    </tr>
+                                  )
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* Panel de detalle — aparece a la derecha sin reemplazar la columna de lista */}
+          {drawer && (
+            <div className="flex flex-col flex-1 overflow-hidden animate-panel-detalle">
               <div className="px-6 py-4 border-b border-slate-200 flex items-start justify-between flex-shrink-0">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-full flex items-center justify-center text-[15px] font-bold flex-shrink-0"
@@ -738,7 +1045,7 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
                   className="text-slate-400 hover:text-slate-600 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100 flex-shrink-0"><X size={16} /></button>
               </div>
 
-              <div className="flex-1 overflow-y-auto">
+              <div className="flex-1 overflow-y-auto pb-28 md:pb-6">
                 <div className="p-6 space-y-3 border-b border-slate-100">
                   <div className="text-[9.5px] font-bold uppercase tracking-[0.12em] text-slate-400 mb-3">Información general</div>
                   {[
@@ -777,32 +1084,52 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
                   </div>
 
                   {historial.loading ? (
-                    <div className="py-10 text-center text-slate-400 text-[12.5px]">Cargando historial…</div>
+                    <div className="space-y-2 mt-3">
+                      {[0, 1, 2].map(i => (
+                        <div key={i} className="flex items-center gap-2.5 p-3 rounded-[9px] border border-slate-100">
+                          <Box className="w-8 h-8 rounded-lg flex-shrink-0" />
+                          <div className="flex-1 space-y-1.5">
+                            <Box className="h-3 w-32" />
+                            <Box className="h-2.5 w-44" />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   ) : (
                     <div className="mt-3">
                       {/* EQUIPOS EN PRÉSTAMO */}
                       {tabHoja === 'prestamo' && (
                         equiposEnPrestamo.length > 0 ? (
                           <div className="space-y-2">
-                            {equiposEnPrestamo.map(oe => (
-                              <div key={oe.id} className="flex items-start gap-2.5 p-3 rounded-[9px] border border-slate-100 bg-slate-50">
-                                <Package size={15} className="text-[#D81B43] mt-0.5 flex-shrink-0" />
-                                <div className="flex-1 min-w-0">
-                                  <div className="text-[12.5px] font-semibold text-slate-700">
-                                    {oe.equipo?.tipo_equipo?.atributos?.nombre || oe.equipo?.tipo_equipo?.nombre || 'Equipo'}
-                                  </div>
-                                  <div className="text-[11px] text-slate-400 mt-0.5">
-                                    Código: {oe.equipo?.codigo || '—'}
-                                  </div>
-                                  <div className="text-[11px] text-slate-400 mt-0.5">
-                                    OS {oe.orden?.codigo} · desde {formatear(oe.fecha_entrega)}
-                                  </div>
-                                  <div className="text-[11px] text-slate-400 mt-0.5">
-                                    {oe.equipo?.paciente_actual?.nombre ? `Paciente: ${oe.equipo.paciente_actual.nombre}` : 'Sin paciente asociado'}
+                            {equiposEnPrestamo.map(oe => {
+                              const esUnico = (oe.orden?.equipos?.length || 0) === 1
+                              return (
+                                <div key={oe.id} className="flex items-start gap-2.5 p-3 rounded-[9px] border border-slate-100 bg-slate-50">
+                                  <Package size={15} className="text-[#D81B43] mt-0.5 flex-shrink-0" />
+                                  <div className="flex-1 min-w-0">
+                                    <div className="text-[12.5px] font-semibold text-slate-700">
+                                      {oe.equipo?.tipo_equipo?.atributos?.nombre || oe.equipo?.tipo_equipo?.nombre || 'Equipo'}
+                                    </div>
+                                    <div className="text-[11px] text-slate-400 mt-0.5">
+                                      Código: {oe.equipo?.codigo || '—'}
+                                    </div>
+                                    <div className="text-[11px] text-slate-400 mt-0.5">
+                                      OS {oe.orden?.codigo} · desde {formatear(oe.fecha_entrega)}
+                                    </div>
+                                    <div className="text-[11px] text-slate-400 mt-0.5">
+                                      {oe.equipo?.paciente_actual?.nombre ? `Paciente: ${oe.equipo.paciente_actual.nombre}` : 'Sin paciente asociado'}
+                                    </div>
+                                    <div className="mt-2">
+                                      <button type="button"
+                                        onClick={() => abrirModalDevolucion({ ordenEquipoId: oe.id, equipoId: oe.equipo?.id, ordenId: oe.orden?.id }, 'cliente')}
+                                        className="text-[11.5px] text-[#D81B43] font-semibold hover:underline">
+                                        {esUnico ? 'Finalizar préstamo' : 'Marcar como devuelto'}
+                                      </button>
+                                    </div>
                                   </div>
                                 </div>
-                              </div>
-                            ))}
+                              )
+                            })}
                           </div>
                         ) : (
                           <div className="text-center py-8 text-slate-400">
@@ -894,42 +1221,35 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
                 )}
               </div>
             </div>
+          )}
           </div>
-        ) : (
-          /* ══════ VISTA NORMAL — nada seleccionado, igual que antes del layout dividido ══════ */
-          <>
-            <div className="p-3 md:p-6 pb-3 md:pb-4 flex-shrink-0">
-              {/* Stats */}
-              <div className="hidden md:grid md:grid-cols-3 gap-4 mb-5">
-                {[
-                  { label: 'Total clientes', value: stats.total, color: '#1E293B' },
-                  { label: 'Con préstamos activos', value: stats.conPrestamos, color: '#0E86A0' },
-                  { label: 'Sin préstamos activos', value: stats.sinPrestamos, color: '#94A3B8' },
-                ].map(s => (
-                  <div key={s.label} className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
-                    <div className="text-2xl font-extrabold tabular-nums" style={{ color: s.color }}>{s.value}</div>
-                    <div className="text-[11.5px] text-slate-400 mt-1">{s.label}</div>
-                  </div>
-                ))}
-              </div>
+        </div>
+      </div>
+      )}
 
-              {/* Filtros */}
+      {/* ── PESTAÑA PACIENTES ── */}
+      {tabActiva === 'pacientes' && (
+      <div className="flex-1 overflow-hidden flex flex-col p-3 md:p-6 pb-28 md:pb-6">
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col flex-1 min-h-0">
+
+          {/* FRANJA 1 — Filtros, SIEMPRE fija, nunca cambia con la selección */}
+          <div className="p-3 md:p-6 pb-3 md:pb-4 flex-shrink-0 border-b border-slate-200">
               <div className="flex flex-col gap-2 md:flex-row md:items-center md:gap-3">
                 <div className="relative flex-1 md:max-w-[340px]">
                   <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <input value={search} onChange={e => setSearch(e.target.value)}
-                    placeholder="Buscar por nombre, NIT, email o teléfono..."
+                  <input value={searchPaciente} onChange={e => setSearchPaciente(e.target.value)}
+                    placeholder="Buscar por nombre, cédula o ciudad..."
                     className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-[9px] text-[13px] outline-none focus:border-[#D81B43] bg-white" />
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="flex items-center gap-2 overflow-x-auto flex-1">
                     {[
-                      { value: 'todos', label: `Todos (${stats.total})` },
-                      { value: 'con_prestamos', label: `Con préstamos activos (${stats.conPrestamos})` },
-                      { value: 'sin_prestamos', label: `Sin préstamos activos (${stats.sinPrestamos})` },
+                      { value: 'todos', label: `Todos (${statsPacientes.total})` },
+                      { value: 'con_equipo', label: `Con equipo activo (${statsPacientes.conEquipo})` },
+                      { value: 'sin_equipo', label: `Sin equipo (${statsPacientes.sinEquipo})` },
                     ].map(t => (
-                      <button key={t.value} onClick={() => setFiltroCliente(t.value)}
-                        className={`px-3 py-1.5 rounded-full text-[12px] font-medium transition-all whitespace-nowrap ${filtroCliente === t.value
+                      <button key={t.value} onClick={() => setFiltroPaciente(t.value)}
+                        className={`px-3 py-1.5 rounded-full text-[12px] font-medium transition-all whitespace-nowrap ${filtroPaciente === t.value
                           ? 'bg-[#D81B43] text-white'
                           : 'bg-white border border-slate-200 text-slate-500 hover:border-[#D81B43] hover:text-[#D81B43]'
                           }`}>
@@ -937,89 +1257,99 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
                       </button>
                     ))}
                   </div>
-                  <div className="hidden md:block text-[12px] text-slate-400 flex-shrink-0 md:ml-auto">
-                    {clientesFiltrados.length} cliente{clientesFiltrados.length !== 1 ? 's' : ''}
-                  </div>
+                  {!drawerPaciente && (
+                    <div className="hidden md:block text-[12px] text-slate-400 flex-shrink-0 md:ml-auto">
+                      {pacientesFiltrados.length} paciente{pacientesFiltrados.length !== 1 ? 's' : ''}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
 
-            {/* Tabla / Cards */}
-            <div className="flex-1 overflow-y-auto px-3 md:px-6 pb-28 md:pb-6">
-              {clientesFiltrados.length === 0 ? (
-                <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                  <div className="text-center py-16 text-slate-400">
-                    <Building2 className="w-12 h-12 mx-auto mb-3 opacity-20" />
-                    <div className="font-semibold mb-1">{search || filtroCliente !== 'todos' ? 'Sin resultados' : 'Sin clientes registrados'}</div>
-                    <div className="text-[13px]">{search || filtroCliente !== 'todos' ? 'Intenta con otros filtros' : 'Usa "Nuevo cliente" para agregar uno'}</div>
+          {/* FRANJA 2 — aquí ocurre toda la transición: lista + panel */}
+          <div className="flex flex-1 overflow-hidden flex-col md:flex-row">
+
+            {/* Columna lista — SIEMPRE montada; solo cambia de ancho (100% ↔ 380px) según haya o no detalle abierto */}
+            <div className={`${drawerPaciente ? 'hidden md:flex' : 'flex'} flex-col overflow-hidden transition-all duration-300 w-full ${drawerPaciente ? 'md:w-[380px] md:flex-shrink-0 md:border-r md:border-slate-200' : ''}`}>
+
+              {/* Lista/tabla — un solo contenedor de scroll; adentro cambia cómo se pinta cada fila según el ancho disponible */}
+              <div className="flex-1 overflow-y-auto px-3 md:px-6 pt-3 md:pt-6 pb-28 md:pb-6">
+              {pacientesFiltrados.length === 0 ? (
+                <div className="text-center py-16 text-slate-400">
+                    <HeartPulse className="w-12 h-12 mx-auto mb-3 opacity-20" />
+                    <div className="font-semibold mb-1">{searchPaciente || filtroPaciente !== 'todos' ? 'Sin resultados' : 'Sin pacientes registrados'}</div>
+                    <div className="text-[13px]">{searchPaciente || filtroPaciente !== 'todos' ? 'Intenta con otros filtros' : 'Los pacientes se crean desde el módulo de Órdenes'}</div>
                   </div>
+              ) : drawerPaciente ? (
+                /* Lista compacta — solo se ve cuando la columna está angosta (detalle abierto) */
+                <div className="-mx-3 md:-mx-6">
+                  {pacientesFiltrados.map(p => {
+                    const nEquipos = conteoEquiposPorPaciente[p.id] || 0
+                    return (
+                      <div key={p.id} onClick={() => abrirDrawerPaciente(p)}
+                        className={`px-4 py-3 border-b border-slate-100 cursor-pointer transition-colors ${drawerPaciente?.id === p.id ? 'bg-[#FFF0F3] border-l-[3px] border-l-[#D81B43]' : 'hover:bg-slate-50'}`}>
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="text-[13px] font-bold text-slate-800 truncate">{p.nombre}</div>
+                          <span className="flex-shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10.5px] font-bold bg-[#D81B43]/8 text-[#D81B43]">
+                            <Package size={10} /> {nEquipos}
+                          </span>
+                        </div>
+                        <div className="text-[11.5px] text-slate-400 mt-0.5">{p.ciudad || '—'}{p.cedula ? ` · ${p.cedula}` : ''}</div>
+                      </div>
+                    )
+                  })}
                 </div>
               ) : (
                 <>
                   {/* Cards móvil */}
                   <div className="md:hidden space-y-2">
-                    {clientesFiltrados.map(c => {
-                      const st = estiloTipo(c)
+                    {pacientesPagina.map(p => {
+                      const nEquipos = conteoEquiposPorPaciente[p.id] || 0
                       return (
-                        <div key={c.id} onClick={() => abrirDrawer(c)}
+                        <div key={p.id} onClick={() => abrirDrawerPaciente(p)}
                           className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 cursor-pointer active:bg-slate-50 transition-colors">
                           <div className="flex items-center gap-3 mb-2.5">
-                            <div className="w-10 h-10 rounded-full flex items-center justify-center text-[14px] font-bold flex-shrink-0"
-                              style={{ background: st.bg, color: st.color }}>
-                              {c.nombre?.charAt(0)?.toUpperCase()}
+                            <div className="w-10 h-10 rounded-full flex items-center justify-center text-[14px] font-bold flex-shrink-0 bg-[#F1F5F9] text-[#475569]">
+                              {p.nombre?.charAt(0)?.toUpperCase()}
                             </div>
                             <div className="flex-1 min-w-0">
-                              <div className="text-[14px] font-semibold text-slate-700 truncate">{c.nombre}</div>
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold mt-0.5"
-                                style={{ background: st.bg, color: st.color }}>
-                                {st.icon} {c.tipo_persona || '—'}
-                              </span>
+                              <div className="text-[14px] font-semibold text-slate-700 truncate">{p.nombre}</div>
+                              {p.cedula && <div className="text-[11.5px] text-slate-400 font-mono">{p.cedula}</div>}
                             </div>
+                            <span className="flex-shrink-0 inline-flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-bold bg-[#D81B43]/8 text-[#D81B43]">
+                              <Package size={11} /> {nEquipos}
+                            </span>
                             <ChevronRight size={16} className="text-slate-300 flex-shrink-0" />
                           </div>
-                          <div className="space-y-1 pl-1">
-                            {c.nit_cc && (
-                              <div className="flex items-center gap-2 text-[12px] text-slate-500">
-                                <FileText size={11} className="text-slate-400" />
-                                <span className="font-mono">{c.nit_cc}{c.digito_verificacion ? `-${c.digito_verificacion}` : ''}</span>
-                              </div>
-                            )}
-                            {c.telefono && (
-                              <div className="flex items-center gap-2 text-[12px] text-slate-500">
-                                <Phone size={11} className="text-slate-400" /> {c.telefono}
-                              </div>
-                            )}
-                            {c.email && (
-                              <div className="flex items-center gap-2 text-[12px] text-slate-500">
-                                <Mail size={11} className="text-slate-400" /> {c.email}
-                              </div>
-                            )}
-                          </div>
+                          {p.ciudad && (
+                            <div className="flex items-center gap-2 text-[12px] text-slate-500 pl-1">
+                              <MapPin size={11} className="text-slate-400" /> {p.ciudad}
+                            </div>
+                          )}
                         </div>
                       )
                     })}
                   </div>
 
                   {/* Tabla desktop */}
-                  <div className="hidden md:block bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                  <div className="hidden md:block">
                     <table className="w-full border-collapse">
                       <thead>
                         <tr className="border-b-2 border-slate-100">
                           {[
-                            { label: 'Cliente', clave: 'nombre' },
-                            { label: 'Tipo', clave: 'tipo_persona' },
-                            { label: 'NIT / CC', clave: null },
-                            { label: 'Contacto', clave: null },
-                            { label: 'Ubicación', clave: 'ubicacion', accessor: c => c.municipio?.nombre || '' },
+                            { label: 'Paciente', clave: 'nombre' },
+                            { label: 'Cédula', clave: null },
+                            { label: 'Ciudad', clave: 'ciudad' },
+                            { label: 'Equipos activos', clave: 'equipos_activos', accessor: p => conteoEquiposPorPaciente[p.id] || 0 },
                             { label: '', clave: null },
                           ].map(col => (
                             <th key={col.label || 'acciones'}
-                              onClick={col.clave ? () => solicitarOrdenClientes(col.clave, col.accessor) : undefined}
+                              onClick={col.clave ? () => solicitarOrdenPacientes(col.clave, col.accessor) : undefined}
                               className={`px-4 py-3 text-left text-[10.5px] font-bold uppercase tracking-[0.07em] text-slate-400 bg-slate-50 ${col.clave ? 'cursor-pointer select-none hover:bg-slate-100 transition-colors' : ''}`}>
                               <div className="flex items-center gap-1">
                                 {col.label}
-                                {configClientes?.clave === col.clave && (
-                                  <span className="text-[10px]">{configClientes.direccion === 'asc' ? '▲' : '▼'}</span>
+                                {configPacientes?.clave === col.clave && (
+                                  <span className="text-[10px]">{configPacientes.direccion === 'asc' ? '▲' : '▼'}</span>
                                 )}
                               </div>
                             </th>
@@ -1027,42 +1357,33 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
                         </tr>
                       </thead>
                       <tbody>
-                        {clientesOrdenados.map(c => {
-                          const st = estiloTipo(c)
+                        {pacientesPagina.map(p => {
+                          const nEquipos = conteoEquiposPorPaciente[p.id] || 0
                           return (
-                            <tr key={c.id} onClick={() => abrirDrawer(c)}
+                            <tr key={p.id} onClick={() => abrirDrawerPaciente(p)}
                               className="border-b border-slate-100 hover:bg-slate-50 transition-colors cursor-pointer">
                               <td className="px-4 py-3">
                                 <div className="flex items-center gap-2.5">
-                                  <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-[12px] font-bold"
-                                    style={{ background: st.bg, color: st.color }}>
-                                    {c.nombre?.charAt(0)?.toUpperCase()}
+                                  <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-[12px] font-bold bg-[#F1F5F9] text-[#475569]">
+                                    {p.nombre?.charAt(0)?.toUpperCase()}
                                   </div>
-                                  <span className="text-[13px] font-semibold text-slate-700">{c.nombre}</span>
+                                  <span className="text-[13px] font-semibold text-slate-700">{p.nombre}</span>
                                 </div>
                               </td>
                               <td className="px-4 py-3">
-                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold"
-                                  style={{ background: st.bg, color: st.color }}>
-                                  {st.icon} {c.tipo_persona || '—'}
-                                </span>
-                              </td>
-                              <td className="px-4 py-3">
-                                {c.nit_cc
-                                  ? <span className="font-mono text-[12.5px] text-slate-600">{c.nit_cc}{c.digito_verificacion ? `-${c.digito_verificacion}` : ''}</span>
+                                {p.cedula
+                                  ? <span className="font-mono text-[12.5px] text-slate-600">{p.cedula}</span>
                                   : <span className="text-slate-300">—</span>}
-                              </td>
-                              <td className="px-4 py-3">
-                                <div className="space-y-0.5">
-                                  {c.telefono && <div className="flex items-center gap-1.5 text-[12px] text-slate-500"><Phone size={11} className="text-slate-400" />{c.telefono}</div>}
-                                  {c.email && <div className="flex items-center gap-1.5 text-[12px] text-slate-500"><Mail size={11} className="text-slate-400" />{c.email}</div>}
-                                  {!c.telefono && !c.email && <span className="text-slate-300 text-[12px]">—</span>}
-                                </div>
                               </td>
                               <td className="px-4 py-3 text-[12.5px] text-slate-500">
-                                {c.municipio?.nombre
-                                  ? <div className="flex items-center gap-1"><MapPin size={11} className="text-slate-400 flex-shrink-0" />{c.municipio.nombre}, {c.departamento?.nombre}</div>
+                                {p.ciudad
+                                  ? <div className="flex items-center gap-1"><MapPin size={11} className="text-slate-400 flex-shrink-0" />{p.ciudad}</div>
                                   : <span className="text-slate-300">—</span>}
+                              </td>
+                              <td className="px-4 py-3">
+                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-[#D81B43]/8 text-[#D81B43]">
+                                  <Package size={11} /> {nEquipos}
+                                </span>
                               </td>
                               <td className="px-3 py-3 text-slate-300"><ChevronRight size={14} /></td>
                             </tr>
@@ -1070,174 +1391,19 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
                         })}
                       </tbody>
                     </table>
+                    <Paginador {...paginacionPacientes} />
+                  </div>
+                  <div className="md:hidden mt-2">
+                    <Paginador {...paginacionPacientes} />
                   </div>
                 </>
               )}
-
-              {/* ── CLIENTES INACTIVOS ── */}
-              {clientesInactivos.length > 0 && (
-                <div className="mt-4">
-                  <button
-                    onClick={() => setMostrarInactivos(v => !v)}
-                    className="flex items-center gap-2 text-[12px] font-semibold text-slate-400 hover:text-slate-500 transition-colors mb-2 select-none">
-                    <ChevronRight size={14} className={`transition-transform duration-200 ${mostrarInactivos ? 'rotate-90' : ''}`} />
-                    Clientes inactivos ({clientesInactivos.length})
-                  </button>
-
-                  {mostrarInactivos && (
-                    <>
-                      {/* Mobile cards */}
-                      <div className="md:hidden space-y-2">
-                        {clientesInactivos.map(c => {
-                          const st = estiloTipo(c)
-                          return (
-                            <div key={c.id} onClick={() => abrirDrawer(c)}
-                              className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 cursor-pointer opacity-60 hover:opacity-80 transition-opacity">
-                              <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-full flex items-center justify-center text-[14px] font-bold flex-shrink-0"
-                                  style={{ background: st.bg, color: st.color }}>
-                                  {c.nombre?.charAt(0)?.toUpperCase()}
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                  <div className="text-[14px] font-semibold text-slate-600 truncate">{c.nombre}</div>
-                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold mt-0.5"
-                                    style={{ background: st.bg, color: st.color }}>
-                                    {st.icon} {c.tipo_persona || '—'}
-                                  </span>
-                                </div>
-                                <button
-                                  onClick={e => { e.stopPropagation(); toggleActivo(c.id, true) }}
-                                  className="flex-shrink-0 flex items-center gap-1 px-3 py-1.5 border border-green-200 text-[#0F7B55] rounded-[8px] text-[11.5px] font-semibold hover:bg-green-50 transition-colors">
-                                  <CheckCircle2 size={12} /> Activar
-                                </button>
-                              </div>
-                            </div>
-                          )
-                        })}
-                      </div>
-
-                      {/* Desktop table */}
-                      <div className="hidden md:block bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden opacity-70">
-                        <table className="w-full border-collapse">
-                          <thead>
-                            <tr className="border-b-2 border-slate-100">
-                              {['Cliente', 'Tipo', 'NIT / CC', 'Contacto', ''].map(h => (
-                                <th key={h} className="px-4 py-3 text-left text-[10.5px] font-bold uppercase tracking-[0.07em] text-slate-400 bg-slate-50">{h}</th>
-                              ))}
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {clientesInactivos.map(c => {
-                              const st = estiloTipo(c)
-                              return (
-                                <tr key={c.id} onClick={() => abrirDrawer(c)}
-                                  className="border-b border-slate-100 hover:bg-slate-50 transition-colors cursor-pointer">
-                                  <td className="px-4 py-3">
-                                    <div className="flex items-center gap-2.5">
-                                      <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-[12px] font-bold"
-                                        style={{ background: st.bg, color: st.color }}>
-                                        {c.nombre?.charAt(0)?.toUpperCase()}
-                                      </div>
-                                      <span className="text-[13px] font-semibold text-slate-500">{c.nombre}</span>
-                                    </div>
-                                  </td>
-                                  <td className="px-4 py-3">
-                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold"
-                                      style={{ background: st.bg, color: st.color }}>
-                                      {st.icon} {c.tipo_persona || '—'}
-                                    </span>
-                                  </td>
-                                  <td className="px-4 py-3">
-                                    {c.nit_cc
-                                      ? <span className="font-mono text-[12.5px] text-slate-500">{c.nit_cc}{c.digito_verificacion ? `-${c.digito_verificacion}` : ''}</span>
-                                      : <span className="text-slate-300">—</span>}
-                                  </td>
-                                  <td className="px-4 py-3">
-                                    <div className="space-y-0.5">
-                                      {c.telefono && <div className="flex items-center gap-1.5 text-[12px] text-slate-400"><Phone size={11} className="text-slate-300" />{c.telefono}</div>}
-                                      {c.email && <div className="flex items-center gap-1.5 text-[12px] text-slate-400"><Mail size={11} className="text-slate-300" />{c.email}</div>}
-                                      {!c.telefono && !c.email && <span className="text-slate-300 text-[12px]">—</span>}
-                                    </div>
-                                  </td>
-                                  <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
-                                    <button
-                                      onClick={() => toggleActivo(c.id, true)}
-                                      className="flex items-center gap-1.5 px-3 py-1.5 border border-green-200 text-[#0F7B55] rounded-[8px] text-[11.5px] font-semibold hover:bg-green-50 transition-colors whitespace-nowrap">
-                                      <CheckCircle2 size={12} /> Activar
-                                    </button>
-                                  </td>
-                                </tr>
-                              )
-                            })}
-                          </tbody>
-                        </table>
-                      </div>
-                    </>
-                  )}
-                </div>
-              )}
             </div>
-          </>
-        )}
-      </div>
-      )}
+          </div>
 
-      {/* ── PESTAÑA PACIENTES ── */}
-      {tabActiva === 'pacientes' && (
-      <div className="flex-1 overflow-hidden flex flex-col">
-        {drawerPaciente ? (
-          /* ══════ VISTA DIVIDIDA — solo mientras hay un paciente seleccionado ══════ */
-          <div className="flex-1 overflow-hidden flex flex-col md:flex-row">
-            {/* LISTA angosta (oculta en móvil — el detalle ocupa toda la pantalla) */}
-            <div className="hidden md:flex flex-col md:w-[380px] md:flex-shrink-0 md:border-r md:border-slate-200 overflow-hidden">
-              {/* Buscador + filtros compactos — siguen activos aunque el detalle esté abierto */}
-              <div className="p-3 border-b border-slate-100 flex-shrink-0 space-y-2">
-                <div className="relative">
-                  <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <input value={searchPaciente} onChange={e => setSearchPaciente(e.target.value)}
-                    placeholder="Buscar por nombre, cédula..."
-                    className="w-full pl-8 pr-3 py-1.5 border border-slate-200 rounded-[8px] text-[12.5px] outline-none focus:border-[#D81B43] bg-white" />
-                </div>
-                <div className="flex flex-wrap gap-1.5">
-                  {[
-                    { value: 'todos', label: `Todos (${statsPacientes.total})` },
-                    { value: 'con_equipo', label: `Con equipo (${statsPacientes.conEquipo})` },
-                    { value: 'sin_equipo', label: `Sin equipo (${statsPacientes.sinEquipo})` },
-                  ].map(t => (
-                    <button key={t.value} onClick={() => setFiltroPaciente(t.value)}
-                      className={`px-2.5 py-1 rounded-full text-[11px] font-medium transition-all whitespace-nowrap ${filtroPaciente === t.value
-                        ? 'bg-[#D81B43] text-white'
-                        : 'bg-white border border-slate-200 text-slate-500 hover:border-[#D81B43] hover:text-[#D81B43]'
-                        }`}>
-                      {t.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="flex-1 overflow-y-auto pb-4">
-                {pacientesFiltrados.length === 0 ? (
-                  <div className="text-center py-10 px-4 text-slate-400 text-[12.5px]">Sin resultados</div>
-                ) : pacientesFiltrados.map(p => {
-                  const nEquipos = conteoEquiposPorPaciente[p.id] || 0
-                  return (
-                    <div key={p.id} onClick={() => abrirDrawerPaciente(p)}
-                      className={`px-4 py-3 border-b border-slate-100 cursor-pointer transition-colors ${drawerPaciente?.id === p.id ? 'bg-[#FFF0F3] border-l-[3px] border-l-[#D81B43]' : 'hover:bg-slate-50'}`}>
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="text-[13px] font-bold text-slate-800 truncate">{p.nombre}</div>
-                        <span className="flex-shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10.5px] font-bold bg-[#D81B43]/8 text-[#D81B43]">
-                          <Package size={10} /> {nEquipos}
-                        </span>
-                      </div>
-                      <div className="text-[11.5px] text-slate-400 mt-0.5">{p.ciudad || '—'}{p.cedula ? ` · ${p.cedula}` : ''}</div>
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-
-            {/* DETALLE */}
-            <div className="flex flex-col flex-1 overflow-hidden">
+          {/* Panel de detalle — aparece a la derecha sin reemplazar la columna de lista */}
+          {drawerPaciente && (
+            <div className="flex flex-col flex-1 overflow-hidden animate-panel-detalle">
               <div className="px-6 py-4 border-b border-slate-200 flex items-start justify-between flex-shrink-0">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-full flex items-center justify-center text-[15px] font-bold flex-shrink-0 bg-[#F1F5F9] text-[#475569]">
@@ -1254,7 +1420,7 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
                   className="text-slate-400 hover:text-slate-600 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100 flex-shrink-0"><X size={16} /></button>
               </div>
 
-              <div className="flex-1 overflow-y-auto">
+              <div className="flex-1 overflow-y-auto pb-28 md:pb-6">
                 <div className="p-6 space-y-3 border-b border-slate-100">
                   <div className="text-[9.5px] font-bold uppercase tracking-[0.12em] text-slate-400 mb-3">Información general</div>
                   {[
@@ -1290,6 +1456,7 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
                     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
                       {equiposDelPacienteDrawer.map(eq => {
                         const orden = ordenesPorEquipo.mapa[eq.id]
+                        const esUnico = (orden?.equipos?.length || 0) === 1
                         return (
                           <div key={eq.id} className="border border-slate-200 rounded-[10px] p-3 flex gap-3 items-center">
                             <div className="w-12 h-12 rounded-[9px] bg-slate-50 border border-slate-200 flex items-center justify-center flex-shrink-0">
@@ -1307,11 +1474,20 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
                               )}
                               <div className="text-[11px] text-slate-400">
                                 {ordenesPorEquipo.loading
-                                  ? 'Buscando orden…'
+                                  ? <Box className="h-2.5 w-20 inline-block align-middle" />
                                   : orden?.codigo
                                     ? orden.codigo
                                     : 'Sin orden activa'}
                               </div>
+                              {orden?.ordenEquipoId && (
+                                <div className="mt-1.5">
+                                  <button type="button"
+                                    onClick={() => abrirModalDevolucion({ ordenEquipoId: orden.ordenEquipoId, equipoId: eq.id, ordenId: orden.id }, 'paciente')}
+                                    className="text-[11.5px] text-[#D81B43] font-semibold hover:underline">
+                                    {esUnico ? 'Finalizar préstamo' : 'Marcar como devuelto'}
+                                  </button>
+                                </div>
+                              )}
                             </div>
                           </div>
                         )
@@ -1321,165 +1497,9 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
                 </div>
               </div>
             </div>
+          )}
           </div>
-        ) : (
-          /* ══════ VISTA NORMAL — nada seleccionado, igual que antes del layout dividido ══════ */
-          <>
-            <div className="p-3 md:p-6 pb-3 md:pb-4 flex-shrink-0">
-              {/* Stats */}
-              <div className="hidden md:grid md:grid-cols-3 gap-4 mb-5">
-                <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
-                  <div className="text-2xl font-extrabold tabular-nums text-slate-800">{statsPacientes.total}</div>
-                  <div className="text-[11.5px] text-slate-400 mt-1">Total pacientes</div>
-                </div>
-                <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
-                  <div className="text-2xl font-extrabold tabular-nums text-[#0E86A0]">{statsPacientes.conEquipo}</div>
-                  <div className="text-[11.5px] text-slate-400 mt-1">Con equipo activo</div>
-                </div>
-                <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
-                  <div className="text-2xl font-extrabold tabular-nums text-slate-400">{statsPacientes.sinEquipo}</div>
-                  <div className="text-[11.5px] text-slate-400 mt-1">Sin equipo activo</div>
-                </div>
-              </div>
-
-              {/* Filtros */}
-              <div className="flex flex-col gap-2 md:flex-row md:items-center md:gap-3">
-                <div className="relative flex-1 md:max-w-[340px]">
-                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <input value={searchPaciente} onChange={e => setSearchPaciente(e.target.value)}
-                    placeholder="Buscar por nombre, cédula o ciudad..."
-                    className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-[9px] text-[13px] outline-none focus:border-[#D81B43] bg-white" />
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="flex items-center gap-2 overflow-x-auto flex-1">
-                    {[
-                      { value: 'todos', label: `Todos (${statsPacientes.total})` },
-                      { value: 'con_equipo', label: `Con equipo activo (${statsPacientes.conEquipo})` },
-                      { value: 'sin_equipo', label: `Sin equipo (${statsPacientes.sinEquipo})` },
-                    ].map(t => (
-                      <button key={t.value} onClick={() => setFiltroPaciente(t.value)}
-                        className={`px-3 py-1.5 rounded-full text-[12px] font-medium transition-all whitespace-nowrap ${filtroPaciente === t.value
-                          ? 'bg-[#D81B43] text-white'
-                          : 'bg-white border border-slate-200 text-slate-500 hover:border-[#D81B43] hover:text-[#D81B43]'
-                          }`}>
-                        {t.label}
-                      </button>
-                    ))}
-                  </div>
-                  <div className="hidden md:block text-[12px] text-slate-400 flex-shrink-0 md:ml-auto">
-                    {pacientesFiltrados.length} paciente{pacientesFiltrados.length !== 1 ? 's' : ''}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex-1 overflow-y-auto px-3 md:px-6 pb-28 md:pb-6">
-              {pacientesFiltrados.length === 0 ? (
-                <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                  <div className="text-center py-16 text-slate-400">
-                    <HeartPulse className="w-12 h-12 mx-auto mb-3 opacity-20" />
-                    <div className="font-semibold mb-1">{searchPaciente || filtroPaciente !== 'todos' ? 'Sin resultados' : 'Sin pacientes registrados'}</div>
-                    <div className="text-[13px]">{searchPaciente || filtroPaciente !== 'todos' ? 'Intenta con otros filtros' : 'Los pacientes se crean desde el módulo de Órdenes'}</div>
-                  </div>
-                </div>
-              ) : (
-                <>
-                  {/* Cards móvil */}
-                  <div className="md:hidden space-y-2">
-                    {pacientesFiltrados.map(p => {
-                      const nEquipos = conteoEquiposPorPaciente[p.id] || 0
-                      return (
-                        <div key={p.id} onClick={() => abrirDrawerPaciente(p)}
-                          className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 cursor-pointer active:bg-slate-50 transition-colors">
-                          <div className="flex items-center gap-3 mb-2.5">
-                            <div className="w-10 h-10 rounded-full flex items-center justify-center text-[14px] font-bold flex-shrink-0 bg-[#F1F5F9] text-[#475569]">
-                              {p.nombre?.charAt(0)?.toUpperCase()}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="text-[14px] font-semibold text-slate-700 truncate">{p.nombre}</div>
-                              {p.cedula && <div className="text-[11.5px] text-slate-400 font-mono">{p.cedula}</div>}
-                            </div>
-                            <span className="flex-shrink-0 inline-flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-bold bg-[#D81B43]/8 text-[#D81B43]">
-                              <Package size={11} /> {nEquipos}
-                            </span>
-                            <ChevronRight size={16} className="text-slate-300 flex-shrink-0" />
-                          </div>
-                          {p.ciudad && (
-                            <div className="flex items-center gap-2 text-[12px] text-slate-500 pl-1">
-                              <MapPin size={11} className="text-slate-400" /> {p.ciudad}
-                            </div>
-                          )}
-                        </div>
-                      )
-                    })}
-                  </div>
-
-                  {/* Tabla desktop */}
-                  <div className="hidden md:block bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                    <table className="w-full border-collapse">
-                      <thead>
-                        <tr className="border-b-2 border-slate-100">
-                          {[
-                            { label: 'Paciente', clave: 'nombre' },
-                            { label: 'Cédula', clave: null },
-                            { label: 'Ciudad', clave: 'ciudad' },
-                            { label: 'Equipos activos', clave: 'equipos_activos', accessor: p => conteoEquiposPorPaciente[p.id] || 0 },
-                            { label: '', clave: null },
-                          ].map(col => (
-                            <th key={col.label || 'acciones'}
-                              onClick={col.clave ? () => solicitarOrdenPacientes(col.clave, col.accessor) : undefined}
-                              className={`px-4 py-3 text-left text-[10.5px] font-bold uppercase tracking-[0.07em] text-slate-400 bg-slate-50 ${col.clave ? 'cursor-pointer select-none hover:bg-slate-100 transition-colors' : ''}`}>
-                              <div className="flex items-center gap-1">
-                                {col.label}
-                                {configPacientes?.clave === col.clave && (
-                                  <span className="text-[10px]">{configPacientes.direccion === 'asc' ? '▲' : '▼'}</span>
-                                )}
-                              </div>
-                            </th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {pacientesOrdenados.map(p => {
-                          const nEquipos = conteoEquiposPorPaciente[p.id] || 0
-                          return (
-                            <tr key={p.id} onClick={() => abrirDrawerPaciente(p)}
-                              className="border-b border-slate-100 hover:bg-slate-50 transition-colors cursor-pointer">
-                              <td className="px-4 py-3">
-                                <div className="flex items-center gap-2.5">
-                                  <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-[12px] font-bold bg-[#F1F5F9] text-[#475569]">
-                                    {p.nombre?.charAt(0)?.toUpperCase()}
-                                  </div>
-                                  <span className="text-[13px] font-semibold text-slate-700">{p.nombre}</span>
-                                </div>
-                              </td>
-                              <td className="px-4 py-3">
-                                {p.cedula
-                                  ? <span className="font-mono text-[12.5px] text-slate-600">{p.cedula}</span>
-                                  : <span className="text-slate-300">—</span>}
-                              </td>
-                              <td className="px-4 py-3 text-[12.5px] text-slate-500">
-                                {p.ciudad
-                                  ? <div className="flex items-center gap-1"><MapPin size={11} className="text-slate-400 flex-shrink-0" />{p.ciudad}</div>
-                                  : <span className="text-slate-300">—</span>}
-                              </td>
-                              <td className="px-4 py-3">
-                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-[#D81B43]/8 text-[#D81B43]">
-                                  <Package size={11} /> {nEquipos}
-                                </span>
-                              </td>
-                              <td className="px-3 py-3 text-slate-300"><ChevronRight size={14} /></td>
-                            </tr>
-                          )
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                </>
-              )}
-            </div>
-          </>
-        )}
+        </div>
       </div>
       )}
 
@@ -1622,6 +1642,15 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
         tipo="default"
         onConfirmar={() => { setConfirmarSalir(false); cerrarModal() }}
         onCancelar={() => setConfirmarSalir(false)}
+      />
+
+      <ModalDevolucion
+        abierto={!!modalDevolucion}
+        form={formDevolucion}
+        onChangeFecha={v => setFormDevolucion(f => ({ ...f, fecha: v }))}
+        onChangeObservaciones={v => setFormDevolucion(f => ({ ...f, observaciones: v }))}
+        onConfirmar={confirmarDevolucion}
+        onCancelar={() => setModalDevolucion(null)}
       />
 
       {toast && (

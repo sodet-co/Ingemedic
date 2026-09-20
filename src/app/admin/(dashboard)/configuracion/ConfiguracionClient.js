@@ -719,7 +719,7 @@ export default function ConfiguracionClient({
         </aside>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-4 md:p-8">
+        <div className="flex-1 overflow-y-auto p-3 md:p-6 pb-28 md:pb-6">
           <div className="max-w-[860px]">
 
             {/* USUARIOS */}

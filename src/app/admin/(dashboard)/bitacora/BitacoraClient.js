@@ -3,6 +3,8 @@ import { useState, useMemo, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { Search, Filter, Download, User, Clock } from 'lucide-react'
+import Paginador from '@/components/ui/Paginador'
+import { usePaginacion } from '@/hooks/usePaginacion'
 import { formatear, paraGuardar, hoyBogota } from '@/lib/fechas'
 
 const ACCION_STYLES = {
@@ -78,6 +80,9 @@ export default function BitacoraClient({ registrosIniciales }) {
       return mq && mm && ma && md && mh
     })
   }, [registrosIniciales, search, filtroModulo, filtroAccion, desde, hasta])
+
+  const paginacionBitacora = usePaginacion(filtrados, 20)
+  const registrosPagina = paginacionBitacora.itemsPagina
 
   function exportarCSV() {
     const header = ['Fecha', 'Usuario', 'Módulo', 'Acción', 'Entidad', 'Detalle']
@@ -183,7 +188,7 @@ export default function BitacoraClient({ registrosIniciales }) {
                 {filtrados.length === 0 && (
                   <tr><td colSpan={6} className="text-center py-16 text-slate-400">No hay registros que coincidan</td></tr>
                 )}
-                {filtrados.map(r => {
+                {registrosPagina.map(r => {
                   const estilo = ACCION_STYLES[r.accion] || { bg: '#F1F5F9', color: '#64748B', label: r.accion?.toUpperCase() }
                   return (
                     <tr key={r.id} className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
@@ -220,9 +225,7 @@ export default function BitacoraClient({ registrosIniciales }) {
               </tbody>
             </table>
           </div>
-          <div className="px-4 py-2.5 border-t border-slate-200 bg-slate-50 text-[12px] text-slate-400 flex-shrink-0">
-            {filtrados.length} registro{filtrados.length !== 1 ? 's' : ''}
-          </div>
+          <Paginador {...paginacionBitacora} />
         </div>
 
         {/* Cards móvil */}
@@ -230,7 +233,7 @@ export default function BitacoraClient({ registrosIniciales }) {
           {filtrados.length === 0 && (
             <div className="text-center py-12 text-slate-400">No hay registros que coincidan</div>
           )}
-          {filtrados.map(r => {
+          {registrosPagina.map(r => {
             const estilo = ACCION_STYLES[r.accion] || { bg: '#F1F5F9', color: '#64748B', label: r.accion?.toUpperCase() }
             return (
               <div key={r.id} className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
@@ -265,8 +268,8 @@ export default function BitacoraClient({ registrosIniciales }) {
               </div>
             )
           })}
-          <div className="text-[12px] text-slate-400 text-center py-2">
-            {filtrados.length} registro{filtrados.length !== 1 ? 's' : ''}
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden mt-2">
+            <Paginador {...paginacionBitacora} />
           </div>
         </div>
       </div>

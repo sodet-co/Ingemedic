@@ -9,6 +9,8 @@ import {
   FileText, Download, Paperclip, Eye
 } from 'lucide-react'
 import ConfirmDialog from '@/components/ui/ConfirmDialog'
+import Paginador from '@/components/ui/Paginador'
+import { usePaginacion } from '@/hooks/usePaginacion'
 import { formatear, formatearSoloFecha, hoyBogota } from '@/lib/fechas'
 
 const ESTADOS = {
@@ -148,6 +150,9 @@ export default function MantenimientosClient({ mantenimientosIniciales, tipos, e
       return mq && me && mt
     })
   }, [mantenimientos, search, filtroEstado, filtroTipo])
+
+  const paginacionMantenimientos = usePaginacion(filtrados, 20)
+  const mantenimientosPagina = paginacionMantenimientos.itemsPagina
 
   // ── CREAR MANTENIMIENTO ──────────────────────────────────
   async function crearMantenimiento() {
@@ -633,7 +638,7 @@ export default function MantenimientosClient({ mantenimientosIniciales, tipos, e
               <div className="font-semibold">{search || filtroEstado || filtroTipo ? 'Sin resultados' : 'Sin mantenimientos registrados'}</div>
             </div>
           )}
-          {filtrados.map(m => (
+          {mantenimientosPagina.map(m => (
             <div key={m.id} onClick={() => setDrawer(m)}
               className={`bg-white rounded-xl p-4 cursor-pointer shadow-sm ${m.tipo?.nombre === 'Correctivo' && m.estado?.nombre !== 'Cerrado'
                 ? 'border-l-4 border-l-[#D81B43] border border-t-slate-200 border-r-slate-200 border-b-slate-200'
@@ -674,6 +679,9 @@ export default function MantenimientosClient({ mantenimientosIniciales, tipos, e
               </div>
             </div>
           ))}
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden mt-2">
+            <Paginador {...paginacionMantenimientos} />
+          </div>
         </div>
 
         {/* Tabla (solo escritorio) */}
@@ -694,7 +702,7 @@ export default function MantenimientosClient({ mantenimientosIniciales, tipos, e
                     <div className="font-semibold">{search || filtroEstado || filtroTipo ? 'Sin resultados' : 'Sin mantenimientos registrados'}</div>
                   </td></tr>
                 )}
-                {filtrados.map(m => (
+                {mantenimientosPagina.map(m => (
                   <tr key={m.id} onClick={() => setDrawer(m)}
                     className={`border-b border-slate-100 hover:bg-slate-50 transition-colors cursor-pointer ${m.tipo?.nombre === 'Correctivo' && m.estado?.nombre !== 'Cerrado' ? 'border-l-4 border-l-[#D81B43]' : ''
                       }`}>
@@ -730,6 +738,7 @@ export default function MantenimientosClient({ mantenimientosIniciales, tipos, e
               </tbody>
             </table>
           </div>
+          <Paginador {...paginacionMantenimientos} />
         </div>
       </div>
 

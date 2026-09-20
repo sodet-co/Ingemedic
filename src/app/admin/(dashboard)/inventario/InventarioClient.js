@@ -7,8 +7,10 @@ import { createClient } from '@/lib/supabase'
 import { Package, Inbox, Plus, X, Search, Download, Edit3, FileText, AlertTriangle, Clock, CheckCircle2, Box, Hash, Tag, Layers, SlidersHorizontal, Loader2 } from 'lucide-react'
 import { IconoEquipo, GaleriaIconos } from '@/components/inventario/IconosEquipo'
 import { IconoTipo } from '@/components/inventario/IconoTipo'
+import Paginador from '@/components/ui/Paginador'
 import { formatear, hoyBogota } from '@/lib/fechas'
 import { useOrdenable } from '@/hooks/useOrdenable'
+import { usePaginacion } from '@/hooks/usePaginacion'
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
 const LOGO_URL = `${SUPABASE_URL}/storage/v1/object/public/logos/logo-ingemedic.png`
@@ -235,6 +237,8 @@ export default function InventarioClient({ categorias: catsIniciales, tipos: tip
   const camposUnidad = catActual?.atributos_extra?.campos_unidad || []
 
   const { itemsOrdenados: unidadesOrdenadas, config: configUnidades, solicitarOrden: solicitarOrdenUnidades } = useOrdenable(unidadesDeTipo)
+  const paginacionUnidades = usePaginacion(unidadesOrdenadas, 20)
+  const unidadesPagina = paginacionUnidades.itemsPagina
 
   const valoresUnicosPorCampo = useMemo(() => {
     const result = {}
@@ -622,7 +626,11 @@ export default function InventarioClient({ categorias: catsIniciales, tipos: tip
             </button>
           )}
           <button
-            onClick={() => exportar('completo')}
+            onClick={() => {
+              if (vista === 'unidades' && tipoActual) exportar('unidades', { tipo_id: tipoActual.id })
+              else if (vista === 'tipos' && catActual) exportar('tipos', { categoria_id: catActual.id })
+              else exportar('completo')
+            }}
             disabled={exportando}
             className="hidden md:flex items-center gap-1.5 px-3 py-2 text-[13px] font-medium text-slate-600 border border-slate-200 rounded-[9px] hover:border-slate-300 transition-all disabled:opacity-50">
             <Download size={13} /> {exportando ? 'Exportando…' : 'Exportar Excel'}
@@ -964,7 +972,7 @@ export default function InventarioClient({ categorias: catsIniciales, tipos: tip
                       </tr>
                     </thead>
                     <tbody>
-                      {unidadesOrdenadas.map(eq => {
+                      {unidadesPagina.map(eq => {
                         const est = eq.estado?.nombre || '—'
                         const estSty = ESTADO_STYLES[est] || {}
                         return (
@@ -1006,11 +1014,12 @@ export default function InventarioClient({ categorias: catsIniciales, tipos: tip
                       })}
                     </tbody>
                   </table>
+                  <Paginador {...paginacionUnidades} />
                 </div>
 
                 {/* Cards móvil — solo en mobile */}
                 <div className="md:hidden flex flex-col gap-2">
-                  {unidadesDeTipo.map(eq => {
+                  {unidadesPagina.map(eq => {
                     const est = eq.estado?.nombre || '—'
                     const estSty = ESTADO_STYLES[est] || {}
                     const primerCampo = camposUnidad[0]
@@ -1048,6 +1057,9 @@ export default function InventarioClient({ categorias: catsIniciales, tipos: tip
                       </div>
                     )
                   })}
+                </div>
+                <div className="md:hidden bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden mt-2">
+                  <Paginador {...paginacionUnidades} />
                 </div>
               </>
             )}

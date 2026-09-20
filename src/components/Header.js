@@ -56,8 +56,10 @@ export default function Header({ transparent = false }) {
   }, [transparent])
 
   // "claro" = header flotando sobre fondo oscuro (hero) sin haber hecho scroll todavía —
-  // logo y texto de navegación necesitan la variante clara en este estado.
-  const claro = transparent && !scrolled
+  // logo y texto de navegación necesitan la variante clara en este estado. Con el menú
+  // móvil abierto se fuerza a sólido siempre, para no dejar ver el hero (transparente)
+  // asomando en la franja del header justo encima del drawer blanco del menú.
+  const claro = transparent && !scrolled && !menuAbierto
 
   const navLinks = [
     { name: 'Inicio', href: '/' },
@@ -67,6 +69,7 @@ export default function Header({ transparent = false }) {
   ]
 
   return (
+    <>
     <header className={`${transparent ? 'fixed' : 'sticky'} top-0 w-full z-50 transition-all duration-300 ${
       claro ? 'bg-transparent' : 'bg-white/95 backdrop-blur-md border-b border-slate-200/80 shadow-sm'
     }`}>
@@ -135,43 +138,48 @@ export default function Header({ transparent = false }) {
           </button>
         </div>
       </div>
-
-      {/* Mobile dropdown */}
-      {menuAbierto && (
-        <div className="lg:hidden border-t px-5 py-5 space-y-3.5 bg-white border-slate-100 shadow-xl">
-          {navLinks.map((link) => (
-            <Link
-              key={link.href}
-              href={link.href}
-              onClick={() => setMenuAbierto(false)}
-              className={`block text-sm font-semibold py-1.5 px-3 rounded-lg ${pathname === link.href
-                ? 'text-blue-700 font-bold bg-blue-50'
-                : 'text-slate-700 hover:bg-slate-50'
-                }`}
-            >
-              {link.name}
-            </Link>
-          ))}
-          <div className="pt-2 flex flex-col gap-2.5">
-            <a
-              href="https://wa.me/573103861480?text=Hola,%20requiero%20información%20sobre%20el%20catálogo%20de%20productos"
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={() => setMenuAbierto(false)}
-              className="w-full h-11 rounded-full text-xs font-bold text-white bg-[#25D366] hover:bg-[#128C7E] flex items-center justify-center gap-2 shadow-md"
-            >
-              <WhatsappIcon size={18} /> Consultar catalogo
-            </a>
-            <Link
-              href="/admin/login"
-              onClick={() => setMenuAbierto(false)}
-              className="w-full h-11 rounded-full text-xs font-bold text-white bg-[#D81B43] flex items-center justify-center shadow-md"
-            >
-              Acceso del Personal
-            </Link>
-          </div>
-        </div>
-      )}
     </header>
+
+    {/* Mobile dropdown — drawer de pantalla completa, renderizado FUERA de <header> a propósito:
+        si el header lleva backdrop-blur (estado sólido), ese backdrop-filter crea un nuevo
+        "containing block" para descendientes fixed, y el drawer terminaba anclado al recuadro
+        de 80px del header en vez de a todo el viewport (bug real, encontrado midiendo con
+        getComputedStyle, no a simple vista) — como hermano de <header> queda inmune a eso. */}
+    {menuAbierto && (
+      <div className="lg:hidden fixed inset-x-0 top-20 bottom-0 overflow-y-auto border-t px-5 py-5 space-y-3.5 bg-white border-slate-100 shadow-xl z-40">
+        {navLinks.map((link) => (
+          <Link
+            key={link.href}
+            href={link.href}
+            onClick={() => setMenuAbierto(false)}
+            className={`block text-sm font-semibold py-1.5 px-3 rounded-lg ${pathname === link.href
+              ? 'text-blue-700 font-bold bg-blue-50'
+              : 'text-slate-700 hover:bg-slate-50'
+              }`}
+          >
+            {link.name}
+          </Link>
+        ))}
+        <div className="pt-2 flex flex-col gap-2.5">
+          <a
+            href="https://wa.me/573103861480?text=Hola,%20requiero%20información%20sobre%20el%20catálogo%20de%20productos"
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={() => setMenuAbierto(false)}
+            className="w-full h-11 rounded-full text-xs font-bold text-white bg-[#25D366] hover:bg-[#128C7E] flex items-center justify-center gap-2 shadow-md"
+          >
+            <WhatsappIcon size={18} /> Consultar catalogo
+          </a>
+          <Link
+            href="/admin/login"
+            onClick={() => setMenuAbierto(false)}
+            className="w-full h-11 rounded-full text-xs font-bold text-white bg-[#D81B43] flex items-center justify-center shadow-md"
+          >
+            Acceso del Personal
+          </Link>
+        </div>
+      </div>
+    )}
+    </>
   )
 }

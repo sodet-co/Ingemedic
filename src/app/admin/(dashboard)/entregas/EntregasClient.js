@@ -638,7 +638,7 @@ export default function EntregasClient({ entregasIniciales, ordenesEnReparto, es
         )}
       </div>
 
-      <div className="flex-1 overflow-hidden flex flex-col p-4 md:p-6 gap-4">
+      <div className="flex-1 overflow-hidden flex flex-col p-3 md:p-6 pb-28 md:pb-6 gap-4">
         {/* Stats — en móvil, chips compactos con scroll horizontal (siguen filtrando); en desktop, cards */}
         <div className="flex-shrink-0">
           {/* Móvil: chips */}

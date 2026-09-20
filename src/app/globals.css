@@ -40,6 +40,18 @@ input, select, textarea {
   color: #1E293B;
 }
 
+/* ── ENTRADA DEL PANEL DE DETALLE (master-detail: Clientes/Pacientes/Préstamos) ──
+   Animación (no transición) para que se dispare sola al montar el panel, sin
+   necesitar un segundo render con clase distinta. */
+@keyframes panel-detalle-in {
+  from { opacity: 0; transform: translateX(12px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+.animate-panel-detalle {
+  animation: panel-detalle-in 0.25s ease-out;
+}
+
 /* ── TRANSICIÓN 3D COVERFLOW PERSPECTIVA ── */
 
 .carousel-perspective-container {

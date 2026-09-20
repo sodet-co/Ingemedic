@@ -6,11 +6,15 @@ import { createClient } from '@/lib/supabase'
 import { paraGuardar, paraInput, formatear, formatearSoloFecha, hoyBogota } from '@/lib/fechas'
 import { IconoTipo } from '@/components/inventario/IconoTipo'
 import ConfirmDialog from '@/components/ui/ConfirmDialog'
+import ModalDevolucion from '@/components/entregas/ModalDevolucion'
+import Paginador from '@/components/ui/Paginador'
+import { devolverEquipo as devolverEquipoLib } from '@/lib/prestamos'
 import { useOrdenable } from '@/hooks/useOrdenable'
+import { usePaginacion } from '@/hooks/usePaginacion'
 import {
   Plus, X, Search, FileText, CheckCircle2, Package,
   AlertTriangle, Calendar, Clock, User, Edit3, Truck, ChevronRight, ChevronLeft,
-  Building, Box, Layers, Trash2, Check, Ban
+  Building, Layers, Trash2, Check, Ban
 } from 'lucide-react'
 
 const E = {
@@ -209,6 +213,14 @@ export default function OrdenesClient({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ordenes])
 
+  // ESC cierra el detalle abierto — mismo patrón que Clientes/Pacientes
+  useEffect(() => {
+    if (!drawer) return
+    const onEsc = e => { if (e.key === 'Escape') setDrawer(null) }
+    window.addEventListener('keydown', onEsc)
+    return () => window.removeEventListener('keydown', onEsc)
+  }, [drawer])
+
   const [vista, setVista]                   = useState('lista') // 'lista' | 'nuevo'
   const [seccion1Completa, setSeccion1Completa] = useState(false)
   const [seccion2Completa, setSeccion2Completa] = useState(false)
@@ -402,6 +414,8 @@ export default function OrdenesClient({
   }, [ordenes, search, tabPrincipal, filtroEstadoDetalle, filtroCliente, filtroMarca, filtroCategoria])
 
   const { itemsOrdenados: ordenesOrdenadas, config: configOrdenes, solicitarOrden: solicitarOrdenOrdenes } = useOrdenable(ordenesFiltradas)
+  const paginacionOrdenes = usePaginacion(ordenesOrdenadas, 20)
+  const ordenesPagina = paginacionOrdenes.itemsPagina
 
   // ── ABRIR DRAWER ────────────────────────────────────────
   function abrirDrawer(orden) {
@@ -720,38 +734,12 @@ export default function OrdenesClient({
   }
 
   async function devolverEquipo(ordenEquipoId, equipoId, fechaDevolucion, observaciones) {
-    const { error } = await supabase.from('orden_equipos')
-      .update({
-        fecha_devolucion:          paraGuardar(fechaDevolucion),
-        observaciones_devolucion: observaciones || null,
-      })
-      .eq('id', ordenEquipoId)
+    const { error, todosDevueltos } = await devolverEquipoLib({
+      supabase, ordenEquipoId, equipoId, ordenId: drawer.id, fechaDevolucion, observaciones,
+    })
     if (error) { showToast('Error: ' + error.message, 'error'); return }
 
-    const estadoDisponible = (estadosEquipo || []).find(e => e.nombre === 'Disponible')
-    if (estadoDisponible) {
-      await supabase.from('equipos').update({
-        estado_id:          estadoDisponible.id,
-        paciente_actual_id: null,
-        cliente_actual_id:  null,
-      }).eq('id', equipoId)
-    }
-
-    const { data: todos } = await supabase.from('orden_equipos')
-      .select('fecha_devolucion').eq('orden_id', drawer.id)
-    const todosDevueltos = todos?.every(oe => oe.fecha_devolucion !== null) ?? false
-
-    if (todosDevueltos) {
-      const estadoFinalizada = estados.find(e => e.nombre === 'Finalizada')
-      if (estadoFinalizada) {
-        await supabase.from('ordenes_servicio')
-          .update({ estado_id: estadoFinalizada.id }).eq('id', drawer.id)
-      }
-      showToast('Todos los equipos devueltos — préstamo finalizado')
-    } else {
-      showToast('Equipo devuelto')
-    }
-
+    showToast(todosDevueltos ? 'Todos los equipos devueltos — préstamo finalizado' : 'Equipo devuelto')
     setModalDevolucion(null)
     router.refresh()
   }
@@ -846,247 +834,556 @@ export default function OrdenesClient({
 
       <div className="flex-1 overflow-hidden flex flex-col">
       {vista === 'lista' && (
-        <>
-        <div className="p-3 md:p-6 pb-3 md:pb-4 flex-shrink-0">
-          {/* Stats — solo desktop */}
-          <div className="hidden md:grid md:grid-cols-3 gap-4 mb-5">
-            {[
-              { label: 'Total préstamos', value: stats.total,            color: '#1E293B', iconBg: '#F1F5F9', icon: <Box size={16} color="#64748B" /> },
-              { label: 'En curso',        value: bucketCounts.en_curso,  color: '#1D4ED8', iconBg: '#EFF6FF', icon: <Clock size={16} color="#1D4ED8" /> },
-              { label: 'Finalizados',     value: bucketCounts.historial, color: '#0F7B55', iconBg: '#ECFDF5', icon: <CheckCircle2 size={16} color="#0F7B55" /> },
-            ].map(s => (
-              <div key={s.label} className="bg-white rounded-xl border border-slate-200 shadow-sm flex items-center gap-4 p-4"
-                style={{ borderLeft: `3px solid ${s.color}` }}>
-                <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: s.iconBg }}>
-                  {s.icon}
+        <div className="flex-1 overflow-hidden flex flex-col p-3 md:p-6 pb-28 md:pb-6">
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col flex-1 min-h-0">
+
+          {/* FRANJA 1 — Filtros, SIEMPRE fija, nunca cambia con la selección */}
+          <div className="p-3 md:p-6 pb-3 md:pb-4 flex-shrink-0 border-b border-slate-200">
+              <div className="flex flex-col gap-2 md:flex-row md:items-center md:gap-3">
+                <div className="relative flex-1 md:max-w-[340px]">
+                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input value={search} onChange={e => setSearch(e.target.value)}
+                    placeholder="Buscar por código o cliente..."
+                    className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-[9px] text-[13px] outline-none focus:border-[#D81B43] bg-white" />
                 </div>
-                <div>
-                  <div className="text-2xl font-extrabold tabular-nums leading-none" style={{ color: s.color }}>{s.value}</div>
-                  <div className="text-[11.5px] text-slate-400 mt-1">{s.label}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Filtros */}
-          <div className="flex flex-col gap-2 md:flex-row md:items-center md:gap-3">
-            <div className="relative flex-1 md:max-w-[340px]">
-              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input value={search} onChange={e => setSearch(e.target.value)}
-                placeholder="Buscar por código o cliente..."
-                className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-[9px] text-[13px] outline-none focus:border-[#D81B43] bg-white" />
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="flex items-center gap-2 overflow-x-auto flex-1">
-                {[
-                  { key: 'todos',    label: 'Todos'    },
-                  { key: 'en_curso', label: 'En curso' },
-                  { key: 'historial',label: 'Historial'},
-                ].map(t => (
-                  <button key={t.key} onClick={() => setTabPrincipal(t.key)}
-                    className={`px-3 py-1.5 rounded-full text-[12px] font-medium transition-all whitespace-nowrap ${
-                      tabPrincipal === t.key
-                        ? 'bg-[#D81B43] text-white'
-                        : 'bg-white border border-slate-200 text-slate-500 hover:border-[#D81B43] hover:text-[#D81B43]'
-                    }`}>
-                    {t.label}
-                    <span className="ml-1 text-[10.5px] opacity-70">({bucketCounts[t.key]})</span>
-                  </button>
-                ))}
-              </div>
-              <div className="hidden md:block text-[12px] text-slate-400 flex-shrink-0 md:ml-auto">
-                {ordenesFiltradas.length} préstamo{ordenesFiltradas.length !== 1 ? 's' : ''}
-              </div>
-            </div>
-
-            {/* Panel de filtros */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-3">
-              <select value={filtroEstadoDetalle} onChange={e => setFiltroEstadoDetalle(e.target.value)}
-                className="w-full px-3 py-2 border border-slate-200 rounded-[9px] text-[12.5px] text-slate-700 outline-none focus:border-[#D81B43] bg-white h-[38px]">
-                <option value="">Estado</option>
-                {opcionesEstado.map(e => <option key={e} value={e}>{e}</option>)}
-              </select>
-              <select value={filtroCliente} onChange={e => setFiltroCliente(e.target.value)}
-                className="w-full px-3 py-2 border border-slate-200 rounded-[9px] text-[12.5px] text-slate-700 outline-none focus:border-[#D81B43] bg-white h-[38px]">
-                <option value="">Cliente</option>
-                {opcionesCliente.map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
-              <select value={filtroMarca} onChange={e => setFiltroMarca(e.target.value)}
-                className="w-full px-3 py-2 border border-slate-200 rounded-[9px] text-[12.5px] text-slate-700 outline-none focus:border-[#D81B43] bg-white h-[38px]">
-                <option value="">Tipo de equipo</option>
-                {opcionesMarca.map(m => <option key={m} value={m}>{m}</option>)}
-              </select>
-              <select value={filtroCategoria} onChange={e => setFiltroCategoria(e.target.value)}
-                className="w-full px-3 py-2 border border-slate-200 rounded-[9px] text-[12.5px] text-slate-700 outline-none focus:border-[#D81B43] bg-white h-[38px]">
-                <option value="">Categoría</option>
-                {opcionesCategoria.map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
-            </div>
-          </div>
-        </div>
-
-        {/* Lista */}
-        <div className="flex-1 overflow-y-auto px-3 md:px-6 pb-28 md:pb-6">
-          {ordenesFiltradas.length === 0 ? (
-            <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-              <div className="text-center py-16 text-slate-400">
-                <FileText className="w-12 h-12 mx-auto mb-3 opacity-20" />
-                <div className="font-semibold mb-1">
-                  {search || filtroEstadoDetalle || filtroCliente || filtroMarca ? 'Sin resultados' : (
-                    tabPrincipal === 'todos'    ? 'Sin préstamos registrados' :
-                    tabPrincipal === 'en_curso' ? 'Sin préstamos en curso' :
-                    'Sin préstamos en historial'
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 overflow-x-auto flex-1">
+                    {[
+                      { key: 'todos',    label: 'Todos'    },
+                      { key: 'en_curso', label: 'En curso' },
+                      { key: 'historial',label: 'Historial'},
+                    ].map(t => (
+                      <button key={t.key} onClick={() => setTabPrincipal(t.key)}
+                        className={`px-3 py-1.5 rounded-full text-[12px] font-medium transition-all whitespace-nowrap ${
+                          tabPrincipal === t.key
+                            ? 'bg-[#D81B43] text-white'
+                            : 'bg-white border border-slate-200 text-slate-500 hover:border-[#D81B43] hover:text-[#D81B43]'
+                        }`}>
+                        {t.label}
+                        <span className="ml-1 text-[10.5px] opacity-70">({bucketCounts[t.key]})</span>
+                      </button>
+                    ))}
+                  </div>
+                  {!drawer && (
+                    <div className="hidden md:block text-[12px] text-slate-400 flex-shrink-0 md:ml-auto">
+                      {ordenesFiltradas.length} préstamo{ordenesFiltradas.length !== 1 ? 's' : ''}
+                    </div>
                   )}
                 </div>
-                <div className="text-[13px]">
-                  {search || filtroEstadoDetalle || filtroCliente || filtroMarca ? 'Intenta con otros filtros' :
-                   tabPrincipal === 'todos'    ? 'Usa "Nuevo préstamo" para registrar uno' :
-                   tabPrincipal === 'en_curso' ? 'Usa "Nuevo préstamo" para registrar uno' :
-                   'Los préstamos finalizados aparecerán aquí'}
+
+                {/* Panel de filtros */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-3">
+                  <select value={filtroEstadoDetalle} onChange={e => setFiltroEstadoDetalle(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-[9px] text-[12.5px] text-slate-700 outline-none focus:border-[#D81B43] bg-white h-[38px]">
+                    <option value="">Estado</option>
+                    {opcionesEstado.map(e => <option key={e} value={e}>{e}</option>)}
+                  </select>
+                  <select value={filtroCliente} onChange={e => setFiltroCliente(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-[9px] text-[12.5px] text-slate-700 outline-none focus:border-[#D81B43] bg-white h-[38px]">
+                    <option value="">Cliente</option>
+                    {opcionesCliente.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                  <select value={filtroMarca} onChange={e => setFiltroMarca(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-[9px] text-[12.5px] text-slate-700 outline-none focus:border-[#D81B43] bg-white h-[38px]">
+                    <option value="">Tipo de equipo</option>
+                    {opcionesMarca.map(m => <option key={m} value={m}>{m}</option>)}
+                  </select>
+                  <select value={filtroCategoria} onChange={e => setFiltroCategoria(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-[9px] text-[12.5px] text-slate-700 outline-none focus:border-[#D81B43] bg-white h-[38px]">
+                    <option value="">Categoría</option>
+                    {opcionesCategoria.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
                 </div>
               </div>
             </div>
-          ) : (
-            <>
-              {/* Cards móvil */}
-              <div className="md:hidden space-y-2">
-                {ordenesFiltradas.map(o => {
-                  const retrasada  = estaRetrasada(o)
-                  const incompleta = estaIncompleta(o)
-                  return (
-                    <div key={o.id} onClick={() => abrirDrawer(o)}
-                      className={`bg-white rounded-xl border shadow-sm p-4 cursor-pointer active:bg-slate-50 transition-colors ${
-                        retrasada  ? 'border-l-4 border-l-[#D81B43] border-slate-200' :
-                        incompleta ? 'border-l-4 border-l-[#B45309] border-slate-200' : 'border-slate-200'
-                      }`}>
-                      <div className="flex items-start justify-between gap-2 mb-2">
-                        <div>
-                          <span className="font-mono text-[12.5px] font-bold bg-slate-100 text-slate-700 px-2 py-0.5 rounded">
-                            {o.codigo || '—'}
-                          </span>
-                          <div className="text-[13px] font-semibold text-slate-700 mt-1 truncate max-w-[200px]">
-                            {o.cliente?.nombre || '—'}
-                          </div>
-                        </div>
-                        <EstadoBadge orden={o} retrasada={retrasada} />
-                      </div>
-                      <div className="flex items-center justify-between text-[11.5px] text-slate-400">
-                        <span>{o.repartidor?.nombre || <span className="text-[#B45309]">Sin repartidor</span>}</span>
-                        {o.fecha_entrega && (
-                          <span className={retrasada ? 'text-[#D81B43] font-semibold' : ''}>
-                            {formatear(o.fecha_entrega, { month: '2-digit', hour: '2-digit', minute: '2-digit' })}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
 
-              {/* Tabla desktop */}
-              <div className="hidden md:block bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                <table className="w-full border-collapse">
-                  <thead>
-                    <tr className="border-b-2 border-slate-100">
-                      {[
-                        { label: 'Cliente', clave: 'cliente', accessor: o => o.cliente?.nombre || '' },
-                        { label: 'Paciente', clave: 'paciente', accessor: o => o.paciente?.nombre || '' },
-                        { label: 'Equipo', clave: null },
-                        { label: 'Estado', clave: 'estado', accessor: o => o.estado?.nombre || '' },
-                        { label: 'Dirección', clave: null },
-                        { label: 'Fecha entrega', clave: 'fecha_entrega', accessor: o => o.fecha_entrega ? new Date(o.fecha_entrega).getTime() : null },
-                        { label: 'Docs', clave: null },
-                        { label: '', clave: null },
-                      ].map(col => (
-                        <th key={col.label || 'acciones'}
-                          onClick={col.clave ? () => solicitarOrdenOrdenes(col.clave, col.accessor) : undefined}
-                          className={`px-4 py-3 text-left text-[10.5px] font-bold uppercase tracking-[0.07em] text-slate-400 bg-slate-50 whitespace-nowrap ${col.clave ? 'cursor-pointer select-none hover:bg-slate-100 transition-colors' : ''}`}>
-                          <div className="flex items-center gap-1">
-                            {col.label}
-                            {configOrdenes?.clave === col.clave && (
-                              <span className="text-[10px]">{configOrdenes.direccion === 'asc' ? '▲' : '▼'}</span>
-                            )}
-                          </div>
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {ordenesOrdenadas.map(o => {
-                      const nEquipos   = o.equipos?.length || 0
+          {/* FRANJA 2 — aquí ocurre toda la transición: lista + panel */}
+          <div className="flex flex-1 overflow-hidden flex-col md:flex-row">
+
+            {/* Columna lista — SIEMPRE montada; solo cambia de ancho (100% ↔ 380px) según haya o no detalle abierto */}
+            <div className={`${drawer ? 'hidden md:flex' : 'flex'} flex-col overflow-hidden transition-all duration-300 w-full ${drawer ? 'md:w-[380px] md:flex-shrink-0 md:border-r md:border-slate-200' : ''}`}>
+
+              {/* Lista/tabla — un solo contenedor de scroll; adentro cambia cómo se pinta cada fila según el ancho disponible */}
+              <div className="flex-1 overflow-y-auto px-3 md:px-6 pt-3 md:pt-6 pb-28 md:pb-6">
+              {ordenesFiltradas.length === 0 ? (
+                <div className="text-center py-16 text-slate-400">
+                    <FileText className="w-12 h-12 mx-auto mb-3 opacity-20" />
+                    <div className="font-semibold mb-1">
+                      {search || filtroEstadoDetalle || filtroCliente || filtroMarca ? 'Sin resultados' : (
+                        tabPrincipal === 'todos'    ? 'Sin préstamos registrados' :
+                        tabPrincipal === 'en_curso' ? 'Sin préstamos en curso' :
+                        'Sin préstamos en historial'
+                      )}
+                    </div>
+                    <div className="text-[13px]">
+                      {search || filtroEstadoDetalle || filtroCliente || filtroMarca ? 'Intenta con otros filtros' :
+                       tabPrincipal === 'todos'    ? 'Usa "Nuevo préstamo" para registrar uno' :
+                       tabPrincipal === 'en_curso' ? 'Usa "Nuevo préstamo" para registrar uno' :
+                       'Los préstamos finalizados aparecerán aquí'}
+                    </div>
+                  </div>
+              ) : drawer ? (
+                /* Lista compacta — solo se ve cuando la columna está angosta (detalle abierto) */
+                <div className="-mx-3 md:-mx-6">
+                  {ordenesFiltradas.map(o => {
+                    const retrasada = estaRetrasada(o)
+                    return (
+                      <div key={o.id} onClick={() => abrirDrawer(o)}
+                        className={`px-4 py-3 border-b border-slate-100 cursor-pointer transition-colors ${drawer?.id === o.id ? 'bg-[#FFF0F3] border-l-[3px] border-l-[#D81B43]' : 'hover:bg-slate-50'}`}>
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-mono text-[12px] font-bold text-slate-700">{o.codigo || '—'}</span>
+                          <EstadoBadge orden={o} retrasada={retrasada} />
+                        </div>
+                        <div className="text-[12.5px] font-semibold text-slate-700 truncate mt-0.5">{o.cliente?.nombre || '—'}</div>
+                      </div>
+                    )
+                  })}
+                </div>
+              ) : (
+                <>
+                  {/* Cards móvil */}
+                  <div className="md:hidden space-y-2">
+                    {ordenesPagina.map(o => {
                       const retrasada  = estaRetrasada(o)
                       const incompleta = estaIncompleta(o)
                       return (
-                        <tr key={o.id} onClick={() => abrirDrawer(o)}
-                          className={`border-b border-slate-100 hover:bg-slate-50 transition-colors cursor-pointer ${
-                            retrasada  ? 'border-l-4 border-l-[#D81B43]' :
-                            incompleta ? 'border-l-4 border-l-[#B45309] opacity-70' : ''
+                        <div key={o.id} onClick={() => abrirDrawer(o)}
+                          className={`bg-white rounded-xl border shadow-sm p-4 cursor-pointer active:bg-slate-50 transition-colors ${
+                            retrasada  ? 'border-l-4 border-l-[#D81B43] border-slate-200' :
+                            incompleta ? 'border-l-4 border-l-[#B45309] border-slate-200' : 'border-slate-200'
                           }`}>
-                          <td className="px-4 py-3">
-                            <div className="flex items-center gap-2.5">
-                              <div className="w-8 h-8 rounded-full bg-[#D81B43]/10 flex items-center justify-center text-[12px] font-bold text-[#D81B43] flex-shrink-0">
-                                {o.cliente?.nombre?.charAt(0)?.toUpperCase() || '?'}
-                              </div>
-                              <div>
-                                <div className="text-[13px] font-semibold text-slate-700">{o.cliente?.nombre || '—'}</div>
-                                <div className="text-[11px] font-mono text-slate-400">{o.codigo || '—'}</div>
+                          <div className="flex items-start justify-between gap-2 mb-2">
+                            <div>
+                              <span className="font-mono text-[12.5px] font-bold bg-slate-100 text-slate-700 px-2 py-0.5 rounded">
+                                {o.codigo || '—'}
+                              </span>
+                              <div className="text-[13px] font-semibold text-slate-700 mt-1 truncate max-w-[200px]">
+                                {o.cliente?.nombre || '—'}
                               </div>
                             </div>
-                          </td>
-                          <td className="px-4 py-3">
-                            {o.paciente?.nombre
-                              ? <span className="text-[12.5px] font-semibold text-slate-700 leading-snug">{o.paciente.nombre}</span>
-                              : <span className="text-slate-300 text-[12.5px]">—</span>}
-                          </td>
-                          <td className="px-4 py-3">
-                            {nEquipos === 0 ? <span className="text-slate-300 text-[12.5px]">—</span> :
-                             nEquipos === 1 ? (
-                               <div>
-                                 <div className="text-[12.5px] font-semibold text-slate-700 leading-tight">{nombreEquipo(o.equipos[0]?.equipo)}</div>
-                                 <div className="text-[11px] text-slate-400 mt-0.5">
-                                   {[o.equipos[0]?.equipo?.tipo_equipo?.nombre, o.equipos[0]?.equipo?.codigo].filter(Boolean).join(' · ')}
-                                 </div>
-                               </div>
-                             ) : (
-                               <div>
-                                 <div className="text-[12.5px] font-semibold text-slate-700 leading-tight">{nEquipos} equipos</div>
-                                 <div className="text-[11px] text-slate-400 mt-0.5 truncate max-w-[160px]">
-                                   {o.equipos.map(oe => nombreEquipo(oe.equipo)).join(', ')}
-                                 </div>
-                               </div>
-                             )}
-                          </td>
-                          <td className="px-4 py-3">
                             <EstadoBadge orden={o} retrasada={retrasada} />
-                          </td>
-                          <td className="px-4 py-3 text-[12.5px]">
-                            {o.paciente?.direccion
-                              ? <span className="text-slate-500 leading-snug">{o.paciente.direccion}</span>
-                              : <span className="text-slate-300">—</span>}
-                          </td>
-                          <td className="px-4 py-3">
-                            {o.fecha_entrega
-                              ? <span className={`text-[12px] font-mono ${retrasada ? 'text-[#D81B43] font-bold' : 'text-slate-400'}`}>
-                                  {formatear(o.fecha_entrega, { month: '2-digit' })}
-                                </span>
-                              : <span className="text-[#B45309] text-[11.5px]">Sin programar</span>}
-                          </td>
-                          <td className="px-4 py-3">
-                            <span className="flex items-center gap-1 text-[12px] text-slate-400">
-                              <FileText size={12} />{o.plantillas?.length || 0}
-                            </span>
-                          </td>
-                          <td className="px-3 py-3 text-slate-300"><ChevronRight size={14} /></td>
-                        </tr>
+                          </div>
+                          <div className="flex items-center justify-between text-[11.5px] text-slate-400">
+                            <span>{o.repartidor?.nombre || <span className="text-[#B45309]">Sin repartidor</span>}</span>
+                            {o.fecha_entrega && (
+                              <span className={retrasada ? 'text-[#D81B43] font-semibold' : ''}>
+                                {formatear(o.fecha_entrega, { month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                              </span>
+                            )}
+                          </div>
+                        </div>
                       )
                     })}
-                  </tbody>
-                </table>
+                  </div>
+
+                  {/* Tabla desktop */}
+                  <div className="hidden md:block">
+                    <table className="w-full border-collapse">
+                      <thead>
+                        <tr className="border-b-2 border-slate-100">
+                          {[
+                            { label: 'Cliente', clave: 'cliente', accessor: o => o.cliente?.nombre || '' },
+                            { label: 'Paciente', clave: 'paciente', accessor: o => o.paciente?.nombre || '' },
+                            { label: 'Equipo', clave: null },
+                            { label: 'Estado', clave: 'estado', accessor: o => o.estado?.nombre || '' },
+                            { label: 'Dirección', clave: null },
+                            { label: 'Fecha entrega', clave: 'fecha_entrega', accessor: o => o.fecha_entrega ? new Date(o.fecha_entrega).getTime() : null },
+                            { label: 'Docs', clave: null },
+                            { label: '', clave: null },
+                          ].map(col => (
+                            <th key={col.label || 'acciones'}
+                              onClick={col.clave ? () => solicitarOrdenOrdenes(col.clave, col.accessor) : undefined}
+                              className={`px-4 py-3 text-left text-[10.5px] font-bold uppercase tracking-[0.07em] text-slate-400 bg-slate-50 whitespace-nowrap ${col.clave ? 'cursor-pointer select-none hover:bg-slate-100 transition-colors' : ''}`}>
+                              <div className="flex items-center gap-1">
+                                {col.label}
+                                {configOrdenes?.clave === col.clave && (
+                                  <span className="text-[10px]">{configOrdenes.direccion === 'asc' ? '▲' : '▼'}</span>
+                                )}
+                              </div>
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {ordenesPagina.map(o => {
+                          const nEquipos   = o.equipos?.length || 0
+                          const retrasada  = estaRetrasada(o)
+                          const incompleta = estaIncompleta(o)
+                          return (
+                            <tr key={o.id} onClick={() => abrirDrawer(o)}
+                              className={`border-b border-slate-100 hover:bg-slate-50 transition-colors cursor-pointer ${
+                                retrasada  ? 'border-l-4 border-l-[#D81B43]' :
+                                incompleta ? 'border-l-4 border-l-[#B45309] opacity-70' : ''
+                              }`}>
+                              <td className="px-4 py-3">
+                                <div className="flex items-center gap-2.5">
+                                  <div className="w-8 h-8 rounded-full bg-[#D81B43]/10 flex items-center justify-center text-[12px] font-bold text-[#D81B43] flex-shrink-0">
+                                    {o.cliente?.nombre?.charAt(0)?.toUpperCase() || '?'}
+                                  </div>
+                                  <div>
+                                    <div className="text-[13px] font-semibold text-slate-700">{o.cliente?.nombre || '—'}</div>
+                                    <div className="text-[11px] font-mono text-slate-400">{o.codigo || '—'}</div>
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="px-4 py-3">
+                                {o.paciente?.nombre
+                                  ? <span className="text-[12.5px] font-semibold text-slate-700 leading-snug">{o.paciente.nombre}</span>
+                                  : <span className="text-slate-300 text-[12.5px]">—</span>}
+                              </td>
+                              <td className="px-4 py-3">
+                                {nEquipos === 0 ? <span className="text-slate-300 text-[12.5px]">—</span> :
+                                 nEquipos === 1 ? (
+                                   <div>
+                                     <div className="text-[12.5px] font-semibold text-slate-700 leading-tight">{nombreEquipo(o.equipos[0]?.equipo)}</div>
+                                     <div className="text-[11px] text-slate-400 mt-0.5">
+                                       {[o.equipos[0]?.equipo?.tipo_equipo?.nombre, o.equipos[0]?.equipo?.codigo].filter(Boolean).join(' · ')}
+                                     </div>
+                                   </div>
+                                 ) : (
+                                   <div>
+                                     <div className="text-[12.5px] font-semibold text-slate-700 leading-tight">{nEquipos} equipos</div>
+                                     <div className="text-[11px] text-slate-400 mt-0.5 truncate max-w-[160px]">
+                                       {o.equipos.map(oe => nombreEquipo(oe.equipo)).join(', ')}
+                                     </div>
+                                   </div>
+                                 )}
+                              </td>
+                              <td className="px-4 py-3">
+                                <EstadoBadge orden={o} retrasada={retrasada} />
+                              </td>
+                              <td className="px-4 py-3 text-[12.5px]">
+                                {o.paciente?.direccion
+                                  ? <span className="text-slate-500 leading-snug">{o.paciente.direccion}</span>
+                                  : <span className="text-slate-300">—</span>}
+                              </td>
+                              <td className="px-4 py-3">
+                                {o.fecha_entrega
+                                  ? <span className={`text-[12px] font-mono ${retrasada ? 'text-[#D81B43] font-bold' : 'text-slate-400'}`}>
+                                      {formatear(o.fecha_entrega, { month: '2-digit' })}
+                                    </span>
+                                  : <span className="text-[#B45309] text-[11.5px]">Sin programar</span>}
+                              </td>
+                              <td className="px-4 py-3">
+                                <span className="flex items-center gap-1 text-[12px] text-slate-400">
+                                  <FileText size={12} />{o.plantillas?.length || 0}
+                                </span>
+                              </td>
+                              <td className="px-3 py-3 text-slate-300"><ChevronRight size={14} /></td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                    <Paginador {...paginacionOrdenes} />
+                  </div>
+                  <div className="md:hidden mt-2">
+                    <Paginador {...paginacionOrdenes} />
+                  </div>
+                </>
+              )}
               </div>
-            </>
+            </div>
+
+            {/* Panel de detalle — aparece a la derecha sin reemplazar la columna de lista */}
+          {drawer && (
+            <div className="flex flex-col flex-1 overflow-hidden animate-panel-detalle">
+              {/* Header — blanco como Clientes */}
+              <div className="px-6 py-4 border-b border-slate-200 flex items-start justify-between flex-shrink-0">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-[#D81B43]/10 flex items-center justify-center text-[15px] font-bold text-[#D81B43] flex-shrink-0">
+                    {drawer.cliente?.nombre?.charAt(0)?.toUpperCase() || '?'}
+                  </div>
+                  <div>
+                    <div className="text-[15px] font-bold text-slate-800 leading-tight">{drawer.cliente?.nombre || '—'}</div>
+                    <div className="font-mono text-[11.5px] text-slate-400 mt-0.5">{drawer.codigo}</div>
+                  </div>
+                </div>
+                <button onClick={() => setDrawer(null)} title="Cerrar (ESC)" className="text-slate-400 hover:text-slate-600 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100">
+                  <X size={16} />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto divide-y divide-slate-100 pb-28 md:pb-6">
+
+                {/* Estado + timeline + acción */}
+                <div className="p-5">
+                  <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+                    <EstadoBadge orden={drawer} retrasada={drawerRetrasada} />
+                    <div className="flex items-center gap-2">
+                      {puedeFinalizarUnico && (
+                        <button onClick={() => abrirModalDevolucion(equiposDrawer[0])}
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-[#D81B43] text-white text-[12px] font-semibold rounded-[7px] hover:bg-[#B0172F]">
+                          <CheckCircle2 size={13} /> Finalizar préstamo
+                        </button>
+                      )}
+                      {transicion && !esUnicoEquipo && (
+                        <button onClick={() => setModalConfirm({ orden: drawer, transicion })}
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-[#D81B43] text-white text-[12px] font-semibold rounded-[7px] hover:bg-[#B0172F]">
+                          → {transicion.nombre}
+                        </button>
+                      )}
+                      {drawerEstado === 'En reparto' && (
+                        <span className="text-[12px] text-[#B45309] bg-[#FFFBEB] px-3 py-1.5 rounded-[7px] border border-[#F59E0B]/30 font-medium flex items-center gap-1.5">
+                          <Truck size={12} /> En ruta con el repartidor
+                        </span>
+                      )}
+                      {puedeCancelarOrden && (
+                        <button onClick={() => setModalCancelar(true)}
+                          className="flex items-center gap-1.5 px-3 py-1.5 border border-red-200 text-red-600 text-[12px] font-semibold rounded-[7px] hover:bg-red-50">
+                          <Ban size={13} /> Cancelar préstamo
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Aviso orden incompleta */}
+                  {drawerIncompleta && (
+                    <div className="mb-4 p-3 bg-[#FFFBEB] border border-[#F59E0B]/40 rounded-[9px]">
+                      <div className="text-[12.5px] font-semibold text-[#B45309] mb-1 flex items-center gap-1.5">
+                        <AlertTriangle size={13} /> Orden sin programar
+                      </div>
+                      <div className="text-[12px] text-[#B45309]/80 space-y-0.5">
+                        {!drawer.repartidor_id && <div>• Falta asignar repartidor</div>}
+                        {!drawer.fecha_entrega && <div>• Falta fecha y hora de entrega</div>}
+                      </div>
+                      <div className="text-[11.5px] text-slate-400 mt-2">
+                        Esta orden no aparecerá en Entregas hasta que tenga repartidor y fecha programada.
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Timeline visual */}
+                  <div className="flex items-start mt-3">
+                    {FLUJO.map((paso, i) => {
+                      const idx = FLUJO.indexOf(drawerEstado)
+                      const st  = i < idx ? 'done' : i === idx ? 'active' : 'pending'
+                      return (
+                        <div key={paso} className="flex-1 flex flex-col items-center relative">
+                          {i > 0 && (
+                            <div className={`absolute top-3 right-1/2 w-full h-0.5 ${st === 'done' || st === 'active' ? 'bg-[#D81B43]' : 'bg-slate-200'}`} />
+                          )}
+                          <div className={`w-6 h-6 rounded-full z-10 flex items-center justify-center flex-shrink-0 ${
+                            st === 'done'   ? 'bg-[#D81B43]' :
+                            st === 'active' ? 'bg-white border-2 border-[#D81B43]' :
+                            'bg-white border-2 border-slate-200'
+                          }`}>
+                            {st === 'done'   && <CheckCircle2 size={10} className="text-white" />}
+                            {st === 'active' && <div className="w-2 h-2 bg-[#D81B43] rounded-full" />}
+                          </div>
+                          <div className={`text-[9px] font-semibold mt-1 text-center leading-tight ${
+                            st === 'done' || st === 'active' ? 'text-[#D81B43]' : 'text-slate-400'
+                          }`}>{paso}</div>
+                        </div>
+                      )
+                    })}
+                  </div>
+
+                  {/* Alertas */}
+                  {drawerRetrasada && (
+                    <div className="mt-4 flex items-center gap-2 text-[12px] text-[#D81B43] bg-[#FEF2F2] px-3 py-2.5 rounded-[8px] border border-[#D81B43]/20">
+                      <AlertTriangle size={13} /> Entrega retrasada — la hora programada ya pasó
+                    </div>
+                  )}
+                  {drawerVencida && drawerEstado !== 'Finalizada' && (
+                    <div className="mt-3 flex items-center gap-2 text-[12px] text-red-500 bg-red-50 px-3 py-2.5 rounded-[8px] border border-red-200">
+                      <Clock size={13} /> Vigencia vencida
+                    </div>
+                  )}
+                </div>
+
+                {/* Repartidor — editable */}
+                <div className="p-5">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="text-[9.5px] font-bold uppercase tracking-[0.12em] text-slate-400">Repartidor</div>
+                    {puedeEdRep && !editRepartidor && (
+                      <button onClick={() => { setEditRepartidor(true); setNuevoRepartidor(drawer.repartidor_id || '') }}
+                        className="flex items-center gap-1 text-[11.5px] text-[#D81B43] font-semibold hover:underline">
+                        <Edit3 size={11} /> {drawer.repartidor ? 'Cambiar' : 'Asignar'}
+                      </button>
+                    )}
+                  </div>
+                  {!editRepartidor ? (
+                    <div className="flex items-center gap-2">
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[12px] font-bold flex-shrink-0 ${drawer.repartidor ? 'bg-[#D81B43]/10 text-[#D81B43]' : 'bg-slate-100 text-slate-400'}`}>
+                        {drawer.repartidor ? drawer.repartidor.nombre.charAt(0).toUpperCase() : <User size={14} />}
+                      </div>
+                      <div>
+                        <div className="text-[13.5px] font-semibold text-slate-700">{drawer.repartidor?.nombre || 'Sin asignar'}</div>
+                        {!drawer.repartidor && drawerEstado === 'Borrador' && (
+                          <div className="text-[11px] text-[#B45309]">Requerido para programar</div>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <select value={nuevoRepartidor} onChange={e => setNuevoRepartidor(e.target.value)} className={inputCls}>
+                        <option value="">Seleccionar...</option>
+                        {usuarios.map(u => <option key={u.id} value={u.id}>{u.nombre}</option>)}
+                      </select>
+                      <div className="flex gap-2">
+                        <button onClick={guardarRepartidor}
+                          className="flex-1 py-2 bg-[#D81B43] text-white rounded-[8px] text-[12.5px] font-semibold hover:bg-[#B0172F]">
+                          Guardar
+                        </button>
+                        <button onClick={() => setEditRepartidor(false)}
+                          className="flex-1 py-2 border border-slate-200 text-slate-500 rounded-[8px] text-[12.5px] hover:border-slate-300">
+                          Cancelar
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Fecha entrega — editable si está en Borrador/Programada */}
+                {['Borrador', 'Programada'].includes(drawerEstado) && (
+                  <div className="p-5">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="text-[9.5px] font-bold uppercase tracking-[0.12em] text-slate-400">Fecha y hora de entrega</div>
+                      {!editFecha && (
+                        <button onClick={() => { setEditFecha(true); setNuevaFecha(drawer.fecha_entrega ? paraInput(drawer.fecha_entrega) : '') }}
+                          className="flex items-center gap-1 text-[11.5px] text-[#D81B43] font-semibold hover:underline">
+                          <Edit3 size={11} /> {drawer.fecha_entrega ? 'Cambiar' : 'Programar'}
+                        </button>
+                      )}
+                    </div>
+                    {!editFecha ? (
+                      drawer.fecha_entrega
+                        ? <div className={`text-[13.5px] font-semibold ${drawerRetrasada ? 'text-[#D81B43]' : 'text-slate-700'}`}>
+                            {formatear(drawer.fecha_entrega, { month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                          </div>
+                        : <div className="text-[12.5px] text-[#B45309] font-medium flex items-center gap-1.5">
+                            <AlertTriangle size={12} /> Sin programar
+                          </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <input type="datetime-local" value={nuevaFecha}
+                          onChange={e => setNuevaFecha(e.target.value)} className={inputCls} />
+                        <div className="flex gap-2">
+                          <button onClick={guardarFecha}
+                            className="flex-1 py-2 bg-[#D81B43] text-white rounded-[8px] text-[12.5px] font-semibold hover:bg-[#B0172F]">
+                            Guardar
+                          </button>
+                          <button onClick={() => setEditFecha(false)}
+                            className="flex-1 py-2 border border-slate-200 text-slate-500 rounded-[8px] text-[12.5px] hover:border-slate-300">
+                            Cancelar
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Datos generales */}
+                <div className="p-5">
+                  <div className="text-[9.5px] font-bold uppercase tracking-[0.12em] text-slate-400 mb-3">Detalles</div>
+                  <div className="grid grid-cols-2 gap-3">
+                    {[
+                      { label: 'Cliente',        value: drawer.cliente?.nombre },
+                      { label: 'Paciente',       value: drawer.paciente?.nombre || '—' },
+                      { label: 'Domicilio',      value: drawer.repartidor_id ? 'Sí' : 'No' },
+                      { label: 'Recibido por',   value: drawer.recibido_por || '—' },
+                      { label: 'Fecha entrega',  value: formatear(drawer.fecha_entrega, { month: '2-digit', hour: '2-digit', minute: '2-digit' }) },
+                      { label: 'Vigencia',       value: formatearSoloFecha(drawer.fecha_vigencia) },
+                      { label: 'Fecha creación', value: formatear(drawer.fecha_creacion) },
+                    ].map(f => (
+                      <div key={f.label}>
+                        <div className="text-[10px] font-semibold uppercase text-slate-400 mb-1">{f.label}</div>
+                        <div className={`text-[13px] font-medium ${
+                          f.label === 'Vigencia' && drawerVencida ? 'text-red-500' :
+                          f.label === 'Fecha entrega' && drawerRetrasada ? 'text-[#D81B43]' :
+                          'text-slate-700'
+                        }`}>{f.value}</div>
+                      </div>
+                    ))}
+                    {drawer.observaciones && (
+                      <div className="col-span-2">
+                        <div className="text-[10px] font-semibold uppercase text-slate-400 mb-1">Observaciones</div>
+                        <div className="text-[13px] text-slate-600 italic">{drawer.observaciones}</div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Equipos — en grilla con ícono, mismo estilo que Cliente/Paciente */}
+                <div className="p-5">
+                  <div className="text-[9.5px] font-bold uppercase tracking-[0.12em] text-slate-400 mb-3">
+                    Equipos ({drawer.equipos?.length || 0})
+                  </div>
+                  {!drawer.equipos?.length
+                    ? <div className="text-[13px] text-slate-400">Sin equipos asociados</div>
+                    : <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {drawer.equipos.map(oe => {
+                          const devuelto = !!oe.fecha_devolucion
+                          return (
+                            <div key={oe.id} className="border border-slate-200 rounded-[10px] p-3 flex gap-3 items-start">
+                              <div className="w-12 h-12 rounded-[9px] bg-slate-50 border border-slate-200 flex items-center justify-center flex-shrink-0">
+                                <IconoTipo tipo={oe.equipo?.tipo_equipo} categorias={categorias} size={28} />
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-start justify-between gap-2">
+                                  <div className="text-[13px] font-bold text-slate-800 truncate">{nombreEquipo(oe.equipo)}</div>
+                                  {devuelto ? (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-bold bg-[#ECFDF5] text-[#0F7B55] flex-shrink-0">
+                                      <CheckCircle2 size={9} /> Devuelto
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-bold bg-[#E8F7FB] text-[#0E86A0] flex-shrink-0">
+                                      Activo
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="text-[11.5px] text-slate-400 truncate">{oe.equipo?.codigo}</div>
+                                {devuelto && (
+                                  <div className="text-[11px] text-slate-400 mt-1.5">
+                                    Devuelto el {formatear(oe.fecha_devolucion)}
+                                    {oe.observaciones_devolucion && (
+                                      <div className="italic mt-0.5">&ldquo;{oe.observaciones_devolucion}&rdquo;</div>
+                                    )}
+                                  </div>
+                                )}
+                                {!devuelto && !esUnicoEquipo && (
+                                  <div className="mt-1.5">
+                                    <button type="button" onClick={() => abrirModalDevolucion(oe)}
+                                      className="text-[11.5px] text-[#D81B43] font-semibold hover:underline">
+                                      Marcar como devuelto
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                  }
+                </div>
+
+                {/* Documentos */}
+                <div className="p-5">
+                  <div className="text-[9.5px] font-bold uppercase tracking-[0.12em] text-slate-400 mb-3">
+                    Documentos ({drawer.plantillas?.length || 0})
+                  </div>
+                  {!drawer.plantillas?.length
+                    ? <div className="text-[13px] text-slate-400">Sin documentos asignados</div>
+                    : <div className="space-y-2">
+                        {drawer.plantillas.map(op => (
+                          <div key={op.id} className="flex items-center gap-3 p-3 border border-slate-200 rounded-[9px]">
+                            <FileText size={14} className="text-slate-400 flex-shrink-0" />
+                            <div className="flex-1 text-[13px] font-medium text-slate-700">{op.plantilla?.nombre || '—'}</div>
+                            <span className={`text-[11px] font-semibold ${op.firmado ? 'text-[#0F7B55]' : 'text-slate-400'}`}>
+                              {op.firmado ? '✓ Firmado' : 'Pendiente'}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                  }
+                </div>
+              </div>
+            </div>
           )}
+          </div>
         </div>
-        </>
+        </div>
       )}
 
       {vista === 'nuevo' && (
@@ -1527,303 +1824,6 @@ export default function OrdenesClient({
       )}
       </div>
 
-      {/* ── DRAWER DETALLE OS ── */}
-      {drawer && (
-        <>
-          <div className="fixed inset-0 bg-black/30 z-[45] backdrop-blur-sm" onClick={() => setDrawer(null)} />
-          <div className="fixed inset-x-0 bottom-0 h-[92vh] rounded-t-2xl md:rounded-none md:inset-x-auto md:top-0 md:right-0 md:bottom-0 md:h-full md:w-[500px] bg-white z-[50] flex flex-col shadow-2xl">
-
-            {/* Header — blanco como Clientes */}
-            <div className="px-6 py-4 border-b border-slate-200 flex items-start justify-between flex-shrink-0">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-[#D81B43]/10 flex items-center justify-center text-[15px] font-bold text-[#D81B43] flex-shrink-0">
-                  {drawer.cliente?.nombre?.charAt(0)?.toUpperCase() || '?'}
-                </div>
-                <div>
-                  <div className="text-[15px] font-bold text-slate-800 leading-tight">{drawer.cliente?.nombre || '—'}</div>
-                  <div className="font-mono text-[11.5px] text-slate-400 mt-0.5">{drawer.codigo}</div>
-                </div>
-              </div>
-              <button onClick={() => setDrawer(null)} className="text-slate-400 hover:text-slate-600 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100">
-                <X size={16} />
-              </button>
-            </div>
-
-            <div className="flex-1 overflow-y-auto divide-y divide-slate-100">
-
-              {/* Estado + timeline + acción */}
-              <div className="p-5">
-                <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-                  <EstadoBadge orden={drawer} retrasada={drawerRetrasada} />
-                  <div className="flex items-center gap-2">
-                    {puedeFinalizarUnico && (
-                      <button onClick={() => abrirModalDevolucion(equiposDrawer[0])}
-                        className="flex items-center gap-1.5 px-3 py-1.5 bg-[#D81B43] text-white text-[12px] font-semibold rounded-[7px] hover:bg-[#B0172F]">
-                        <CheckCircle2 size={13} /> Finalizar préstamo
-                      </button>
-                    )}
-                    {transicion && !esUnicoEquipo && (
-                      <button onClick={() => setModalConfirm({ orden: drawer, transicion })}
-                        className="flex items-center gap-1.5 px-3 py-1.5 bg-[#D81B43] text-white text-[12px] font-semibold rounded-[7px] hover:bg-[#B0172F]">
-                        → {transicion.nombre}
-                      </button>
-                    )}
-                    {drawerEstado === 'En reparto' && (
-                      <span className="text-[12px] text-[#B45309] bg-[#FFFBEB] px-3 py-1.5 rounded-[7px] border border-[#F59E0B]/30 font-medium flex items-center gap-1.5">
-                        <Truck size={12} /> En ruta con el repartidor
-                      </span>
-                    )}
-                    {puedeCancelarOrden && (
-                      <button onClick={() => setModalCancelar(true)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 border border-red-200 text-red-600 text-[12px] font-semibold rounded-[7px] hover:bg-red-50">
-                        <Ban size={13} /> Cancelar préstamo
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                {/* Aviso orden incompleta */}
-                {drawerIncompleta && (
-                  <div className="mb-4 p-3 bg-[#FFFBEB] border border-[#F59E0B]/40 rounded-[9px]">
-                    <div className="text-[12.5px] font-semibold text-[#B45309] mb-1 flex items-center gap-1.5">
-                      <AlertTriangle size={13} /> Orden sin programar
-                    </div>
-                    <div className="text-[12px] text-[#B45309]/80 space-y-0.5">
-                      {!drawer.repartidor_id && <div>• Falta asignar repartidor</div>}
-                      {!drawer.fecha_entrega && <div>• Falta fecha y hora de entrega</div>}
-                    </div>
-                    <div className="text-[11.5px] text-slate-400 mt-2">
-                      Esta orden no aparecerá en Entregas hasta que tenga repartidor y fecha programada.
-                    </div>
-                  </div>
-                )}
-
-                {/* Timeline visual */}
-                <div className="flex items-start mt-3">
-                  {FLUJO.map((paso, i) => {
-                    const idx = FLUJO.indexOf(drawerEstado)
-                    const st  = i < idx ? 'done' : i === idx ? 'active' : 'pending'
-                    return (
-                      <div key={paso} className="flex-1 flex flex-col items-center relative">
-                        {i > 0 && (
-                          <div className={`absolute top-3 right-1/2 w-full h-0.5 ${st === 'done' || st === 'active' ? 'bg-[#D81B43]' : 'bg-slate-200'}`} />
-                        )}
-                        <div className={`w-6 h-6 rounded-full z-10 flex items-center justify-center flex-shrink-0 ${
-                          st === 'done'   ? 'bg-[#D81B43]' :
-                          st === 'active' ? 'bg-white border-2 border-[#D81B43]' :
-                          'bg-white border-2 border-slate-200'
-                        }`}>
-                          {st === 'done'   && <CheckCircle2 size={10} className="text-white" />}
-                          {st === 'active' && <div className="w-2 h-2 bg-[#D81B43] rounded-full" />}
-                        </div>
-                        <div className={`text-[9px] font-semibold mt-1 text-center leading-tight ${
-                          st === 'done' || st === 'active' ? 'text-[#D81B43]' : 'text-slate-400'
-                        }`}>{paso}</div>
-                      </div>
-                    )
-                  })}
-                </div>
-
-                {/* Alertas */}
-                {drawerRetrasada && (
-                  <div className="mt-4 flex items-center gap-2 text-[12px] text-[#D81B43] bg-[#FEF2F2] px-3 py-2.5 rounded-[8px] border border-[#D81B43]/20">
-                    <AlertTriangle size={13} /> Entrega retrasada — la hora programada ya pasó
-                  </div>
-                )}
-                {drawerVencida && drawerEstado !== 'Finalizada' && (
-                  <div className="mt-3 flex items-center gap-2 text-[12px] text-red-500 bg-red-50 px-3 py-2.5 rounded-[8px] border border-red-200">
-                    <Clock size={13} /> Vigencia vencida
-                  </div>
-                )}
-              </div>
-
-              {/* Repartidor — editable */}
-              <div className="p-5">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="text-[9.5px] font-bold uppercase tracking-[0.12em] text-slate-400">Repartidor</div>
-                  {puedeEdRep && !editRepartidor && (
-                    <button onClick={() => { setEditRepartidor(true); setNuevoRepartidor(drawer.repartidor_id || '') }}
-                      className="flex items-center gap-1 text-[11.5px] text-[#D81B43] font-semibold hover:underline">
-                      <Edit3 size={11} /> {drawer.repartidor ? 'Cambiar' : 'Asignar'}
-                    </button>
-                  )}
-                </div>
-                {!editRepartidor ? (
-                  <div className="flex items-center gap-2">
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[12px] font-bold flex-shrink-0 ${drawer.repartidor ? 'bg-[#D81B43]/10 text-[#D81B43]' : 'bg-slate-100 text-slate-400'}`}>
-                      {drawer.repartidor ? drawer.repartidor.nombre.charAt(0).toUpperCase() : <User size={14} />}
-                    </div>
-                    <div>
-                      <div className="text-[13.5px] font-semibold text-slate-700">{drawer.repartidor?.nombre || 'Sin asignar'}</div>
-                      {!drawer.repartidor && drawerEstado === 'Borrador' && (
-                        <div className="text-[11px] text-[#B45309]">Requerido para programar</div>
-                      )}
-                    </div>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    <select value={nuevoRepartidor} onChange={e => setNuevoRepartidor(e.target.value)} className={inputCls}>
-                      <option value="">Seleccionar...</option>
-                      {usuarios.map(u => <option key={u.id} value={u.id}>{u.nombre}</option>)}
-                    </select>
-                    <div className="flex gap-2">
-                      <button onClick={guardarRepartidor}
-                        className="flex-1 py-2 bg-[#D81B43] text-white rounded-[8px] text-[12.5px] font-semibold hover:bg-[#B0172F]">
-                        Guardar
-                      </button>
-                      <button onClick={() => setEditRepartidor(false)}
-                        className="flex-1 py-2 border border-slate-200 text-slate-500 rounded-[8px] text-[12.5px] hover:border-slate-300">
-                        Cancelar
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Fecha entrega — editable si está en Borrador/Programada */}
-              {['Borrador', 'Programada'].includes(drawerEstado) && (
-                <div className="p-5">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="text-[9.5px] font-bold uppercase tracking-[0.12em] text-slate-400">Fecha y hora de entrega</div>
-                    {!editFecha && (
-                      <button onClick={() => { setEditFecha(true); setNuevaFecha(drawer.fecha_entrega ? paraInput(drawer.fecha_entrega) : '') }}
-                        className="flex items-center gap-1 text-[11.5px] text-[#D81B43] font-semibold hover:underline">
-                        <Edit3 size={11} /> {drawer.fecha_entrega ? 'Cambiar' : 'Programar'}
-                      </button>
-                    )}
-                  </div>
-                  {!editFecha ? (
-                    drawer.fecha_entrega
-                      ? <div className={`text-[13.5px] font-semibold ${drawerRetrasada ? 'text-[#D81B43]' : 'text-slate-700'}`}>
-                          {formatear(drawer.fecha_entrega, { month: '2-digit', hour: '2-digit', minute: '2-digit' })}
-                        </div>
-                      : <div className="text-[12.5px] text-[#B45309] font-medium flex items-center gap-1.5">
-                          <AlertTriangle size={12} /> Sin programar
-                        </div>
-                  ) : (
-                    <div className="space-y-2">
-                      <input type="datetime-local" value={nuevaFecha}
-                        onChange={e => setNuevaFecha(e.target.value)} className={inputCls} />
-                      <div className="flex gap-2">
-                        <button onClick={guardarFecha}
-                          className="flex-1 py-2 bg-[#D81B43] text-white rounded-[8px] text-[12.5px] font-semibold hover:bg-[#B0172F]">
-                          Guardar
-                        </button>
-                        <button onClick={() => setEditFecha(false)}
-                          className="flex-1 py-2 border border-slate-200 text-slate-500 rounded-[8px] text-[12.5px] hover:border-slate-300">
-                          Cancelar
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Datos generales */}
-              <div className="p-5">
-                <div className="text-[9.5px] font-bold uppercase tracking-[0.12em] text-slate-400 mb-3">Detalles</div>
-                <div className="grid grid-cols-2 gap-3">
-                  {[
-                    { label: 'Cliente',        value: drawer.cliente?.nombre },
-                    { label: 'Recibido por',   value: drawer.recibido_por || '—' },
-                    { label: 'Fecha entrega',  value: formatear(drawer.fecha_entrega, { month: '2-digit', hour: '2-digit', minute: '2-digit' }) },
-                    { label: 'Vigencia',       value: formatearSoloFecha(drawer.fecha_vigencia) },
-                    { label: 'Fecha creación', value: formatear(drawer.fecha_creacion) },
-                  ].map(f => (
-                    <div key={f.label}>
-                      <div className="text-[10px] font-semibold uppercase text-slate-400 mb-1">{f.label}</div>
-                      <div className={`text-[13px] font-medium ${
-                        f.label === 'Vigencia' && drawerVencida ? 'text-red-500' :
-                        f.label === 'Fecha entrega' && drawerRetrasada ? 'text-[#D81B43]' :
-                        'text-slate-700'
-                      }`}>{f.value}</div>
-                    </div>
-                  ))}
-                  {drawer.observaciones && (
-                    <div className="col-span-2">
-                      <div className="text-[10px] font-semibold uppercase text-slate-400 mb-1">Observaciones</div>
-                      <div className="text-[13px] text-slate-600 italic">{drawer.observaciones}</div>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Equipos */}
-              <div className="p-5">
-                <div className="text-[9.5px] font-bold uppercase tracking-[0.12em] text-slate-400 mb-3">
-                  Equipos ({drawer.equipos?.length || 0})
-                </div>
-                {!drawer.equipos?.length
-                  ? <div className="text-[13px] text-slate-400">Sin equipos asociados</div>
-                  : <div className="space-y-2">
-                      {drawer.equipos.map(oe => {
-                        const devuelto = !!oe.fecha_devolucion
-                        return (
-                          <div key={oe.id} className="p-3 bg-slate-50 rounded-[9px] border border-slate-200">
-                            <div className="flex items-center gap-3">
-                              <Package size={14} className="text-slate-400 flex-shrink-0" />
-                              <div className="flex-1 min-w-0">
-                                <div className="text-[13px] font-semibold text-slate-700 truncate">{nombreEquipo(oe.equipo)}</div>
-                                <div className="text-[11px] font-mono text-slate-400">{oe.equipo?.codigo}</div>
-                              </div>
-                              {devuelto ? (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-bold bg-[#ECFDF5] text-[#0F7B55] flex-shrink-0">
-                                  <CheckCircle2 size={9} /> Devuelto
-                                </span>
-                              ) : (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-bold bg-[#E8F7FB] text-[#0E86A0] flex-shrink-0">
-                                  Activo
-                                </span>
-                              )}
-                            </div>
-                            {devuelto && (
-                              <div className="text-[11px] text-slate-400 mt-1.5 ml-[26px]">
-                                Devuelto el {formatear(oe.fecha_devolucion)}
-                                {oe.observaciones_devolucion && (
-                                  <div className="italic mt-0.5">&ldquo;{oe.observaciones_devolucion}&rdquo;</div>
-                                )}
-                              </div>
-                            )}
-                            {!devuelto && !esUnicoEquipo && (
-                              <div className="mt-2 ml-[26px]">
-                                <button type="button" onClick={() => abrirModalDevolucion(oe)}
-                                  className="text-[11.5px] text-[#D81B43] font-semibold hover:underline">
-                                  Marcar como devuelto
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                        )
-                      })}
-                    </div>
-                }
-              </div>
-
-              {/* Documentos */}
-              <div className="p-5">
-                <div className="text-[9.5px] font-bold uppercase tracking-[0.12em] text-slate-400 mb-3">
-                  Documentos ({drawer.plantillas?.length || 0})
-                </div>
-                {!drawer.plantillas?.length
-                  ? <div className="text-[13px] text-slate-400">Sin documentos asignados</div>
-                  : <div className="space-y-2">
-                      {drawer.plantillas.map(op => (
-                        <div key={op.id} className="flex items-center gap-3 p-3 border border-slate-200 rounded-[9px]">
-                          <FileText size={14} className="text-slate-400 flex-shrink-0" />
-                          <div className="flex-1 text-[13px] font-medium text-slate-700">{op.plantilla?.nombre || '—'}</div>
-                          <span className={`text-[11px] font-semibold ${op.firmado ? 'text-[#0F7B55]' : 'text-slate-400'}`}>
-                            {op.firmado ? '✓ Firmado' : 'Pendiente'}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                }
-              </div>
-            </div>
-          </div>
-        </>
-      )}
-
       {/* ── MODAL CONFIRMACIÓN CAMBIO ESTADO ── */}
       {modalConfirm && (
         <>
@@ -1860,42 +1860,14 @@ export default function OrdenesClient({
         </>
       )}
 
-      {modalDevolucion && (
-        <>
-          <div className="fixed inset-0 bg-black/50 z-[60] backdrop-blur-sm" onClick={() => setModalDevolucion(null)} />
-          <div className="fixed inset-0 z-[60] flex items-end md:items-center justify-center p-0 md:p-4">
-            <div className="bg-white rounded-t-2xl md:rounded-2xl w-full max-w-[380px] p-6 shadow-2xl">
-              <h3 className="text-[16px] font-bold text-slate-800 mb-4">Marcar como devuelto</h3>
-              <div className="space-y-3">
-                <div>
-                  <label className={labelCls}>Fecha de devolución <span className="text-[#D81B43]">*</span></label>
-                  <input type="date" value={formDevolucion.fecha}
-                    onChange={e => setFormDevolucion(f => ({ ...f, fecha: e.target.value }))}
-                    className={inputCls} />
-                </div>
-                <div>
-                  <label className={labelCls}>Observaciones (opcional)</label>
-                  <textarea value={formDevolucion.observaciones}
-                    onChange={e => setFormDevolucion(f => ({ ...f, observaciones: e.target.value }))}
-                    placeholder="Estado del equipo, novedades, etc." rows={3}
-                    className="w-full px-3 py-2.5 border border-slate-200 rounded-[9px] text-[13.5px] outline-none focus:border-[#D81B43] resize-none placeholder:text-slate-400" />
-                </div>
-              </div>
-              <div className="flex gap-2 mt-5">
-                <button type="button" disabled={!formDevolucion.fecha}
-                  onClick={() => devolverEquipo(modalDevolucion.ordenEquipoId, modalDevolucion.equipoId, formDevolucion.fecha, formDevolucion.observaciones)}
-                  className="flex-1 py-2.5 bg-[#D81B43] text-white rounded-[9px] text-[13px] font-semibold hover:bg-[#B0172F] disabled:opacity-50">
-                  Confirmar
-                </button>
-                <button type="button" onClick={() => setModalDevolucion(null)}
-                  className="flex-1 py-2.5 bg-slate-100 text-slate-600 rounded-[9px] text-[13px] font-semibold hover:bg-slate-200">
-                  Cancelar
-                </button>
-              </div>
-            </div>
-          </div>
-        </>
-      )}
+      <ModalDevolucion
+        abierto={!!modalDevolucion}
+        form={formDevolucion}
+        onChangeFecha={v => setFormDevolucion(f => ({ ...f, fecha: v }))}
+        onChangeObservaciones={v => setFormDevolucion(f => ({ ...f, observaciones: v }))}
+        onConfirmar={() => devolverEquipo(modalDevolucion.ordenEquipoId, modalDevolucion.equipoId, formDevolucion.fecha, formDevolucion.observaciones)}
+        onCancelar={() => setModalDevolucion(null)}
+      />
 
       <ConfirmDialog
         abierto={modalCancelar}
