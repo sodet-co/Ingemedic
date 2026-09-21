@@ -6,6 +6,7 @@ import { Search, Filter, Download, User, Clock } from 'lucide-react'
 import Paginador from '@/components/ui/Paginador'
 import { usePaginacion } from '@/hooks/usePaginacion'
 import { formatear, paraGuardar, hoyBogota } from '@/lib/fechas'
+import BuzonNovedades from '@/components/layout/BuzonNovedades'
 
 const ACCION_STYLES = {
   'crear': { bg: '#ECFDF5', color: '#0F7B55', label: 'CREACIÓN' },
@@ -115,10 +116,13 @@ export default function BitacoraClient({ registrosIniciales }) {
           <div className="text-[18px] font-bold text-[#1B3A6B]">Bitácora</div>
           <div className="text-[12px] text-slate-400 mt-0.5">Registro de actividad del sistema</div>
         </div>
-        <button onClick={exportarCSV}
-          className="ml-auto flex items-center gap-1.5 px-4 py-2 bg-[#1B3A6B] text-white text-[13px] font-semibold rounded-[9px] hover:bg-[#1E4D8C] transition-colors">
-          <Download size={14} /> Exportar CSV
-        </button>
+        <div className="ml-auto flex items-center gap-2">
+          <BuzonNovedades />
+          <button onClick={exportarCSV}
+            className="flex items-center gap-1.5 px-4 py-2 bg-[#1B3A6B] text-white text-[13px] font-semibold rounded-[9px] hover:bg-[#1E4D8C] transition-colors">
+            <Download size={14} /> Exportar CSV
+          </button>
+        </div>
       </div>
 
       <div className="flex-1 overflow-hidden flex flex-col p-3 md:p-6 gap-3 md:gap-4 pb-28 md:pb-6">

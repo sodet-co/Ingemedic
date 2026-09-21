@@ -16,6 +16,9 @@ html {
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  /* Solo para el sitio público (Header, Footer, landing) — el admin sigue con font-sans (Geist). */
+  --font-display: var(--font-archivo);
+  --font-body: var(--font-inter);
 }
 
 @media (prefers-color-scheme: dark) {

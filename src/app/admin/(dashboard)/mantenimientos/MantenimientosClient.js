@@ -12,6 +12,7 @@ import ConfirmDialog from '@/components/ui/ConfirmDialog'
 import Paginador from '@/components/ui/Paginador'
 import { usePaginacion } from '@/hooks/usePaginacion'
 import { formatear, formatearSoloFecha, hoyBogota } from '@/lib/fechas'
+import BuzonNovedades from '@/components/layout/BuzonNovedades'
 
 const ESTADOS = {
   Abierto: '9c71ba4d-e82d-4714-b2fb-4cc242cd47be',
@@ -552,10 +553,13 @@ export default function MantenimientosClient({ mantenimientosIniciales, tipos, e
           <div className="text-[18px] font-bold text-slate-800">Mantenimientos</div>
           <div className="text-[12px] text-slate-400 mt-0.5">{(mantenimientos || []).length} registros</div>
         </div>
-        <button onClick={() => { abrirModal() }}
-          className="ml-auto hidden md:flex items-center gap-1.5 px-4 py-2 bg-[#D81B43] text-white text-[13px] font-semibold rounded-[9px] hover:bg-[#B0172F]">
-          <Plus size={14} strokeWidth={2.5} /> Nuevo mantenimiento
-        </button>
+        <div className="ml-auto flex items-center gap-2">
+          <BuzonNovedades />
+          <button onClick={() => { abrirModal() }}
+            className="hidden md:flex items-center gap-1.5 px-4 py-2 bg-[#D81B43] text-white text-[13px] font-semibold rounded-[9px] hover:bg-[#B0172F]">
+            <Plus size={14} strokeWidth={2.5} /> Nuevo mantenimiento
+          </button>
+        </div>
       </div>
 
       {/* FAB móvil */}

@@ -2,6 +2,7 @@
 import { useState, useMemo, Fragment } from 'react'
 import { Search, Download, ToggleLeft, ToggleRight, Calendar } from 'lucide-react'
 import { hoyBogota } from '@/lib/fechas'
+import BuzonNovedades from '@/components/layout/BuzonNovedades'
 
 export default function ServiciosClient({ serviciosIniciales }) {
   const [search, setSearch]       = useState('')
@@ -120,11 +121,12 @@ export default function ServiciosClient({ serviciosIniciales }) {
   return (
     <div className="flex flex-col h-screen overflow-hidden">
       {/* Topbar */}
-      <div className="h-14 md:h-16 bg-white border-b border-slate-200 flex items-center px-4 md:px-7 flex-shrink-0">
+      <div className="h-14 md:h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 md:px-7 flex-shrink-0">
         <div>
           <div className="text-[18px] font-bold text-[#1B3A6B]">Servicios prestados</div>
           <div className="text-[12px] text-slate-400 mt-0.5">Datos para facturación por cliente y período</div>
         </div>
+        <BuzonNovedades />
       </div>
 
       <div className="flex-1 overflow-hidden flex flex-col p-3 md:p-6 gap-3 md:gap-4 pb-28 md:pb-6">

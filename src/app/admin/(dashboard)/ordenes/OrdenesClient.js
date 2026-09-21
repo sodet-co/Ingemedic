@@ -9,6 +9,7 @@ import ConfirmDialog from '@/components/ui/ConfirmDialog'
 import ModalDevolucion from '@/components/entregas/ModalDevolucion'
 import Paginador from '@/components/ui/Paginador'
 import { devolverEquipo as devolverEquipoLib } from '@/lib/prestamos'
+import BuzonNovedades from '@/components/layout/BuzonNovedades'
 import { useOrdenable } from '@/hooks/useOrdenable'
 import { usePaginacion } from '@/hooks/usePaginacion'
 import {
@@ -816,12 +817,15 @@ export default function OrdenesClient({
           <div className="text-[18px] font-bold text-slate-800">Préstamos</div>
           <div className="text-[12px] text-slate-400 mt-0.5">Gestión de préstamos de equipos biomédicos</div>
         </div>
-        {vista === 'lista' && (
+        <div className="ml-auto flex items-center gap-2">
+          <BuzonNovedades />
+          {vista === 'lista' && (
           <button onClick={iniciarNuevoPrestamo}
-            className="ml-auto hidden md:flex items-center gap-1.5 px-4 py-2 bg-[#D81B43] text-white text-[13px] font-semibold rounded-[9px] hover:bg-[#B0172F] transition-colors">
+            className="hidden md:flex items-center gap-1.5 px-4 py-2 bg-[#D81B43] text-white text-[13px] font-semibold rounded-[9px] hover:bg-[#B0172F] transition-colors">
             <Plus size={14} strokeWidth={2.5} /> Nuevo préstamo
           </button>
-        )}
+          )}
+        </div>
       </div>
 
       {/* FAB móvil */}

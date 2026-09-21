@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 import EntregaEnCursoBanner from '@/components/dashboard/EntregaEnCursoBanner'
+import BuzonNovedades from '@/components/layout/BuzonNovedades'
 import { formatear } from '@/lib/fechas'
 import { COLOR_ESCALA_MUNICIPIOS, normalizarNombreMunicipio } from '@/lib/municipios'
 
@@ -117,8 +118,10 @@ export default function DashboardClient({
             {new Date().toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
           </div>
         </div>
-        {totalAlertas > 0 && (
-          <div className="ml-auto relative">
+        <div className="ml-auto flex items-center gap-2">
+          <BuzonNovedades />
+          {totalAlertas > 0 && (
+          <div className="relative">
             <button onClick={() => setAlertaAbierta(v => !v)}
               className="flex items-center gap-2 px-3 py-1.5 bg-[#FEF2F2] border border-[#D81B43]/20 rounded-full hover:bg-[#FEE2E2] transition-colors">
               <AlertTriangle size={13} className="text-[#D81B43]" />
@@ -160,7 +163,8 @@ export default function DashboardClient({
               </>
             )}
           </div>
-        )}
+          )}
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto p-3 md:p-6 pb-28 md:pb-6 space-y-5">

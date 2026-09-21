@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { registrarBitacora } from '@/lib/bitacora'
@@ -24,6 +24,14 @@ export default function EntregasRepartidorClient({ entregasIniciales, ordenesAsi
   const supabase = createClient()
 
   const [entregas, setEntregas] = useState(entregasIniciales)
+  // Evita que un refresh disparado por Realtime (que puede llegar con datos de
+  // un instante intermedio, o ser un evento atrasado) sobreescriba una
+  // actualización local que ACABAMOS de hacer nosotros mismos — mismo patrón
+  // que EntregasClient.js. Sin esto, el router.refresh() manual de
+  // handleCompletar y el que dispara Realtime (que escucha 'entregas' Y
+  // 'ordenes_servicio', ambas tocadas por finalizarEntrega) chocan casi al
+  // mismo tiempo.
+  const skipSyncUntil = useRef(0)
   const [ordenes, setOrdenes]   = useState(ordenesAsignadas)
   const [saving, setSaving]     = useState(false)
   const [toast, setToast]       = useState(null)
@@ -32,26 +40,33 @@ export default function EntregasRepartidorClient({ entregasIniciales, ordenesAsi
   const [regForm, setRegForm]   = useState({ recibido_por: '', observaciones: '', firmas: {} })
 
   useEffect(() => {
-    const t = setTimeout(() => setEntregas(entregasIniciales), 0)
+    const t = setTimeout(() => {
+      if (Date.now() < skipSyncUntil.current) return
+      setEntregas(entregasIniciales)
+    }, 0)
     return () => clearTimeout(t)
   }, [entregasIniciales])
   useEffect(() => {
-    const t = setTimeout(() => setOrdenes(ordenesAsignadas), 0)
+    const t = setTimeout(() => {
+      if (Date.now() < skipSyncUntil.current) return
+      setOrdenes(ordenesAsignadas)
+    }, 0)
     return () => clearTimeout(t)
   }, [ordenesAsignadas])
 
   useEffect(() => {
     let debounceTimer = null
+    function refrescarConDebounce() {
+      clearTimeout(debounceTimer)
+      debounceTimer = setTimeout(() => {
+        if (Date.now() < skipSyncUntil.current) return
+        router.refresh()
+      }, 500)
+    }
     const canal = supabase
       .channel('entregas-repartidor-realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'entregas' }, () => {
-        clearTimeout(debounceTimer)
-        debounceTimer = setTimeout(() => router.refresh(), 500)
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'ordenes_servicio' }, () => {
-        clearTimeout(debounceTimer)
-        debounceTimer = setTimeout(() => router.refresh(), 500)
-      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'entregas' }, refrescarConDebounce)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'ordenes_servicio' }, refrescarConDebounce)
       .subscribe()
     return () => { clearTimeout(debounceTimer); supabase.removeChannel(canal) }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -118,6 +133,7 @@ export default function EntregasRepartidorClient({ entregasIniciales, ordenesAsi
       showToast(`Entrega completada, pero ${erroresFirma} firma(s) no se guardaron`, 'error')
     }
 
+    skipSyncUntil.current = Date.now() + 2500 // protege el estado local por 2.5s tras completar
     setEntregas(prev => prev.map(e => e.id === modalRegistro.id ? { ...e, ...cambios } : e))
     setSaving(false)
     setModalRegistro(null)

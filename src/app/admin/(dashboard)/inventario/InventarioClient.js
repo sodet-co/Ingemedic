@@ -9,6 +9,7 @@ import { IconoEquipo, GaleriaIconos } from '@/components/inventario/IconosEquipo
 import { IconoTipo } from '@/components/inventario/IconoTipo'
 import Paginador from '@/components/ui/Paginador'
 import { formatear, hoyBogota } from '@/lib/fechas'
+import BuzonNovedades from '@/components/layout/BuzonNovedades'
 import { useOrdenable } from '@/hooks/useOrdenable'
 import { usePaginacion } from '@/hooks/usePaginacion'
 
@@ -235,6 +236,10 @@ export default function InventarioClient({ categorias: catsIniciales, tipos: tip
 
   const camposTipo = catActual?.atributos_extra?.campos_tipo || []
   const camposUnidad = catActual?.atributos_extra?.campos_unidad || []
+  // En "Nueva unidad" el código (clave 'codigo' o 'codigo_inventario', según la
+  // categoría) ya se captura con el campo unificado "Código de inventario" —
+  // se excluye aquí para no duplicarlo en "Detalles de la unidad".
+  const camposUnidadExtra = camposUnidad.filter(c => c.clave !== 'codigo' && c.clave !== 'codigo_inventario')
 
   const { itemsOrdenados: unidadesOrdenadas, config: configUnidades, solicitarOrden: solicitarOrdenUnidades } = useOrdenable(unidadesDeTipo)
   const paginacionUnidades = usePaginacion(unidadesOrdenadas, 20)
@@ -539,12 +544,14 @@ export default function InventarioClient({ categorias: catsIniciales, tipos: tip
 
   function abrirModalNueva() {
     const estadoDisponible = estados.find(e => e.nombre === 'Disponible')
-    setFormUnidad({ codigo: '', estado_id: estadoDisponible?.id || '', atributos: {} })
+    setFormUnidad({ codigo_inventario: '', estado_id: estadoDisponible?.id || '', atributos: {} })
     setModalNueva(true)
   }
 
   async function guardarUnidad() {
-    for (const campo of camposUnidad.filter(c => c.clave !== 'codigo')) {
+    const codigoInventario = formUnidad.codigo_inventario?.trim()
+    if (!codigoInventario) { showToast('El código de inventario es obligatorio', 'error'); return }
+    for (const campo of camposUnidadExtra) {
       if (campo.obligatorio && !formUnidad.atributos[campo.clave]?.toString().trim()) {
         showToast(`El campo "${campo.nombre}" es obligatorio`, 'error'); return
       }
@@ -552,12 +559,12 @@ export default function InventarioClient({ categorias: catsIniciales, tipos: tip
     setSaving(true)
     const { data: newUnit, error } = await supabase.from('equipos').insert({
       tipo_equipo_id: tipoActual.id,
-      codigo: formUnidad.codigo?.trim() || null,
+      codigo: codigoInventario,
       estado_id: formUnidad.estado_id || null,
-      atributos: Object.keys(formUnidad.atributos).length > 0 ? formUnidad.atributos : null,
+      atributos: { ...formUnidad.atributos, codigo_inventario: codigoInventario },
     }).select('id').single()
     if (error) { showToast('Error: ' + error.message, 'error'); setSaving(false); return }
-    registrarBitacora({ modulo: 'inventario', accion: 'crear', entidad: 'equipo', entidad_id: newUnit?.id, detalle: { codigo: formUnidad.codigo?.trim() || null } })
+    registrarBitacora({ modulo: 'inventario', accion: 'crear', entidad: 'equipo', entidad_id: newUnit?.id, detalle: { codigo: codigoInventario } })
     showToast('Equipo registrado')
     setSaving(false)
     setModalNueva(false)
@@ -619,6 +626,7 @@ export default function InventarioClient({ categorias: catsIniciales, tipos: tip
           </>}
         </div>
         <div className="ml-auto flex items-center gap-2 flex-wrap">
+          <BuzonNovedades />
           {vista !== 'categorias' && (
             <button onClick={volver}
               className="hidden md:flex items-center gap-1.5 px-3 py-2 text-[13px] font-medium text-slate-500 border border-slate-200 rounded-[9px] hover:border-slate-300 transition-all">
@@ -1367,7 +1375,7 @@ export default function InventarioClient({ categorias: catsIniciales, tipos: tip
         <>
           <div className="fixed inset-0 bg-black/30 z-40 backdrop-blur-sm" onClick={() => setModalNueva(false)} />
           <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center p-0 md:p-4">
-            <div className="bg-white rounded-t-2xl md:rounded-2xl w-full max-w-[520px] max-h-[90vh] flex flex-col shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="bg-white rounded-t-2xl md:rounded-2xl w-full max-w-[720px] max-h-[90vh] flex flex-col shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
               <div className="px-6 py-4 border-b flex items-center justify-between flex-shrink-0">
                 <div>
                   <h3 className="text-[15px] font-bold text-slate-800">Nueva unidad</h3>
@@ -1375,9 +1383,9 @@ export default function InventarioClient({ categorias: catsIniciales, tipos: tip
                 </div>
                 <button onClick={() => setModalNueva(false)} className="text-slate-400 hover:text-slate-600 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100"><X size={16} /></button>
               </div>
-              <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
+              <div className="flex-1 overflow-y-auto p-6 md:p-8">
                 {camposTipo.length > 0 && (
-                  <div className="bg-slate-50 rounded-[10px] border border-slate-200 p-4">
+                  <div className="bg-slate-50 rounded-[10px] border border-slate-200 p-4 mb-6">
                     <div className="text-[10.5px] font-bold uppercase tracking-[0.08em] text-slate-400 mb-3">Columnas del tipo</div>
                     <div className="grid grid-cols-2 gap-3">
                       {camposTipo.map(campo => (
@@ -1389,28 +1397,39 @@ export default function InventarioClient({ categorias: catsIniciales, tipos: tip
                     </div>
                   </div>
                 )}
-                <div>
-                  <label className={labelCls}>Código interno</label>
-                  <input value={formUnidad.codigo || ''} onChange={e => setFormUnidad(f => ({ ...f, codigo: e.target.value }))}
-                    placeholder="ej. EQ-001" className={inputCls} />
-                </div>
-                <div>
-                  <label className={labelCls}>Estado</label>
-                  <select value={formUnidad.estado_id} onChange={e => setFormUnidad(f => ({ ...f, estado_id: e.target.value }))} className={inputCls}>
-                    {estados.map(e => <option key={e.id} value={e.id}>{e.nombre}</option>)}
-                  </select>
-                </div>
-                {camposUnidad.filter(c => c.clave !== 'codigo').length > 0 && (
-                  <div className="border-t border-slate-100 pt-4 space-y-3">
-                    <div className="text-[11px] font-bold uppercase tracking-[0.07em] text-slate-400">Columnas de la unidad</div>
-                    {camposUnidad.filter(c => c.clave !== 'codigo').map(campo => (
-                      <div key={campo.clave}>
-                        <label className={labelCls}>{campo.nombre}{campo.obligatorio && <span className="text-[#D81B43] ml-1">*</span>}</label>
-                        {renderCampo(campo, formUnidad.atributos, atrs => setFormUnidad(f => ({ ...f, atributos: atrs })))}
-                      </div>
-                    ))}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
+                  <div>
+                    <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wide mb-3.5">Identificación</div>
+                    <div className="mb-4">
+                      <label className={labelCls}>Código de inventario<span className="text-[#D81B43] ml-1">*</span></label>
+                      <input value={formUnidad.codigo_inventario || ''} onChange={e => setFormUnidad(f => ({ ...f, codigo_inventario: e.target.value }))}
+                        placeholder="ej. RL1234" className={inputCls} />
+                      <div className="text-[11px] text-slate-400 mt-1">Identifica la unidad en todo el sistema</div>
+                    </div>
+                    <div>
+                      <label className={labelCls}>Estado</label>
+                      <select value={formUnidad.estado_id} onChange={e => setFormUnidad(f => ({ ...f, estado_id: e.target.value }))} className={inputCls}>
+                        {estados.map(e => <option key={e.id} value={e.id}>{e.nombre}</option>)}
+                      </select>
+                    </div>
                   </div>
-                )}
+
+                  <div>
+                    <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wide mb-3.5">Detalles de la unidad</div>
+                    {camposUnidadExtra.length > 0 ? (
+                      <div className="space-y-4">
+                        {camposUnidadExtra.map(campo => (
+                          <div key={campo.clave}>
+                            <label className={labelCls}>{campo.nombre}{campo.obligatorio && <span className="text-[#D81B43] ml-1">*</span>}</label>
+                            {renderCampo(campo, formUnidad.atributos, atrs => setFormUnidad(f => ({ ...f, atributos: atrs })))}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-[12.5px] text-slate-400">Este tipo no tiene columnas adicionales configuradas.</div>
+                    )}
+                  </div>
+                </div>
               </div>
               <div className="px-6 py-4 border-t border-slate-200 flex justify-end gap-2 flex-shrink-0">
                 <button onClick={() => setModalNueva(false)} className="px-4 py-2.5 border border-slate-200 rounded-[9px] text-[13px] font-medium text-slate-600 hover:border-slate-300">Cancelar</button>

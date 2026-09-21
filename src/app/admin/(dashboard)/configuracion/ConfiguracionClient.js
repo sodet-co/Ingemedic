@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import { GaleriaIconos, IconoEquipo } from '@/components/inventario/IconosEquipo'
 import { MODULOS_PRINCIPALES, MODULOS_CONFIGURACION, MODULOS_OCULTOS_POR_DEFECTO, puedeVerModulo } from '@/lib/permisos'
+import BuzonNovedades from '@/components/layout/BuzonNovedades'
 
 const NAV_MODULO = {
   usuarios: 'configuracion.usuarios', roles: 'configuracion.roles', categorias: 'configuracion.categorias',
@@ -669,11 +670,12 @@ export default function ConfiguracionClient({
   return (
     <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
       {/* Header */}
-      <div className="h-16 bg-white border-b border-slate-200 flex items-center px-4 md:px-7 flex-shrink-0">
+      <div className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 md:px-7 flex-shrink-0">
         <div>
           <div className="text-[18px] font-bold text-slate-800">Configuración</div>
           <div className="text-[12px] text-slate-400 mt-0.5">Panel de control del sistema</div>
         </div>
+        <BuzonNovedades />
       </div>
 
       {/* Mobile tabs */}

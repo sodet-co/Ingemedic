@@ -9,6 +9,7 @@ import {
   ArrowUpRight, ArrowDownLeft, Filter, Calendar
 } from 'lucide-react'
 import ConfirmDialog from '@/components/ui/ConfirmDialog'
+import BuzonNovedades from '@/components/layout/BuzonNovedades'
 import { formatear, soloDia } from '@/lib/fechas'
 import FirmaPad from '@/components/entregas/FirmaPad'
 import { crearEntrega, finalizarEntrega } from '@/lib/entregas'
@@ -630,12 +631,15 @@ export default function EntregasClient({ entregasIniciales, ordenesEnReparto, es
           <div className="text-[18px] font-bold text-slate-800">Entregas</div>
           <div className="text-[12px] text-slate-400 mt-0.5">Rutas del día · En tiempo real</div>
         </div>
-        {ordenes.length > 0 && (
-          <div className="ml-auto flex items-center gap-2 px-3 py-1.5 bg-[#FFFBEB] border border-[#F59E0B]/30 rounded-full">
-            <span className="w-2 h-2 rounded-full bg-[#F59E0B] animate-pulse" />
-            <span className="text-[12px] font-semibold text-[#B45309]">{ordenes.length} pendiente{ordenes.length !== 1 ? 's' : ''}</span>
-          </div>
-        )}
+        <div className="ml-auto flex items-center gap-2">
+          <BuzonNovedades />
+          {ordenes.length > 0 && (
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-[#FFFBEB] border border-[#F59E0B]/30 rounded-full">
+              <span className="w-2 h-2 rounded-full bg-[#F59E0B] animate-pulse" />
+              <span className="text-[12px] font-semibold text-[#B45309]">{ordenes.length} pendiente{ordenes.length !== 1 ? 's' : ''}</span>
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="flex-1 overflow-hidden flex flex-col p-3 md:p-6 pb-28 md:pb-6 gap-4">

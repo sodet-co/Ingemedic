@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import Sidebar from '@/components/layout/Sidebar'
 import RepartidorHeader from '@/components/layout/RepartidorHeader'
 import { esSuperAdmin } from '@/lib/permisos'
+import { UsuarioProvider } from '@/lib/usuario-context'
 
 export default async function DashboardLayout({ children }) {
   const supabase = await createClient()
@@ -13,6 +14,7 @@ export default async function DashboardLayout({ children }) {
   const { data: usuario } = await supabase
     .from('usuarios')
     .select(`
+    id,
     nombre,
     email,
     username,
@@ -49,9 +51,11 @@ export default async function DashboardLayout({ children }) {
   return (
     <div className="flex h-screen overflow-hidden bg-[#F8FAFC]">
       <Sidebar usuario={usuario} empresa={empresa} permisos={permisos || []} esSuperAdmin={superAdmin} />
-      <main className="flex-1 min-w-0 flex flex-col h-screen overflow-hidden pt-12 md:pt-0 pb-[var(--mobile-nav-space,0px)] md:pb-0">
-        {children}
-      </main>
+      <UsuarioProvider usuario={usuario} esSuperAdmin={superAdmin}>
+        <main className="flex-1 min-w-0 flex flex-col h-screen overflow-hidden pt-12 md:pt-0 pb-[var(--mobile-nav-space,0px)] md:pb-0">
+          {children}
+        </main>
+      </UsuarioProvider>
     </div>
   )
 }

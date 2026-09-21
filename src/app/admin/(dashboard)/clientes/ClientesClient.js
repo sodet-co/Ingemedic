@@ -14,6 +14,7 @@ import ModalDevolucion from '@/components/entregas/ModalDevolucion'
 import Paginador from '@/components/ui/Paginador'
 import { Box } from '@/components/ui/Skeleton'
 import { IconoTipo } from '@/components/inventario/IconoTipo'
+import BuzonNovedades from '@/components/layout/BuzonNovedades'
 import { useOrdenable } from '@/hooks/useOrdenable'
 import { usePaginacion } from '@/hooks/usePaginacion'
 import { formatear, formatearSoloFecha, hoyBogota } from '@/lib/fechas'
@@ -695,7 +696,9 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
           <div className="text-[18px] font-bold text-slate-800">Clientes</div>
           <div className="text-[12px] text-slate-400 mt-0.5">Gestión de clientes, arrendatarios y pacientes</div>
         </div>
-        <div className="ml-auto hidden md:flex items-center gap-2">
+        <div className="ml-auto flex items-center gap-2">
+          <BuzonNovedades />
+        <div className="hidden md:flex items-center gap-2">
           <button onClick={exportarExcel} disabled={exportando}
             className="flex items-center gap-1.5 px-3 py-2 text-[13px] font-medium text-slate-600 border border-slate-200 rounded-[9px] hover:border-slate-300 transition-all disabled:opacity-50">
             <Download size={13} /> {exportando ? 'Exportando…' : 'Exportar Excel'}
@@ -706,6 +709,7 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
               <Plus size={14} strokeWidth={2.5} /> Nuevo cliente
             </button>
           )}
+        </div>
         </div>
       </div>
 
