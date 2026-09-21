@@ -116,7 +116,7 @@ export default function LandingPage() {
               Equipos biomédicos<br />y oxígeno domiciliario
             </h1>
             <p className="mt-5 text-[16px] sm:text-[18px] text-[#5D6F86] leading-relaxed max-w-xl">
-              Servicio técnico calificado, mantenimiento preventivo y correctivo, y acompañamiento en la recuperación de tus pacientes en todo el Cesar.
+              Servicio técnico calificado y acompañamiento en la recuperación de tus pacientes en todo el Cesar.
             </p>
             <div className="flex flex-col sm:flex-row gap-3 mt-8">
               <a
