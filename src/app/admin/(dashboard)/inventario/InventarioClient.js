@@ -602,7 +602,7 @@ export default function InventarioClient({ categorias: catsIniciales, tipos: tip
   }
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden">
+    <div className="flex flex-col h-full overflow-hidden">
 
       {/* Topbar */}
       <div className="h-14 md:h-16 md:bg-white md:border-b md:border-slate-200 flex items-center px-4 md:px-7 flex-shrink-0 flex-wrap gap-2">

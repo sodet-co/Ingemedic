@@ -119,7 +119,7 @@ export default function ServiciosClient({ serviciosIniciales }) {
     .sort((a, b) => (!a.fecha_devolucion ? -1 : 1) || (b.dias_activo - a.dias_activo))
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden">
+    <div className="flex flex-col h-full overflow-hidden">
       {/* Topbar */}
       <div className="h-14 md:h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 md:px-7 flex-shrink-0">
         <div>

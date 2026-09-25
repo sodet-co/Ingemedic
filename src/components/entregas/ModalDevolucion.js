@@ -11,8 +11,11 @@ export default function ModalDevolucion({ abierto, form, onChangeFecha, onChange
 
   return (
     <>
-      <div className="fixed inset-0 bg-black/50 z-[60] backdrop-blur-sm" onClick={onCancelar} />
-      <div className="fixed inset-0 z-[60] flex items-end md:items-center justify-center p-0 md:p-4">
+      {/* z-75: por encima de cualquier otro modal/pop-up desde el que se
+          pueda abrir este (ej. el pop-up de atención del dashboard, z-65) —
+          si no, este modal queda detrás y ni se ve ni se puede interactuar. */}
+      <div className="fixed inset-0 bg-black/50 z-[75] backdrop-blur-sm" onClick={onCancelar} />
+      <div className="fixed inset-0 z-[75] flex items-end md:items-center justify-center p-0 md:p-4">
         <div className="bg-white rounded-t-2xl md:rounded-2xl w-full max-w-[380px] p-6 shadow-2xl">
           <h3 className="text-[16px] font-bold text-slate-800 mb-4">Marcar como devuelto</h3>
           <div className="space-y-3">

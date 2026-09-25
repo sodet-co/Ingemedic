@@ -140,6 +140,7 @@ export default function Sidebar({ usuario, empresa, permisos = [], esSuperAdmin 
     const { data: { user } } = await supabase.auth.getUser()
     await registrarBitacora({ modulo: 'auth', accion: 'logout', entidad: 'sesión', entidad_id: user?.id })
     await supabase.auth.signOut()
+    document.cookie = 'sesion_inicio=; path=/; max-age=0'
     // Recarga completa para limpiar cualquier caché de navegación de la sesión anterior
     window.location.href = '/admin/login'
   }
@@ -479,7 +480,13 @@ export default function Sidebar({ usuario, empresa, permisos = [], esSuperAdmin 
       {/* ── MODAL CONFIRMAR CERRAR SESIÓN ── */}
       {confirmSalir && (
         <>
-          <div className="fixed inset-0 bg-black/50 z-[100] backdrop-blur-sm" onClick={() => setConfirmSalir(false)} />
+          {/* Sin backdrop-blur: este Sidebar vive en TODAS las páginas del
+              admin, dashboard incluido, y el mapa de Leaflet ahí usa capas
+              con transform3d que el navegador compone en su propia capa
+              GPU — un backdrop-filter no la "ve" y queda nítida encima del
+              fondo del modal en vez de difuminarse. Un tinte sólido más
+              oscuro no depende de backdrop-filter y no tiene ese problema. */}
+          <div className="fixed inset-0 bg-black/60 z-[100]" onClick={() => setConfirmSalir(false)} />
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
             <div className="bg-white rounded-2xl w-full max-w-[340px] p-6 shadow-2xl text-center" onClick={e => e.stopPropagation()}>
               <div className="w-12 h-12 rounded-full bg-red-50 flex items-center justify-center mx-auto mb-4">

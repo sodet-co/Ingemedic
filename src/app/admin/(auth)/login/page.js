@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Image from 'next/image'
 import { createClient } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
@@ -16,6 +16,16 @@ export default function LoginPage() {
   const [error, setError]           = useState('')
   const [showPass, setShowPass]     = useState(false)
   const router = useRouter()
+
+  // Arranca vacío siempre (server y cliente deben coincidir en el primer
+  // render) y se adopta recién tras montar — igual patrón que el filtro de
+  // Préstamos, para no volver a chocar con un error de hidratación.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('expirada')) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setError('Tu sesión venció tras 8 horas — ingresa de nuevo.')
+    }
+  }, [])
 
   async function handleLogin(e) {
     e.preventDefault()
@@ -65,6 +75,14 @@ export default function LoginPage() {
     }
 
     registrarBitacora({ modulo: 'auth', accion: 'login', entidad: 'sesión', entidad_id: authData.user?.id, detalle: { email } })
+
+    // Marca de inicio para el límite absoluto de sesión (8h, ver middleware.js).
+    document.cookie = `sesion_inicio=${Date.now()}; path=/; max-age=${60 * 60 * 24}`
+    // El Panel de Atención y la franja de vigencia se cierran con una x "por
+    // esta sesión" (ver PanelAtencion.js / BannerAtencion.js) — cada login
+    // nuevo debe volver a mostrarlos, así el usuario los haya cerrado ayer.
+    sessionStorage.removeItem('panel_atencion_oculto')
+    sessionStorage.removeItem('banner_atencion_oculto')
 
     // Recarga completa (no client-side navigation) para evitar que el Router Cache
     // de Next.js muestre datos de la sesión anterior al cambiar de usuario.

@@ -41,7 +41,18 @@ export default function MapaMunicipios({ geojsonCesar, conteoPorCiudad, interact
     <MapContainer bounds={bounds} boundsOptions={{ padding: [4, 4] }} zoomSnap={0.1}
       zoomControl={interactivo} attributionControl={false} dragging={interactivo} scrollWheelZoom={interactivo}
       doubleClickZoom={interactivo} touchZoom={interactivo} boxZoom={interactivo} keyboard={interactivo}
-      style={{ height: '100%', width: '100%', minHeight: 280, background: 'transparent' }}>
+      // isolation: 'isolate' — Leaflet le pone z-index 200-700 a sus panes
+      // internos (.leaflet-map-pane, .leaflet-overlay-pane, etc). El propio
+      // .leaflet-container queda con position:relative pero z-index:auto, y
+      // ESO no basta para contenerlos: un elemento position:relative con
+      // z-index:auto no abre su propio contexto de apilamiento, así que esos
+      // z-index de 400+ se comparan contra el contexto del ANCESTRO más
+      // cercano que sí lo abra — en este caso, la página completa — y le
+      // ganan a cualquier modal con z-index más chico (confirmado con
+      // document.elementFromPoint(): sin esto, el mapa queda por ENCIMA de
+      // cualquier fondo de modal, sin importar cuánto z-index tenga). Forzar
+      // un contexto de apilamiento propio aquí contiene esos z-index adentro.
+      style={{ height: '100%', width: '100%', minHeight: 280, background: 'transparent', isolation: 'isolate' }}>
       <GeoJSON data={geojsonCesar} style={estiloFeature} onEachFeature={onEachFeature} />
     </MapContainer>
   )

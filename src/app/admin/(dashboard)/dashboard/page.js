@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase-server'
-import { hoyBogota } from '@/lib/fechas'
 import { traerTodosLosEquipos } from '@/lib/equipos'
 import { normalizarCiudadPaciente } from '@/lib/municipios'
+import { REGLAS_ATENCION, contarRegla } from '@/lib/atencion'
 import fs from 'fs'
 import path from 'path'
 import DashboardClient from './DashboardClient'
@@ -15,32 +15,15 @@ export const revalidate = 0
 export default async function DashboardPage() {
   const supabase = await createClient()
 
-  const ahora   = new Date()
-  const hoy     = hoyBogota()
-  const en7dias = new Date(ahora.getTime() + 7 * 86400000).toLocaleDateString('en-CA', { timeZone: 'America/Bogota' })
-
   const [
     equiposEstados,
-    { data: ordenesActivas },
     { data: mantenimientosActivos },
-    { data: entregasHoy },
-    { data: vigenciasProximas },
-    { data: ordenesRetrasadas },
+    conteosAtencion,
     { data: actividadReciente },
     equiposConCliente,
     { data: equiposConCiudad },
   ] = await Promise.all([
     traerTodosLosEquipos(supabase, q => q.select('estado:estados_equipo(id, nombre)')),
-
-    supabase.from('ordenes_servicio').select(`
-      id, codigo, fecha_entrega, fecha_vigencia,
-      cliente:clientes(id, nombre),
-      estado:estados_orden(id, nombre),
-      repartidor:usuarios!ordenes_servicio_repartidor_id_fkey(id, nombre)
-    `)
-    .not('estado_id', 'in', `(45383dd9-7f9a-426d-830e-d093f105bef9)`)
-    .order('fecha_entrega', { ascending: true })
-    .limit(10),
 
     supabase.from('mantenimientos').select(`
       id, codigo, fecha_apertura,
@@ -52,35 +35,14 @@ export default async function DashboardPage() {
     .order('fecha_creacion', { ascending: false })
     .limit(8),
 
-    supabase.from('entregas').select(`
-      id, codigo, tipo, fecha_inicio, fecha_completada,
-      cliente:clientes(id, nombre),
-      estado:estados_entrega(id, nombre),
-      repartidor:usuarios!entregas_repartidor_id_fkey(id, nombre)
-    `)
-    .gte('fecha_creacion', hoy)
-    .order('fecha_creacion', { ascending: false }),
-
-    supabase.from('ordenes_servicio').select(`
-      id, codigo, fecha_vigencia,
-      cliente:clientes(id, nombre),
-      estado:estados_orden(id, nombre)
-    `)
-    .gte('fecha_vigencia', hoy)
-    .lte('fecha_vigencia', en7dias)
-    .not('estado_id', 'in', `(45383dd9-7f9a-426d-830e-d093f105bef9,acafaf48-918e-4681-bf31-3111c218bcc9)`)
-    .order('fecha_vigencia', { ascending: true })
-    .limit(5),
-
-    supabase.from('ordenes_servicio').select(`
-      id, codigo, fecha_entrega,
-      cliente:clientes(id, nombre),
-      repartidor:usuarios!ordenes_servicio_repartidor_id_fkey(id, nombre)
-    `)
-    .eq('estado_id', '9430f8fe-008f-494e-ada5-3c667799b26c')
-    .lt('fecha_entrega', ahora.toISOString())
-    .order('fecha_entrega', { ascending: true })
-    .limit(5),
+    // Solo el conteo por regla — el detalle (cliente, paciente, equipo) se
+    // trae en el navegador desde PanelAtencion/BuzonNovedades, solo cuando
+    // hace falta mostrarlo. El dashboard es force-dynamic y sin caché: no
+    // tiene sentido cargarle el detalle completo a cada visita.
+    Promise.all(REGLAS_ATENCION.map(async regla => ({
+      id: regla.id, titulo: regla.titulo, severidad: regla.severidad,
+      count: await contarRegla(supabase, regla),
+    }))),
 
     supabase.from('ordenes_servicio').select(`
       id, codigo, fecha_creacion,
@@ -134,11 +96,8 @@ export default async function DashboardPage() {
     <DashboardClient
       totalEquipos={(equiposEstados || []).length}
       estadosEquipo={estadosEquipo}
-      ordenesActivas={ordenesActivas || []}
       mantenimientosActivos={mantenimientosActivos || []}
-      entregasHoy={entregasHoy || []}
-      vigenciasProximas={vigenciasProximas || []}
-      ordenesRetrasadas={ordenesRetrasadas || []}
+      reglasAtencion={conteosAtencion || []}
       actividadReciente={actividadReciente || []}
       topClientes={topClientes}
       geojsonCesar={geojsonCesar}

@@ -3,7 +3,8 @@ import { registrarBitacora } from '@/lib/bitacora'
 import { useState, useMemo, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
-import { paraGuardar, paraInput, formatear, formatearSoloFecha, hoyBogota } from '@/lib/fechas'
+import { paraGuardar, paraInput, formatear, formatearSoloFecha, hoyBogota, sumarDias } from '@/lib/fechas'
+import { estaVencida, diasParaVencer } from '@/lib/vigencia'
 import { IconoTipo } from '@/components/inventario/IconoTipo'
 import ConfirmDialog from '@/components/ui/ConfirmDialog'
 import ModalDevolucion from '@/components/entregas/ModalDevolucion'
@@ -56,11 +57,6 @@ function estaRetrasada(orden) {
   return new Date(orden.fecha_entrega) < new Date()
 }
 
-function estaVencida(orden) {
-  if (!orden.fecha_vigencia) return false
-  return new Date(orden.fecha_vigencia) < new Date()
-}
-
 function estaIncompleta(orden) {
   return orden.estado?.nombre === 'Borrador' &&
     (!orden.repartidor_id || !orden.fecha_entrega)
@@ -69,9 +65,18 @@ function estaIncompleta(orden) {
 const inputCls = 'w-full px-3 py-2.5 border border-slate-200 rounded-[9px] text-[13.5px] text-slate-800 outline-none focus:border-[#D81B43] bg-white transition-colors placeholder:text-slate-400'
 const labelCls = 'block text-[11px] font-bold uppercase tracking-[0.07em] text-slate-500 mb-1.5'
 
+// Una orden solo se marca "Vencida" mientras sigue en curso — una vez Finalizada
+// o Cancelada la vigencia ya no significa nada (el préstamo terminó).
+function ordenVencidaVisible(orden) {
+  if (!orden) return false
+  if (['Finalizada', 'Cancelada'].includes(orden.estado?.nombre)) return false
+  return estaVencida(orden)
+}
+
 function EstadoBadge({ orden, retrasada }) {
   const nombre = orden?.estado?.nombre || 'Borrador'
   const incompleta = estaIncompleta(orden || {})
+  const vencida = ordenVencidaVisible(orden)
   const s = ESTADO_STYLES[nombre] || ESTADO_STYLES['Borrador']
 
   if (retrasada) return (
@@ -84,12 +89,82 @@ function EstadoBadge({ orden, retrasada }) {
       <AlertTriangle size={10} className="text-[#B45309]" /> Sin programar
     </span>
   )
+  if (vencida) return (
+    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-[#FFFBEB] text-[#B45309]">
+      <Clock size={10} /> Vencida
+    </span>
+  )
   return (
     <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold"
       style={{ background: s.bg, color: s.color }}>
       <span className="w-1.5 h-1.5 rounded-full" style={{ background: s.dot }} />
       {nombre}
     </span>
+  )
+}
+
+const PRESETS_VIGENCIA = [30, 60, 90]
+
+// Captura de fecha_vigencia — un solo control para el wizard y para editar una
+// orden existente. Apagado = préstamo indefinido (fecha_vigencia null, caso de
+// las instituciones). Encendido = chips de 30/60/90 días desde hoy, o "Hasta
+// fecha" con selector — siempre se guarda solo la fecha final, nunca la
+// duración (si luego se extiende, la duración deja de ser verdad).
+function ControlVigencia({ value, onChange }) {
+  const activo = !!value
+  const chipsCalculados = PRESETS_VIGENCIA.map(dias => ({ dias, fecha: sumarDias(hoyBogota(), dias) }))
+  const [modo, setModo] = useState(() => {
+    const coincideConChip = value && chipsCalculados.some(c => c.fecha === value)
+    return value && !coincideConChip ? 'fecha' : 'chip'
+  })
+
+  function toggle() {
+    if (activo) { onChange(null); return }
+    onChange(sumarDias(hoyBogota(), 30)) // al encender, preselecciona 30 días
+    setModo('chip')
+  }
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-2">
+        <span className={labelCls + ' mb-0'}>Vigencia del préstamo</span>
+        <button type="button" onClick={toggle} aria-pressed={activo}
+          className={`relative w-10 h-6 rounded-full transition-colors flex-shrink-0 ${activo ? 'bg-[#D81B43]' : 'bg-slate-200'}`}>
+          <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${activo ? 'translate-x-4' : ''}`} />
+        </button>
+      </div>
+
+      {!activo ? (
+        <div className="text-[12.5px] text-slate-400">Préstamo indefinido — sin fecha de vencimiento (uso típico para instituciones).</div>
+      ) : (
+        <div className="space-y-2.5">
+          <div className="flex items-center gap-2 flex-wrap">
+            {chipsCalculados.map(c => (
+              <button type="button" key={c.dias} onClick={() => { onChange(c.fecha); setModo('chip') }}
+                className={`px-3 py-1.5 rounded-full text-[12px] font-medium border transition-all ${
+                  modo === 'chip' && value === c.fecha
+                    ? 'bg-[#D81B43] text-white border-[#D81B43]'
+                    : 'bg-white border-slate-200 text-slate-600 hover:border-[#D81B43]'
+                }`}>
+                {c.dias} días
+              </button>
+            ))}
+            <button type="button" onClick={() => setModo('fecha')}
+              className={`px-3 py-1.5 rounded-full text-[12px] font-medium border transition-all ${
+                modo === 'fecha' ? 'bg-[#D81B43] text-white border-[#D81B43]' : 'bg-white border-slate-200 text-slate-600 hover:border-[#D81B43]'
+              }`}>
+              Hasta fecha
+            </button>
+          </div>
+          {modo === 'fecha' && (
+            <input type="date" value={value || ''} onChange={e => onChange(e.target.value || null)} className={inputCls} />
+          )}
+          {value && (
+            <div className="text-[11.5px] text-slate-400">Vence el {formatearSoloFecha(value)}</div>
+          )}
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -196,11 +271,32 @@ export default function OrdenesClient({
   const [filtroCliente, setFiltroCliente]             = useState('')
   const [filtroMarca, setFiltroMarca]                 = useState('')
   const [filtroCategoria, setFiltroCategoria]         = useState('')
+  // Filtro que llega desde el Panel de Atención / Buzón del dashboard
+  // (?atencion=prestamos_vencidos|prestamos_por_vencer). Arranca vacío
+  // SIEMPRE (server y cliente deben renderizar lo mismo en el primer
+  // pase) y se aplica recién en el efecto de montaje, leyendo el URL a
+  // mano (no con useSearchParams, para no forzar un Suspense boundary
+  // nuevo en esta página) — leerlo antes, en un useState perezoso, hace
+  // que el primer render del cliente no coincida con el del servidor
+  // (que nunca ve window) y React descarta el HTML del SSR con un error
+  // de hidratación.
+  const [filtroAtencion, setFiltroAtencion] = useState('')
+  useEffect(() => {
+    // Adopta el valor del URL una sola vez al montar — no "sincroniza" nada
+    // en curso, así que no aplica el patrón de suscripción que pide la
+    // regla del proyecto; deshabilitada a propósito, igual que otros
+    // efectos de una sola vez en este archivo.
+    const desdeUrl = new URLSearchParams(window.location.search).get('atencion') || ''
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (desdeUrl) setFiltroAtencion(desdeUrl)
+  }, [])
   const [drawer, setDrawer]             = useState(null)
   const [editRepartidor, setEditRepartidor] = useState(false)
   const [nuevoRepartidor, setNuevoRepartidor] = useState('')
   const [editFecha, setEditFecha] = useState(false)
   const [nuevaFecha, setNuevaFecha] = useState('')
+  const [editVigencia, setEditVigencia] = useState(false)
+  const [nuevaVigencia, setNuevaVigencia] = useState(null)
   const [pacienteFiltro, setPacienteFiltro] = useState('')
 
   // Si el drawer está abierto y esa orden cambió (ej. entrega completada desde otro dispositivo), refrescar su vista
@@ -240,7 +336,7 @@ export default function OrdenesClient({
     cliente_id: '', equipos_ids: [], tiene_paciente: false, paciente_id: '',
     pacienteNuevo: { nombre: '', cedula: '', direccion: '', ciudad: '', telefono: '', correo: '' },
     fecha_inicio: '', domicilio: false, repartidor_id: '', observaciones: '',
-    fecha_entrega_domicilio: '', fechaInicioDistinta: false,
+    fecha_entrega_domicilio: '', fechaInicioDistinta: false, fecha_vigencia: null,
   })
   const [modalDevolucion, setModalDevolucion] = useState(null) // { ordenEquipoId, equipoId } o null
   const [formDevolucion, setFormDevolucion]   = useState({ fecha: '', observaciones: '' })
@@ -410,9 +506,14 @@ export default function OrdenesClient({
         const tiene = (o.equipos || []).some(oe => oe.equipo?.tipo_equipo?.categoria?.nombre === filtroCategoria)
         if (!tiene) return false
       }
+      if (filtroAtencion === 'prestamos_vencidos' && !estaVencida(o)) return false
+      if (filtroAtencion === 'prestamos_por_vencer') {
+        const dias = diasParaVencer(o)
+        if (estaVencida(o) || dias === null || dias > 7) return false
+      }
       return true
     })
-  }, [ordenes, search, tabPrincipal, filtroEstadoDetalle, filtroCliente, filtroMarca, filtroCategoria])
+  }, [ordenes, search, tabPrincipal, filtroEstadoDetalle, filtroCliente, filtroMarca, filtroCategoria, filtroAtencion])
 
   const { itemsOrdenados: ordenesOrdenadas, config: configOrdenes, solicitarOrden: solicitarOrdenOrdenes } = useOrdenable(ordenesFiltradas)
   const paginacionOrdenes = usePaginacion(ordenesOrdenadas, 20)
@@ -478,6 +579,22 @@ export default function OrdenesClient({
     showToast(nuevoEstado?.nombre === 'Programada' ? '✓ Fecha guardada — orden programada' : 'Fecha guardada')
   }
 
+  // ── GUARDAR VIGENCIA ─────────────────────────────────────
+  // nuevaVigencia es null (préstamo indefinido) o una fecha YYYY-MM-DD — nunca
+  // se guarda una duración, solo la fecha final (ver ControlVigencia).
+  async function guardarVigencia() {
+    const { error } = await supabase.from('ordenes_servicio')
+      .update({ fecha_vigencia: nuevaVigencia })
+      .eq('id', drawer.id)
+    if (error) { showToast('Error: ' + error.message, 'error'); return }
+    const updOrden = { ...drawer, fecha_vigencia: nuevaVigencia }
+    setOrdenes(prev => prev.map(o => o.id === drawer.id ? updOrden : o))
+    setDrawer(updOrden)
+    setEditVigencia(false)
+    registrarBitacora({ modulo: 'ordenes', accion: 'editar', entidad: 'préstamo', entidad_id: drawer.id, detalle: { fecha_vigencia: nuevaVigencia } })
+    showToast(nuevaVigencia ? 'Vigencia actualizada' : 'Préstamo marcado como indefinido')
+  }
+
   // ── REASIGNAR REPARTIDOR ─────────────────────────────────
   async function guardarRepartidor() {
     if (!nuevoRepartidor) { showToast('Selecciona un repartidor', 'error'); return }
@@ -503,7 +620,7 @@ export default function OrdenesClient({
       cliente_id: '', equipos_ids: [], tiene_paciente: false, paciente_id: '',
       pacienteNuevo: { nombre: '', cedula: '', direccion: '', ciudad: '', telefono: '', correo: '' },
       fecha_inicio: '', domicilio: false, repartidor_id: '', observaciones: '',
-      fecha_entrega_domicilio: '', fechaInicioDistinta: false,
+      fecha_entrega_domicilio: '', fechaInicioDistinta: false, fecha_vigencia: null,
     })
     setPacienteFiltro('')
     setSeccion1Completa(false)
@@ -683,6 +800,7 @@ export default function OrdenesClient({
         repartidor_id: wForm.domicilio ? wForm.repartidor_id : null,
         fecha_entrega: paraGuardar(wForm.domicilio ? wForm.fecha_entrega_domicilio : wForm.fecha_inicio),
         observaciones: notaInicio,
+        fecha_vigencia: wForm.fecha_vigencia || null,
       }).select('id').single()
 
     if (errOrden) { showToast('Error: ' + errOrden.message, 'error'); setSaving(false); return }
@@ -718,7 +836,7 @@ export default function OrdenesClient({
 
     registrarBitacora({
       modulo: 'ordenes', accion: 'crear', entidad: 'préstamo', entidad_id: orden.id,
-      detalle: { cliente_id: wForm.cliente_id, equipos_ids: wForm.equipos_ids, con_domicilio: wForm.domicilio }
+      detalle: { cliente_id: wForm.cliente_id, equipos_ids: wForm.equipos_ids, con_domicilio: wForm.domicilio, fecha_vigencia: wForm.fecha_vigencia || null }
     })
 
     showToast(wForm.domicilio ? 'Préstamo creado — pendiente de entrega' : 'Préstamo registrado y activo')
@@ -809,7 +927,7 @@ export default function OrdenesClient({
   const puedeCancelarOrden = drawer && !['Finalizada', 'Cancelada'].includes(drawerEstado)
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden">
+    <div className="flex flex-col h-full overflow-hidden">
 
       {/* Topbar */}
       <div className="h-14 md:h-16 md:bg-white md:border-b md:border-slate-200 flex items-center px-4 md:px-7 flex-shrink-0">
@@ -898,6 +1016,17 @@ export default function OrdenesClient({
                     {opcionesCategoria.map(c => <option key={c} value={c}>{c}</option>)}
                   </select>
                 </div>
+
+                {filtroAtencion && (
+                  <div className="flex items-center gap-1.5 mt-1">
+                    <span className="inline-flex items-center gap-1.5 bg-[#FFFBEB] border border-[#F59E0B]/40 text-[#B45309] text-[12px] font-medium px-3 py-1.5 rounded-full">
+                      Filtro: {filtroAtencion === 'prestamos_vencidos' ? 'préstamos vencidos' : 'préstamos por vencer'}
+                      <button type="button" onClick={() => setFiltroAtencion('')} className="hover:text-[#7C2D12]">
+                        <X size={12} />
+                      </button>
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -1269,6 +1398,43 @@ export default function OrdenesClient({
                             Guardar
                           </button>
                           <button onClick={() => setEditFecha(false)}
+                            className="flex-1 py-2 border border-slate-200 text-slate-500 rounded-[8px] text-[12.5px] hover:border-slate-300">
+                            Cancelar
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Vigencia — editable mientras el préstamo siga en curso (Finalizada/
+                    Cancelada ya terminaron, la vigencia deja de tener sentido) */}
+                {!['Finalizada', 'Cancelada'].includes(drawerEstado) && (
+                  <div className="p-5">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="text-[9.5px] font-bold uppercase tracking-[0.12em] text-slate-400">Vigencia del préstamo</div>
+                      {!editVigencia && (
+                        <button onClick={() => { setEditVigencia(true); setNuevaVigencia(drawer.fecha_vigencia || null) }}
+                          className="flex items-center gap-1 text-[11.5px] text-[#D81B43] font-semibold hover:underline">
+                          <Edit3 size={11} /> {drawer.fecha_vigencia ? 'Cambiar' : 'Definir'}
+                        </button>
+                      )}
+                    </div>
+                    {!editVigencia ? (
+                      drawer.fecha_vigencia
+                        ? <div className={`text-[13.5px] font-semibold ${drawerVencida ? 'text-[#D81B43]' : 'text-slate-700'}`}>
+                            {formatearSoloFecha(drawer.fecha_vigencia)}
+                          </div>
+                        : <div className="text-[12.5px] text-slate-400 font-medium">Indefinido — sin fecha de vencimiento</div>
+                    ) : (
+                      <div className="space-y-2">
+                        <ControlVigencia value={nuevaVigencia} onChange={setNuevaVigencia} />
+                        <div className="flex gap-2">
+                          <button onClick={guardarVigencia}
+                            className="flex-1 py-2 bg-[#D81B43] text-white rounded-[8px] text-[12.5px] font-semibold hover:bg-[#B0172F]">
+                            Guardar
+                          </button>
+                          <button onClick={() => setEditVigencia(false)}
                             className="flex-1 py-2 border border-slate-200 text-slate-500 rounded-[8px] text-[12.5px] hover:border-slate-300">
                             Cancelar
                           </button>
@@ -1809,6 +1975,11 @@ export default function OrdenesClient({
                     )}
                   </>
                 )}
+
+                <div className="pt-3 border-t border-slate-100">
+                  <ControlVigencia value={wForm.fecha_vigencia}
+                    onChange={v => setWForm(f => ({ ...f, fecha_vigencia: v }))} />
+                </div>
               </div>
 
               <div className="flex justify-end gap-2 mt-5 pt-4 border-t border-slate-100">

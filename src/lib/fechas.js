@@ -63,3 +63,13 @@ export function formatearSoloFecha(fechaStr) {
   const [anio, mes, dia] = fechaStr.slice(0, 10).split('-')
   return `${dia} ${MESES_CORTOS[Number(mes) - 1]} ${anio}`
 }
+
+// Suma N días a una fecha YYYY-MM-DD (columna `date` pura, sin hora) usando
+// aritmética UTC sobre los componentes — evita el corrimiento de día que daría
+// sumar milisegundos sobre un new Date() interpretado en la zona del navegador.
+export function sumarDias(fechaStr, dias) {
+  const [anio, mes, dia] = fechaStr.slice(0, 10).split('-').map(Number)
+  const fecha = new Date(Date.UTC(anio, mes - 1, dia))
+  fecha.setUTCDate(fecha.getUTCDate() + dias)
+  return fecha.toISOString().slice(0, 10)
+}

@@ -15,8 +15,13 @@ export default function ConfirmDialog({
   const esPeligro = tipo === 'peligro'
   return (
     <>
+      {/* Sin backdrop-blur: es el diálogo de confirmación genérico
+          (CLAUDE.md pide reusarlo antes de crear uno nuevo), así que puede
+          terminar abierto sobre cualquier página — incluido el dashboard,
+          donde el mapa de Leaflet usa capas GPU que un backdrop-filter no
+          alcanza a difuminar y quedarían nítidas encima del fondo. */}
       <div
-        className="fixed inset-0 bg-black/50 z-[60] backdrop-blur-sm"
+        className="fixed inset-0 bg-black/60 z-[60]"
         onClick={esPeligro ? undefined : onCancelar}
       />
       <div className="fixed inset-0 z-[60] flex items-end md:items-center justify-center p-0 md:p-4">

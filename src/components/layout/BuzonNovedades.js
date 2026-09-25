@@ -1,10 +1,36 @@
 'use client'
 import { useState, useEffect, useRef, useLayoutEffect } from 'react'
-import { Bell, Plus, X, Megaphone } from 'lucide-react'
+import { Bell, Plus, X, Megaphone, AlertTriangle, Clock } from 'lucide-react'
 import { createClient } from '@/lib/supabase'
 import { useUsuarioActual } from '@/lib/usuario-context'
+import { REGLAS_ATENCION, clavePospuesto } from '@/lib/atencion'
+import { diasParaVencer } from '@/lib/vigencia'
 
 const ULTIMA_NOVEDAD_VISTA_KEY = 'ultima_novedad_vista'
+// Set de ids de alerta ya vistas (no un solo puntero como en novedades):
+// una alerta se recalcula en cada carga y puede reaparecer si se pospuso
+// y el plazo venció — no hay un "más nuevo que" estable para comparar.
+const ALERTAS_VISTAS_KEY = 'alertas_vistas'
+const LIMITE_ALERTA_POR_REGLA = 5
+const ORDEN_SEVERIDAD = { alta: 0, media: 1 }
+
+const ESTILO_SEVERIDAD = {
+  alta:  { bg: '#FEF2F2', color: '#D81B43', icono: AlertTriangle },
+  media: { bg: '#FFFBEB', color: '#B45309', icono: Clock },
+}
+
+function nombreEquipoAlerta(eq) {
+  return eq?.tipo_equipo?.atributos?.nombre || eq?.tipo_equipo?.nombre || '—'
+}
+
+function cargarAlertasVistas() {
+  try { return new Set(JSON.parse(localStorage.getItem(ALERTAS_VISTAS_KEY) || '[]')) }
+  catch { return new Set() }
+}
+function guardarAlertasVistas(set) {
+  try { localStorage.setItem(ALERTAS_VISTAS_KEY, JSON.stringify([...set].slice(-200))) }
+  catch { /* localStorage no disponible — no es crítico */ }
+}
 
 function formatearRelativo(iso) {
   const fecha = new Date(iso)
@@ -40,13 +66,17 @@ export default function BuzonNovedades({ dark = false }) {
   const btnRef = useRef(null)
 
   const [novedades, setNovedades]           = useState([])
+  const [alertas, setAlertas]               = useState([])
   const [buzonAbierto, setBuzonAbierto]     = useState(false)
-  const [noLeidas, setNoLeidas]             = useState(0)
+  const [noLeidasNovedades, setNoLeidasNovedades] = useState(0)
+  const [noLeidasAlertas, setNoLeidasAlertas]     = useState(0)
   const [modalNueva, setModalNueva]         = useState(false)
   const [form, setForm]                     = useState({ asunto: '', descripcion: '' })
   const [guardando, setGuardando]           = useState(false)
   const [error, setError]                   = useState('')
   const [panelPos, setPanelPos]             = useState(null)
+
+  const noLeidas = noLeidasNovedades + noLeidasAlertas
 
   // Cuenta cuántas novedades son más nuevas que la última vista (no solo
   // si "hay alguna" nueva) — así el badge puede mostrar un número, como
@@ -55,7 +85,7 @@ export default function BuzonNovedades({ dark = false }) {
     setNovedades(lista)
     const ultimaVista = localStorage.getItem(ULTIMA_NOVEDAD_VISTA_KEY)
     const idx = ultimaVista ? lista.findIndex(n => n.id === ultimaVista) : -1
-    setNoLeidas(idx === -1 ? lista.length : idx)
+    setNoLeidasNovedades(idx === -1 ? lista.length : idx)
   }
 
   async function fetchNovedades() {
@@ -74,22 +104,89 @@ export default function BuzonNovedades({ dark = false }) {
     aplicarNovedades(await fetchNovedades())
   }
 
+  // Préstamos vencidos/por vencer, calculados con las mismas reglas de
+  // src/lib/atencion.js que usa el Panel de Atención del dashboard — el
+  // buzón es lo único que vive en el topbar de todos los módulos, así que
+  // es el lugar natural para que estas alertas se vean sin importar dónde
+  // esté el usuario.
+  async function fetchAlertas() {
+    const porRegla = await Promise.all(REGLAS_ATENCION.map(async regla => {
+      const items = await regla.consulta(supabase, { limite: LIMITE_ALERTA_POR_REGLA })
+      return items.map(o => ({
+        id: clavePospuesto(regla.id, o.id),
+        ordenId: o.id,
+        reglaId: regla.id,
+        severidad: regla.severidad,
+        titulo: regla.titulo,
+        codigo: o.codigo,
+        cliente: o.cliente?.nombre,
+        paciente: o.paciente?.nombre,
+        equipos: o.equipos || [],
+        dias: diasParaVencer(o),
+      }))
+    }))
+    return porRegla.flat().sort((a, b) => (ORDEN_SEVERIDAD[a.severidad] - ORDEN_SEVERIDAD[b.severidad]) || (a.dias - b.dias))
+  }
+
+  function aplicarAlertas(lista) {
+    setAlertas(lista)
+    const vistas = cargarAlertasVistas()
+    setNoLeidasAlertas(lista.filter(a => !vistas.has(a.id)).length)
+  }
+
   useEffect(() => {
     let cancelado = false
     fetchNovedades().then(lista => { if (!cancelado) aplicarNovedades(lista) })
-    return () => { cancelado = true }
+    fetchAlertas().then(lista => { if (!cancelado) aplicarAlertas(lista) })
+
+    // Recogido/extendido/pospuesto desde PanelAtencion (u otro usuario, en
+    // cualquier módulo) cambia lo que estas reglas deben mostrar. A
+    // diferencia de las novedades manuales (que solo cambian al publicar
+    // una nueva, y ahí se recargan a mano), las alertas se recalculan de
+    // datos que otros flujos tocan constantemente — router.refresh() no
+    // remonta este componente, así que sin esta suscripción quedarían
+    // stale hasta la próxima navegación de página.
+    const canal = supabase
+      .channel('buzon-alertas-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'ordenes_servicio' }, () => {
+        fetchAlertas().then(lista => { if (!cancelado) aplicarAlertas(lista) })
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'atencion_pospuestas' }, () => {
+        fetchAlertas().then(lista => { if (!cancelado) aplicarAlertas(lista) })
+      })
+      .subscribe()
+
+    return () => { cancelado = true; supabase.removeChannel(canal) }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   function toggleBuzon() {
     setBuzonAbierto(v => {
       const next = !v
-      if (next && novedades.length > 0) {
-        localStorage.setItem(ULTIMA_NOVEDAD_VISTA_KEY, novedades[0].id)
-        setNoLeidas(0)
+      if (next) {
+        if (novedades.length > 0) {
+          localStorage.setItem(ULTIMA_NOVEDAD_VISTA_KEY, novedades[0].id)
+          setNoLeidasNovedades(0)
+        }
+        if (alertas.length > 0) {
+          const vistas = cargarAlertasVistas()
+          alertas.forEach(a => vistas.add(a.id))
+          guardarAlertasVistas(vistas)
+          setNoLeidasAlertas(0)
+        }
       }
       return next
     })
+  }
+
+  function irAAlerta(alerta) {
+    setBuzonAbierto(false)
+    // Navegación completa: el buzón vive en todos los módulos, incluido
+    // Préstamos — un router.push a la misma ruta con otro query no lo
+    // remonta, y el filtro (que se lee al montar) no se aplicaría. Mismo
+    // patrón que ya usan login/page.js y Sidebar.js (logout) para lo mismo.
+    // eslint-disable-next-line react-hooks/immutability
+    window.location.href = `/admin/ordenes?atencion=${alerta.reglaId}`
   }
 
   useLayoutEffect(() => {
@@ -146,6 +243,33 @@ export default function BuzonNovedades({ dark = false }) {
                 </button>
               )}
             </div>
+            {alertas.map(a => {
+              const estilo = ESTILO_SEVERIDAD[a.severidad] || ESTILO_SEVERIDAD.media
+              const Icono = estilo.icono
+              const etiquetaDias = a.dias < 0 ? `Venció hace ${Math.abs(a.dias)}d` : a.dias === 0 ? 'Vence hoy' : `Vence en ${a.dias}d`
+              return (
+                <div key={a.id} onClick={() => irAAlerta(a)}
+                  className="px-4 py-3 border-b border-slate-100 last:border-0 flex gap-3 hover:bg-slate-50 transition-colors cursor-pointer">
+                  <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: estilo.bg, color: estilo.color }}>
+                    <Icono size={15} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-mono text-[11.5px] font-bold text-slate-700">{a.codigo}</span>
+                      <span className="text-[10.5px] font-semibold flex-shrink-0" style={{ color: estilo.color }}>{etiquetaDias}</span>
+                    </div>
+                    <div className="text-[12px] text-slate-600 mt-0.5 truncate">
+                      {a.cliente}{a.paciente && <span className="text-slate-400"> · {a.paciente}</span>}
+                    </div>
+                    {a.equipos.length > 0 && (
+                      <div className="text-[11px] text-slate-400 mt-0.5 truncate">
+                        {a.equipos.map(oe => `${nombreEquipoAlerta(oe.equipo)} · ${oe.equipo?.codigo}`).join(', ')}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
             {novedades.map(n => (
               <div key={n.id} className="px-4 py-3 border-b border-slate-100 last:border-0 flex gap-3 hover:bg-slate-50 transition-colors">
                 <div className="w-9 h-9 rounded-full bg-[#D81B43]/10 text-[#D81B43] flex items-center justify-center flex-shrink-0">
@@ -158,7 +282,7 @@ export default function BuzonNovedades({ dark = false }) {
                 </div>
               </div>
             ))}
-            {novedades.length === 0 && (
+            {alertas.length === 0 && novedades.length === 0 && (
               <div className="px-4 py-6 text-center text-[12px] text-slate-400">Sin novedades recientes</div>
             )}
           </div>
