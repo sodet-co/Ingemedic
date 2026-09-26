@@ -59,6 +59,78 @@ Lo que está sin resolver, ordenado por prioridad.
 
 # Entradas
 
+## 2026-09-25 — Login robusto
+**Qué se hizo:** `login/page.js` — todo el flujo en try/catch (antes una
+caída de red dejaba "Verificando..." para siempre); mensajes distintos para
+conexión, demasiados intentos (429), cuenta sin confirmar y desactivada;
+error del RPC = conexión (no "contraseña incorrecta"); email del RPC con
+trim/lowercase; localStorage/sessionStorage en try (modo privado ya no
+impide entrar); se espera la bitácora (máx 1,5 s) antes de redirigir; evita
+doble envío. Los campos se leen del DOM al enviar (por id, SIN `name`): en
+un celular lento se podía escribir antes de hidratar y el estado quedaba
+vacío; con `name`, un envío pre-hidratación ponía los datos en la URL.
+**Verificado:** datos de `usuarios` vs `auth` consistentes (7/7 mismo id y
+email, 0 usernames repetidos). Prueba real en localhost con usuario
+desechable (borrado con su bitácora): usuario con mayúsculas/espacios ✓,
+correo en mayúsculas ✓, contraseña mala ✓, usuario inexistente ✓ (mismo
+mensaje), sin internet ✓, desactivado ✓; 2 logins en bitácora ✓.
+**Archivos:** `src/app/admin/(auth)/login/page.js`
+
+## 2026-09-25 — Consecutivo de código en inventario + Actividad reciente
+**Qué se hizo:**
+- **Nueva unidad:** el campo de código viene lleno con la sugerencia
+  (editable). Botón "Ver últimos registrados" (oculto por defecto) con los
+  últimos 5 en pestañas "Esta categoría" / "Todo el inventario". Se
+  avisa/bloquea si el código ya existe.
+- **Módulo Inventario:** botón "Actividad reciente" a la derecha de Exportar
+  Excel (en las 3 vistas). Al abrirlo: en lg+ una columna derecha crece con
+  transición (0 → 324px) y las tarjetas (grid auto-fill) se reacomodan solas;
+  en celular/tablet se despliega hacia abajo arriba de la vista. Verificado
+  con capturas reales de /admin/inventario (usuario de prueba, borrado).
+  Muestra los 5 últimos registrados; el primero con info completa (código,
+  estado, equipo, marca, categoría, serie, fecha y hora). Se calcula de los
+  equipos que ya carga la página.
+**Regla de la sugerencia (definida por Sofía):** último código AGREGADO en
+todo el inventario + 1, sin importar sus letras, conservando guion y ceros.
+Ej.: RL140 y luego EQ34 → EQ35. Si ya existe, salta al siguiente libre.
+Códigos compuestos (RL409/FAM356) no sirven de base. Hoy: EQ500 → EQ501.
+Se probaron antes y se descartaron: "mayor RL + 1" y "por categoría".
+- Duplicados se comparan por número: RL528 = RL0528, CON-0001 = CON-1.
+- Equipos reales que salen de servicio van a "Baja", no se borran.
+**Archivos:** `src/lib/equipos.js`, `inventario/InventarioClient.js`
+**Pendiente:** datos de prueba (EQ500, RL1720 en "Pruebas", TEST-RL10962,
+EQ-0005) se dejan a pedido. SQL opcional de índice único por código
+(ofrecido, sin correr).
+
+## 2026-09-25 — Rediseño completo de la vista del repartidor
+**Qué se hizo:** layout propio (barra blanca + navegación inferior en
+celular / pestañas arriba en md+), "Mis entregas" con saludo y resumen del
+día, agrupadas En camino / Atrasadas / Hoy / Mañana / Próximas, fecha
+visible, botones Llamar (`tel:`) y Cómo llegar (Google Maps), códigos de
+equipo, nota de la orden, confirmación antes de iniciar, completar en 2
+pasos (datos → firma grande). "Mi perfil" rediseñado (identidad, nombre,
+contraseña con validación en vivo, cerrar sesión con confirmación).
+Responsive: 1/2/3 columnas; el modal de completar es hoja inferior en
+celular y ventana centrada en md+. Login: logo visible en celular.
+**Bugs arreglados (no obvios):**
+- **Fondo negro:** `globals.css` traía el bloque de la plantilla de Next
+  `@media (prefers-color-scheme: dark)` → fondo `#0a0a0a` en celulares con
+  modo oscuro. Admin no lo notaba (pinta su fondo); repartidor y su perfil
+  sí. Se quitó y se declaró `color-scheme: only light` (CSS + viewport).
+- **Firma vacía aceptada:** `FirmaPad` reportaba firma al salir el mouse o
+  con un toque sin trazo. Ahora solo si hubo trazo. Además el canvas se
+  pinta blanco (antes PNG transparente → negro en WhatsApp/galería/PDF).
+  Afecta también la vista de admin (mejora).
+- **Paciente perdido al iniciar:** `SELECT_ENTREGA` (lib/entregas.js) no
+  traía `paciente`, así que la tarjeta "En camino" mostraba la dirección
+  del cliente en vez de la casa del paciente.
+**Archivos:** `globals.css`, `app/layout.js`, `(dashboard)/layout.js`,
+`RepartidorHeader.js`, `EntregasRepartidorClient.js`, `entregas/page.js`,
+`repartidor-preferencias/*`, `FirmaPad.js`, `lib/entregas.js`, `login/page.js`
+**Pendiente:** probar con un usuario Repartidor real en celular (no tengo
+credenciales): iniciar → completar con firma, Llamar, Cómo llegar, perfil.
+Firmas guardadas antes de hoy siguen siendo PNG transparentes.
+
 ## 2026-09-25 — Login: usuarios desactivados, límite de 8h y mensajes
 **Qué se hizo:**
 - Desactivar un usuario ahora también lo bloquea en Supabase Auth

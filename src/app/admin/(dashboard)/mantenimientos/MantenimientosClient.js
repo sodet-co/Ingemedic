@@ -606,17 +606,18 @@ export default function MantenimientosClient({ mantenimientosIniciales, tipos, e
         </div>
 
         {/* Filtros */}
-        <div className="flex items-center gap-3 flex-shrink-0">
+        <div className="flex flex-wrap md:flex-nowrap items-center gap-2 md:gap-3 flex-shrink-0">
           <div className="relative flex-1 md:flex-none md:w-[340px]">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input value={search} onChange={e => setSearch(e.target.value)}
               placeholder="Buscar por código, equipo o técnico..."
               className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-[9px] text-[13px] outline-none focus:border-[#D81B43] bg-white" />
           </div>
-          <div className="hidden md:flex gap-2">
+          {/* En celular bajan a su propia fila, con scroll lateral */}
+          <div className="order-last md:order-none w-full md:w-auto flex gap-2 overflow-x-auto">
             {tipos.map(t => (
               <button key={t.id} onClick={() => setFiltroTipo(p => p === t.nombre ? '' : t.nombre)}
-                className={`px-3 py-1.5 rounded-full text-[12px] font-medium transition-all ${filtroTipo === t.nombre
+                className={`px-3 py-1.5 rounded-full text-[12px] font-medium transition-all whitespace-nowrap flex-shrink-0 ${filtroTipo === t.nombre
                   ? t.nombre === 'Correctivo' ? 'bg-[#D81B43] text-white' : 'bg-[#25A9E0] text-white'
                   : 'bg-white border border-slate-200 text-slate-500 hover:border-slate-300'
                   }`}>{t.nombre}</button>
@@ -624,7 +625,7 @@ export default function MantenimientosClient({ mantenimientosIniciales, tipos, e
           </div>
           <LimpiarFiltros activo={!!(search || filtroEstado || filtroTipo)}
             onLimpiar={() => { setSearch(''); setFiltroEstado(''); setFiltroTipo('') }} />
-          <div className="text-[12px] text-slate-400 ml-auto flex-shrink-0">{filtrados.length} registro{filtrados.length !== 1 ? 's' : ''}</div>
+          <div className="hidden sm:block text-[12px] text-slate-400 ml-auto flex-shrink-0">{filtrados.length} registro{filtrados.length !== 1 ? 's' : ''}</div>
           <button onClick={() => { abrirModal() }}
             className="hidden md:flex items-center gap-1.5 px-4 h-[38px] bg-[#D81B43] text-white text-[13px] font-semibold rounded-[9px] hover:bg-[#B0172F] transition-colors flex-shrink-0 whitespace-nowrap">
             <Plus size={14} strokeWidth={2.5} /> Nuevo mantenimiento

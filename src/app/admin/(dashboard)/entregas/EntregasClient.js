@@ -882,8 +882,8 @@ export default function EntregasClient({ entregasIniciales, ordenesEnReparto, es
       {modalOrden && (
         <>
           <div className="fixed inset-0 bg-black/40 z-40 backdrop-blur-sm" onClick={() => setModalOrden(null)} />
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-2xl w-full max-w-[520px] max-h-[calc(100vh-2rem)] flex flex-col shadow-2xl overflow-hidden"
+          <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center p-0 md:p-4">
+            <div className="bg-white rounded-t-2xl md:rounded-2xl w-full max-w-[520px] max-h-[92dvh] md:max-h-[calc(100dvh-2rem)] flex flex-col shadow-2xl overflow-hidden"
               onClick={e => e.stopPropagation()}>
               <div className="px-6 py-4 border-b flex items-center justify-between flex-shrink-0 bg-[#D81B43]">
                 <div>
@@ -1282,7 +1282,7 @@ export default function EntregasClient({ entregasIniciales, ordenesEnReparto, es
       )}
 
       {toast && (
-        <div className={`fixed bottom-6 right-6 z-[70] px-4 py-3 rounded-[10px] text-[13px] font-medium text-white shadow-lg ${toast.tipo === 'error' ? 'bg-red-500' : 'bg-[#0F7B55]'}`}>
+        <div className={`fixed bottom-28 md:bottom-6 right-4 md:right-6 left-4 md:left-auto text-center md:text-left z-[70] px-4 py-3 rounded-[10px] text-[13px] font-medium text-white shadow-lg ${toast.tipo === 'error' ? 'bg-red-500' : 'bg-[#0F7B55]'}`}>
           {toast.msg}
         </div>
       )}

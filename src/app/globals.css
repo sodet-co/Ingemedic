@@ -6,9 +6,12 @@ html {
   scroll-behavior: smooth;
 }
 
+/* La app es solo de tema claro. `only light` también le impide al navegador
+   oscurecer la página por su cuenta (modo oscuro forzado de Chrome/Samsung). */
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  color-scheme: only light;
 }
 
 @theme inline {
@@ -21,12 +24,10 @@ html {
   --font-body: var(--font-inter);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
+/* Aquí había un bloque @media (prefers-color-scheme: dark) de la plantilla
+   de Next.js que ponía el fondo casi negro (#0a0a0a) en celulares con modo
+   oscuro. Como la app no tiene tema oscuro, las pantallas que no pintan su
+   propio fondo (vista del repartidor, su perfil) se veían negras. */
 
 body {
   background: var(--background);

@@ -11,6 +11,22 @@ const TOUR_USER_KEY = 'ingemedic_tour_usuario'
 
 const MENSAJE_CREDENCIALES = 'Usuario/correo o contraseña incorrectos.'
 const MENSAJE_INACTIVO     = 'Tu usuario está desactivado. Habla con un administrador.'
+const MENSAJE_CONEXION     = 'No se pudo conectar con el servidor. Revisa tu internet e intenta de nuevo.'
+const MENSAJE_INTENTOS     = 'Demasiados intentos seguidos. Espera unos minutos e intenta de nuevo.'
+const MENSAJE_SIN_CONFIRMAR = 'Tu cuenta aún no está confirmada. Habla con un administrador.'
+
+// Traduce el error de Supabase Auth a un mensaje claro. Lo que no se
+// reconoce cae en "credenciales incorrectas" (no revela si el usuario existe).
+function mensajeErrorAuth(err) {
+  const code = err?.code || ''
+  const msg  = err?.message || ''
+  if (code === 'user_banned' || /banned/i.test(msg)) return MENSAJE_INACTIVO   // desactivado (ver /api/usuarios)
+  if (err?.status === 429 || /rate.?limit|too many/i.test(code + ' ' + msg)) return MENSAJE_INTENTOS
+  if (code === 'email_not_confirmed') return MENSAJE_SIN_CONFIRMAR
+  // Sin respuesta del servidor (caída de red): supabase-js devuelve status 0 o AuthRetryableFetchError
+  if (err?.status === 0 || err?.name === 'AuthRetryableFetchError' || /fetch|network/i.test(msg)) return MENSAJE_CONEXION
+  return MENSAJE_CREDENCIALES
+}
 
 export default function LoginPage() {
   const [identifier, setIdentifier] = useState('')
@@ -35,63 +51,83 @@ export default function LoginPage() {
 
   async function handleLogin(e) {
     e.preventDefault()
+    if (loading) return // evita doble envío (Enter + clic)
+
+    // Se lee lo que se VE en los campos (no solo el estado de React): en un
+    // celular lento se puede escribir antes de que la página termine de
+    // cargar, y ahí el estado queda vacío aunque los campos tengan texto.
+    // (Por id y SIN atributo name: con name, un envío antes de que cargue el
+    // JS mandaría usuario y contraseña en la URL.)
+    const form      = e.currentTarget
+    const ingresado = (form.querySelector('#login-identificador')?.value ?? identifier).trim()
+    const clave     = form.querySelector('#login-clave')?.value ?? password
+    if (!ingresado || !clave) { setError('Escribe tu usuario/correo y tu contraseña.'); return }
+
     setLoading(true)
     setError('')
-
-    const supabase   = createClient()
-    const ingresado  = identifier.trim()
-    const isEmail    = ingresado.includes('@')
-    let email        = ingresado.toLowerCase()
-    let userId       = null
 
     // Mismo mensaje si el usuario no existe o si la contraseña está mal:
     // mensajes distintos dejaban averiguar qué nombres de usuario existen.
     const fallar = (msg = MENSAJE_CREDENCIALES) => { setError(msg); setLoading(false) }
 
-    if (!isEmail) {
-      // Username → email con la función email_por_username (SECURITY DEFINER):
-      // devuelve solo ese usuario, sin exponer la tabla usuarios sin sesión.
-      const { data, error: fetchError } = await supabase
-        .rpc('email_por_username', { p_username: ingresado })
-        .maybeSingle()
-      if (fetchError || !data) return fallar()
-      email  = data.email
-      userId = data.id
+    // Todo va en try/catch: sin esto, una caída de red o de Supabase dejaba
+    // el botón en "Verificando..." para siempre.
+    try {
+      const supabase = createClient()
+      const isEmail  = ingresado.includes('@')
+      let email      = ingresado.toLowerCase()
+      let userId     = null
+
+      if (!isEmail) {
+        // Username → email con la función email_por_username (SECURITY DEFINER):
+        // devuelve solo ese usuario, sin exponer la tabla usuarios sin sesión.
+        const { data, error: fetchError } = await supabase
+          .rpc('email_por_username', { p_username: ingresado })
+          .maybeSingle()
+        // Un error aquí es de conexión/servidor, no de credenciales
+        if (fetchError) return fallar(MENSAJE_CONEXION)
+        if (!data?.email) return fallar()
+        email  = data.email.trim().toLowerCase()
+        userId = data.id
+      }
+
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({ email, password: clave })
+
+      if (authError) return fallar(mensajeErrorAuth(authError))
+
+      // Si el usuario es diferente al último, resetear el tour.
+      // El almacenamiento puede estar bloqueado (modo privado en algunos
+      // celulares): si falla no importa, pero no debe impedir el ingreso.
+      try {
+        const lastUser = localStorage.getItem(TOUR_USER_KEY)
+        const currentUser = userId || authData.user?.id || email
+        if (lastUser !== currentUser) {
+          localStorage.removeItem(TOUR_KEY)
+          localStorage.removeItem(TOUR_PASO_KEY)
+          localStorage.setItem(TOUR_USER_KEY, currentUser)
+        }
+        // El Panel de Atención y la franja de vigencia se cierran con una x "por
+        // esta sesión" (ver PanelAtencion.js / BannerAtencion.js) — cada login
+        // nuevo debe volver a mostrarlos, así el usuario los haya cerrado ayer.
+        sessionStorage.removeItem('panel_atencion_oculto')
+        sessionStorage.removeItem('banner_atencion_oculto')
+      } catch { /* almacenamiento no disponible */ }
+
+      // Se espera a la bitácora (máx. 1,5 s) para que la redirección no corte
+      // el guardado del registro de ingreso. registrarBitacora nunca lanza error.
+      await Promise.race([
+        registrarBitacora({ modulo: 'auth', accion: 'login', entidad: 'sesión', entidad_id: authData.user?.id, detalle: { email } }),
+        new Promise(r => setTimeout(r, 1500)),
+      ])
+
+      // El límite de 8h lo calcula middleware.js con user.last_sign_in_at.
+      // Recarga completa (no client-side navigation) para evitar que el Router Cache
+      // de Next.js muestre datos de la sesión anterior al cambiar de usuario.
+      window.location.href = '/admin/dashboard'
+    } catch (err) {
+      console.error('Error en login:', err)
+      fallar(MENSAJE_CONEXION)
     }
-
-    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    })
-
-    if (authError) {
-      // Cuenta bloqueada al desactivar el usuario (ver /api/usuarios)
-      const baneado = authError.code === 'user_banned' || /banned/i.test(authError.message || '')
-      return fallar(baneado ? MENSAJE_INACTIVO : MENSAJE_CREDENCIALES)
-    }
-
-    // Si el usuario es diferente al último, resetear el tour
-    const lastUser = localStorage.getItem(TOUR_USER_KEY)
-    const currentUser = userId || email
-    if (lastUser !== currentUser) {
-      localStorage.removeItem(TOUR_KEY)
-      localStorage.removeItem(TOUR_PASO_KEY)
-      localStorage.setItem(TOUR_USER_KEY, currentUser)
-    }
-
-    registrarBitacora({ modulo: 'auth', accion: 'login', entidad: 'sesión', entidad_id: authData.user?.id, detalle: { email } })
-
-    // El límite de 8h lo calcula middleware.js con user.last_sign_in_at
-    // (ya no con una cookie del navegador).
-    // El Panel de Atención y la franja de vigencia se cierran con una x "por
-    // esta sesión" (ver PanelAtencion.js / BannerAtencion.js) — cada login
-    // nuevo debe volver a mostrarlos, así el usuario los haya cerrado ayer.
-    sessionStorage.removeItem('panel_atencion_oculto')
-    sessionStorage.removeItem('banner_atencion_oculto')
-
-    // Recarga completa (no client-side navigation) para evitar que el Router Cache
-    // de Next.js muestre datos de la sesión anterior al cambiar de usuario.
-    window.location.href = '/admin/dashboard'
   }
 
   const logoSrc = '/images/logo.png'
@@ -128,6 +164,11 @@ export default function LoginPage() {
           las 2 mitades (en móvil, centrada sobre el color sólido nada más) */}
       <div className="absolute inset-y-0 left-0 w-full md:w-[55%] flex items-center justify-center px-6 md:px-0">
         <div className="w-full max-w-[400px] md:bg-white md:rounded-[24px] md:shadow-2xl p-0 md:p-11">
+          {/* En celular la foto con el logo está oculta — el logo va arriba del saludo */}
+          <div className="md:hidden flex justify-center mb-8">
+            <Image src={logoSrc} alt="Ingemedic" width={1600} height={573} priority
+              className="h-auto w-[230px]" />
+          </div>
           <h2 className="text-[25px] font-extrabold text-[#1B3A6B] mb-1 text-center">¡Hola de nuevo!</h2>
           <p className="text-[15px] text-slate-400 mb-7 text-center">Ingresa con tu correo o nombre de usuario.</p>
 
@@ -145,6 +186,7 @@ export default function LoginPage() {
               </label>
               <input
                 type="text"
+                id="login-identificador"
                 value={identifier}
                 onChange={e => setIdentifier(e.target.value)}
                 placeholder="Correo o nombre de usuario"
@@ -164,6 +206,7 @@ export default function LoginPage() {
               <div className="relative">
                 <input
                   type={showPass ? 'text' : 'password'}
+                  id="login-clave"
                   value={password}
                   onChange={e => setPassword(e.target.value)}
                   placeholder="Ingresa tu contraseña"

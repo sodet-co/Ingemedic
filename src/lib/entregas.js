@@ -13,8 +13,9 @@ export const ESTADO_OS_EN_REPARTO = 'e87fa300-a4c7-4225-b618-faf162ccf7ef'
 const SELECT_ENTREGA = `
   *,
   orden:ordenes_servicio(
-    id, codigo, fecha_vigencia, fecha_entrega, observaciones,
-    cliente:clientes(id, nombre, tipo_persona, nit_cc, direccion, telefono),
+    id, codigo, fecha_vigencia, fecha_entrega, observaciones, paciente_id, cliente_id,
+    cliente:clientes(id, nombre, tipo_persona, nit_cc, direccion, telefono, municipio:municipios(nombre)),
+    paciente:pacientes(id, nombre, direccion, telefono, ciudad),
     equipos:orden_equipos(id, equipo_id, equipo:equipos(id, codigo, tipo_equipo:tipos_equipo(id, nombre, atributos))),
     plantillas:orden_plantillas(id, plantilla_id, firmado, firmado_por, firma_iniciales, fecha_firma, plantilla:plantillas_orden(id, nombre))
   ),

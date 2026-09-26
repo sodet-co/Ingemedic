@@ -27,6 +27,12 @@ const inter = Inter({
   weight: ["400", "500", "600"],
 });
 
+// Solo tema claro — ver globals.css (evita el fondo negro en celulares en modo oscuro)
+export const viewport = {
+  colorScheme: 'only light',
+  themeColor: '#1B3A6B',
+}
+
 export const metadata = {
   metadataBase: new URL("https://ingemedic.com.co"),
   title: {

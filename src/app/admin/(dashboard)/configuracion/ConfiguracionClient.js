@@ -671,7 +671,7 @@ export default function ConfiguracionClient({
   return (
     <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
       {/* Header */}
-      <div className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 md:px-7 flex-shrink-0">
+      <div className="h-14 md:h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 md:px-7 flex-shrink-0">
         <div>
           <div className="text-[18px] font-bold text-slate-800">Configuración</div>
           <div className="text-[12px] text-slate-400 mt-0.5">Panel de control del sistema</div>
@@ -738,7 +738,7 @@ export default function ConfiguracionClient({
                     <Plus size={14} /> Nuevo usuario
                   </button>
                 </div>
-                <div className="bg-white rounded-xl border border-slate-200 overflow-x-auto shadow-sm">
+                <div className="hidden md:block bg-white rounded-xl border border-slate-200 overflow-x-auto shadow-sm">
                   <table className="w-full border-collapse min-w-[560px]">
                     <thead>
                       <tr className="border-b-2 border-slate-200">
@@ -780,6 +780,36 @@ export default function ConfiguracionClient({
                       ))}
                     </tbody>
                   </table>
+                </div>
+
+                {/* Celular: una tarjeta por usuario */}
+                <div className="md:hidden space-y-2">
+                  {usuarios.map(u => (
+                    <div key={u.id} className="bg-white rounded-xl border border-slate-200 shadow-sm p-3.5 flex items-center gap-3">
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white text-[14px] font-bold flex-shrink-0 ${u.activo ? 'bg-[#D81B43]' : 'bg-slate-300'}`}>{u.nombre?.charAt(0)}</div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className={`text-[14px] font-semibold truncate ${u.activo ? 'text-slate-700' : 'text-slate-400'}`}>{u.nombre}</span>
+                          {!u.activo && <span className="text-[10.5px] font-semibold text-slate-400 flex-shrink-0">Inactivo</span>}
+                        </div>
+                        <div className="text-[12px] text-slate-400 truncate">{u.email}</div>
+                        <div className="flex items-center gap-2 mt-1 min-w-0">
+                          <span className="font-mono text-[11.5px] text-slate-500 truncate">@{u.username}</span>
+                          <span className={`px-2 py-0.5 rounded-full text-[10.5px] font-bold flex-shrink-0 ${u.rol?.nombre === 'Administrador' ? 'bg-[#E8F7FB] text-[#0E86A0]' : 'bg-green-50 text-green-700'}`}>
+                            {u.rol?.nombre || '—'}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex flex-col gap-1 flex-shrink-0">
+                        <button onClick={() => abrirModal('usuario', { ...u, rol_id: u.rol_id })} aria-label="Editar"
+                          className="p-2 text-slate-400 active:text-[#D81B43] active:bg-slate-100 rounded-[8px]"><Edit3 size={16} /></button>
+                        <button onClick={() => toggleUsuario(u)} aria-label={u.activo ? 'Desactivar' : 'Activar'}
+                          className={`p-2 rounded-[8px] ${u.activo ? 'text-slate-400 active:text-red-500 active:bg-red-50' : 'text-green-600 active:bg-green-50'}`}>
+                          {u.activo ? <X size={16} /> : <Check size={16} />}
+                        </button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
             )}
@@ -1307,10 +1337,10 @@ export default function ConfiguracionClient({
       {modal && (
         <>
           <div className="fixed inset-0 bg-black/40 z-40 backdrop-blur-sm" onClick={() => setModal(null)} />
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <div className={`bg-white rounded-2xl w-full flex flex-col shadow-2xl overflow-hidden
+          <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center p-0 md:p-4">
+            <div className={`bg-white rounded-t-2xl md:rounded-2xl w-full flex flex-col shadow-2xl overflow-hidden
               ${modal === 'categoria' ? 'max-w-[640px]' : modal === 'tipo' ? 'max-w-[600px]' : 'max-w-[480px]'}
-              max-h-[calc(100vh-2rem)]`}
+              max-h-[92dvh] md:max-h-[calc(100dvh-2rem)]`}
               onClick={e => e.stopPropagation()}>
 
               {/* Modal header */}
@@ -1333,7 +1363,7 @@ export default function ConfiguracionClient({
                     <label className={labelCls}>Nombre completo</label>
                     <input value={form.nombre || ''} onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))} className={inputCls} placeholder="Nombre del usuario" />
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                       <label className={labelCls}>Correo</label>
                       <input value={form.email || ''} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} className={inputCls} type="email" />
@@ -1368,7 +1398,7 @@ export default function ConfiguracionClient({
 
                 {/* CATEGORÍA */}
                 {modal === 'categoria' && <>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                       <label className={labelCls}>Nombre</label>
                       <input value={form.nombre || ''} onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))} className={inputCls} placeholder="ej. Oxigenoterapia" />
@@ -1387,7 +1417,7 @@ export default function ConfiguracionClient({
                       onSeleccionar={clave => setIconoSeleccionado(prev => prev === clave ? '' : clave)}
                     />
                   </div>
-                  <div className="grid grid-cols-2 gap-6 border-t border-slate-100 pt-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 border-t border-slate-100 pt-4">
                     {[
                       { nivel: 'tipo',   label: 'Columnas del tipo',    sub: 'Mismas para todos los modelos' },
                       { nivel: 'unidad', label: 'Columnas de la unidad', sub: 'Varían por unidad individual' },
@@ -1454,7 +1484,7 @@ export default function ConfiguracionClient({
 
                 {/* TIPO */}
                 {modal === 'tipo' && <>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                       <label className={labelCls}>Categoría</label>
                       <select value={form.categoria_id || ''}
@@ -1527,7 +1557,7 @@ export default function ConfiguracionClient({
                     return (
                       <div className="border-t border-slate-100 pt-3 space-y-3">
                         <div className="text-[11px] font-bold uppercase tracking-[0.07em] text-[#25A9E0]">Columnas del tipo — {cat.nombre}</div>
-                        <div className="grid grid-cols-2 gap-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                           {campos.map(campo => (
                             <div key={campo.clave}>
                               <label className={labelCls}>{campo.nombre}{campo.obligatorio && <span className="text-[#D81B43] ml-1">*</span>}</label>
@@ -1572,7 +1602,7 @@ export default function ConfiguracionClient({
       )}
 
       {toast && (
-        <div className={`fixed bottom-6 right-6 z-50 px-4 py-3 rounded-[10px] text-[13px] font-medium text-white shadow-lg ${toast.tipo === 'error' ? 'bg-red-500' : 'bg-[#0F7B55]'}`}>
+        <div className={`fixed bottom-28 md:bottom-6 right-4 md:right-6 left-4 md:left-auto text-center md:text-left z-50 px-4 py-3 rounded-[10px] text-[13px] font-medium text-white shadow-lg ${toast.tipo === 'error' ? 'bg-red-500' : 'bg-[#0F7B55]'}`}>
           {toast.msg}
         </div>
       )}

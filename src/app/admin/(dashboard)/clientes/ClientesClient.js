@@ -834,7 +834,8 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
               ) : drawer ? (
                 /* Lista compacta — solo se ve cuando la columna está angosta (detalle abierto) */
                 <div className="-mx-3 md:-mx-6">
-                  {clientesFiltrados.map(c => (
+                  {/* Misma página que la tabla, para no perderla al abrir un detalle */}
+                  {clientesPagina.map(c => (
                     <div key={c.id} onClick={() => abrirDrawer(c)}
                       className={`px-4 py-3 border-b border-slate-100 cursor-pointer transition-colors ${drawer?.id === c.id ? 'bg-[#FFF0F3] border-l-[3px] border-l-[#D81B43]' : 'hover:bg-slate-50'}`}>
                       <div className="text-[13px] font-bold text-slate-800 truncate">{c.nombre}</div>
@@ -844,6 +845,7 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
                       </div>
                     </div>
                   ))}
+                  <Paginador {...paginacionClientes} compacto />
                 </div>
               ) : (
                 <>
@@ -1340,7 +1342,8 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
               ) : drawerPaciente ? (
                 /* Lista compacta — solo se ve cuando la columna está angosta (detalle abierto) */
                 <div className="-mx-3 md:-mx-6">
-                  {pacientesFiltrados.map(p => {
+                  {/* Misma página que la tabla, para no perderla al abrir un detalle */}
+                  {pacientesPagina.map(p => {
                     const nEquipos = conteoEquiposPorPaciente[p.id] || 0
                     return (
                       <div key={p.id} onClick={() => abrirDrawerPaciente(p)}
@@ -1355,6 +1358,7 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
                       </div>
                     )
                   })}
+                  <Paginador {...paginacionPacientes} compacto />
                 </div>
               ) : (
                 <>

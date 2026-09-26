@@ -2,14 +2,18 @@
 
 // Controles de paginación reutilizables — mismo lenguaje visual que ya usaba
 // la paginación de unidades en el wizard de Préstamos (OrdenesClient).
-export default function Paginador({ paginaActual, totalPaginas, setPagina, porPagina, setPorPagina, total, opcionesPorPagina = [15, 20, 50] }) {
+// `compacto`: siempre en columna — para listas angostas (ej. la columna de 380px
+// que queda a la izquierda cuando hay un detalle abierto), donde la fila no cabe.
+export default function Paginador({ paginaActual, totalPaginas, setPagina, porPagina, setPorPagina, total, opcionesPorPagina = [15, 20, 50], compacto = false }) {
   if (total === 0) return null
 
   const inicio = (paginaActual - 1) * porPagina + 1
   const fin = Math.min(paginaActual * porPagina, total)
 
   return (
-    <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-3 border-t border-slate-200 text-[12.5px] text-slate-500">
+    <div className={`flex items-center justify-between border-t border-slate-200 text-[12.5px] text-slate-500 ${
+      compacto ? 'flex-col gap-2 px-3 py-3' : 'flex-col sm:flex-row gap-3 px-4 py-3'
+    }`}>
       <div className="flex items-center gap-2">
         <span>Mostrando {inicio}–{fin} de {total}</span>
         <select value={porPagina} onChange={e => setPorPagina(Number(e.target.value))}

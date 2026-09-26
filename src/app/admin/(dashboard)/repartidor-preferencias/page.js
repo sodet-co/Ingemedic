@@ -12,7 +12,7 @@ export default async function RepartidorPreferenciasPage() {
 
   const { data: usuario } = await supabase
     .from('usuarios')
-    .select('id, nombre, email, roles (nombre)')
+    .select('id, nombre, email, username, roles (nombre)')
     .eq('email', user.email)
     .single()
 

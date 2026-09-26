@@ -36,7 +36,7 @@ export default async function DashboardLayout({ children }) {
   // (la restricción de qué rutas puede visitar vive en middleware.js).
   if (usuario?.roles?.nombre === 'Repartidor') {
     return (
-      <RepartidorHeader logoUrl={empresa?.logo_url || '/logo.png'}>
+      <RepartidorHeader logoUrl={empresa?.logo_url || '/images/logo.png'} nombre={usuario?.nombre}>
         {children}
       </RepartidorHeader>
     )

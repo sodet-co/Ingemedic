@@ -10,6 +10,7 @@ import { IconoEquipo, GaleriaIconos } from '@/components/inventario/IconosEquipo
 import { IconoTipo } from '@/components/inventario/IconoTipo'
 import Paginador from '@/components/ui/Paginador'
 import { formatear, hoyBogota } from '@/lib/fechas'
+import { consecutivoCodigos, claveCodigo, porMasReciente } from '@/lib/equipos'
 import BuzonNovedades from '@/components/layout/BuzonNovedades'
 import { useOrdenable } from '@/hooks/useOrdenable'
 import { usePaginacion } from '@/hooks/usePaginacion'
@@ -115,6 +116,12 @@ export default function InventarioClient({ categorias: catsIniciales, tipos: tip
   const [pdfGenerando, setPdfGenerando] = useState(false)
   const [toast, setToast] = useState(null)
   const [formUnidad, setFormUnidad] = useState({ estado_id: '', atributos: {} })
+  // Consecutivo de la serie RL (último / siguiente) y códigos ya usados — se
+  // consulta al abrir "Nueva unidad", siempre contra la BD completa.
+  const [consecutivo, setConsecutivo] = useState(null) // null = cargando
+  const [verActividad, setVerActividad] = useState(false) // "Actividad reciente" oculta por defecto
+  const [verUltimos, setVerUltimos] = useState(false)
+  const [tabUltimos, setTabUltimos] = useState('categoria') // 'categoria' | 'todos'
   const [formTipo, setFormTipo] = useState({ icono: '', atributos: {} })
   const [formEditar, setFormEditar] = useState({ estado_id: '', atributos: {}, motivo: '' })
   const [prestamosDrawer, setPrestamosDrawer] = useState([])
@@ -149,6 +156,26 @@ export default function InventarioClient({ categorias: catsIniciales, tipos: tip
     setToast({ msg, tipo })
     setTimeout(() => setToast(null), 3000)
   }
+
+  // Últimos 5 códigos usados en todo el inventario (más recientes primero;
+  // en un empate de fecha —cargue masivo— gana el número mayor).
+  const ultimosCodigos = useMemo(() => {
+    const nombreCat = Object.fromEntries(categorias.map(c => [c.id, c.nombre]))
+    return equipos
+      .filter(e => e.codigo)
+      .sort(porMasReciente)
+      .slice(0, 5)
+      .map(e => ({
+        id: e.id,
+        codigo: e.codigo.trim(),
+        equipo: e.tipo_equipo?.atributos?.nombre || e.tipo_equipo?.nombre || '—',
+        marca: e.tipo_equipo?.atributos?.nombre ? e.tipo_equipo?.nombre : null,
+        categoria: nombreCat[e.tipo_equipo?.categoria_id] || '—',
+        estado: e.estado?.nombre || null,
+        serie: e.atributos?.serie || null,
+        fecha: e.fecha_creacion,
+      }))
+  }, [equipos, categorias])
 
   const stats = useMemo(() => {
     let base = equipos
@@ -547,11 +574,27 @@ export default function InventarioClient({ categorias: catsIniciales, tipos: tip
     const estadoDisponible = estados.find(e => e.nombre === 'Disponible')
     setFormUnidad({ codigo_inventario: '', estado_id: estadoDisponible?.id || '', atributos: {} })
     setModalNueva(true)
+    setConsecutivo(null)
+    setVerUltimos(false)
+    setTabUltimos('categoria')
+    // Sugerencia = último código agregado + 1; la categoría solo filtra la pestaña "Esta categoría"
+    consecutivoCodigos(supabase, catActual?.id || tipoActual?.categoria_id || null)
+      .then(r => {
+        setConsecutivo(r)
+        // Se llena con el siguiente, editable. Si ya empezaron a escribir, no se pisa.
+        setFormUnidad(f => f.codigo_inventario?.trim() ? f : { ...f, codigo_inventario: r.siguiente })
+      })
+      .catch(() => setConsecutivo({ error: true }))
   }
+
+  const codigoRepetidoEn = formUnidad.codigo_inventario?.trim() && consecutivo?.existentes
+    ? consecutivo.existentes.get(claveCodigo(formUnidad.codigo_inventario))
+    : null
 
   async function guardarUnidad() {
     const codigoInventario = formUnidad.codigo_inventario?.trim()
     if (!codigoInventario) { showToast('El código de inventario es obligatorio', 'error'); return }
+    if (codigoRepetidoEn) { showToast(`El código ${codigoInventario} ya está registrado (${codigoRepetidoEn})`, 'error'); return }
     for (const campo of camposUnidadExtra) {
       if (campo.obligatorio && !formUnidad.atributos[campo.clave]?.toString().trim()) {
         showToast(`El campo "${campo.nombre}" es obligatorio`, 'error'); return
@@ -564,7 +607,11 @@ export default function InventarioClient({ categorias: catsIniciales, tipos: tip
       estado_id: formUnidad.estado_id || null,
       atributos: { ...formUnidad.atributos, codigo_inventario: codigoInventario },
     }).select('id').single()
-    if (error) { showToast('Error: ' + error.message, 'error'); setSaving(false); return }
+    if (error) {
+      // 23505 = índice único de código (otro usuario lo registró mientras el formulario estaba abierto)
+      showToast(error.code === '23505' ? `El código ${codigoInventario} ya está registrado en el sistema` : 'Error: ' + error.message, 'error')
+      setSaving(false); return
+    }
     registrarBitacora({ modulo: 'inventario', accion: 'crear', entidad: 'equipo', entidad_id: newUnit?.id, detalle: { codigo: codigoInventario } })
     showToast('Equipo registrado')
     setSaving(false)
@@ -615,6 +662,78 @@ export default function InventarioClient({ categorias: catsIniciales, tipos: tip
       <Download size={13} /> {exportando ? 'Exportando…' : 'Exportar Excel'}
     </button>
   )
+  // Botón que abre/cierra "Actividad reciente" — va junto a Exportar Excel en
+  // la franja de filtros de cada vista.
+  const botonActividad = ultimosCodigos.length > 0 ? (
+    <button type="button" onClick={() => setVerActividad(v => !v)} title="Actividad reciente"
+      className={`flex items-center gap-1.5 px-3 h-[38px] text-[13px] font-medium border rounded-[9px] transition-all flex-shrink-0 whitespace-nowrap ${
+        verActividad ? 'border-[#1B3A6B] bg-[#1B3A6B]/5 text-[#1B3A6B]' : 'border-slate-200 text-slate-600 hover:border-slate-300 bg-white'
+      }`}>
+      <Clock size={14} /> <span className="hidden sm:inline">Actividad reciente</span>
+    </button>
+  ) : null
+
+  // "Actividad reciente": cerrada por defecto. Al abrirla, los 5 últimos
+  // registrados; el primero (el más reciente) con su info completa.
+  // enColumna = versión angosta de la columna derecha (lg+).
+  function renderActividad(enColumna) {
+    if (!ultimosCodigos.length) return null
+    const [ult, ...resto] = ultimosCodigos
+    const est = ESTADO_STYLES[ult.estado] || {}
+    return (
+      <div className={`bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden ${enColumna ? '' : 'mb-4'}`}>
+        <div className="flex items-center gap-2 px-3 md:px-4 py-2.5">
+          <Clock size={14} className="text-slate-400" />
+          <span className="text-[12px] font-bold uppercase tracking-[0.07em] text-slate-500">Actividad reciente</span>
+          <button type="button" onClick={() => setVerActividad(false)} aria-label="Cerrar"
+            className="ml-auto w-7 h-7 flex items-center justify-center rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-100">
+            <X size={15} />
+          </button>
+        </div>
+
+        {(
+          <div className="px-3 pb-3">
+            <div className="border border-slate-200 rounded-lg overflow-hidden">
+              {/* Más reciente — info completa */}
+              <div className="px-3 py-2.5 border-b border-slate-100">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                  <span className="font-mono text-[15px] font-extrabold text-slate-800">{ult.codigo}</span>
+                  {ult.estado && (
+                    <span className="text-[11px] font-bold px-2 py-0.5 rounded-full" style={{ background: est.bg, color: est.color }}>{ult.estado}</span>
+                  )}
+                </div>
+                <div className={`grid grid-cols-2 ${enColumna ? '' : 'md:grid-cols-5'} gap-x-4 gap-y-1.5 mt-2 text-[12px]`}>
+                  {[
+                    ['Equipo', ult.equipo],
+                    ['Marca', ult.marca],
+                    ['Categoría', ult.categoria],
+                    ['Serie', ult.serie],
+                    ['Registrado', ult.fecha ? formatear(ult.fecha, { hour: '2-digit', minute: '2-digit' }) : null],
+                  ].map(([k, v]) => (
+                    <div key={k} className={`min-w-0 ${k === 'Registrado' ? `col-span-2 ${enColumna ? '' : 'md:col-span-1'}` : ''}`}>
+                      <div className="text-[10px] font-semibold uppercase text-slate-400">{k}</div>
+                      <div className="text-slate-700 font-medium truncate">{v || '—'}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              {/* Los otros 4 */}
+              {resto.map(u => (
+                <div key={u.id} className="flex items-center gap-2.5 px-3 py-2 border-b border-slate-100 last:border-0">
+                  <span className={`font-mono text-[12.5px] font-bold text-slate-700 flex-shrink-0 truncate ${enColumna ? 'w-[84px]' : 'w-[96px]'}`}>{u.codigo}</span>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[12px] text-slate-600 truncate">{u.equipo}{u.marca ? ` · ${u.marca}` : ''}</div>
+                    <div className="text-[10.5px] text-slate-400 truncate">{u.categoria} · {u.fecha ? formatear(u.fecha, { year: undefined }) : '—'}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    )
+  }
+
   const claseBotonNuevo = 'hidden md:flex items-center gap-1.5 px-4 h-[38px] bg-[#D81B43] text-white text-[13px] font-semibold rounded-[9px] hover:bg-[#B0172F] transition-colors flex-shrink-0 whitespace-nowrap'
 
   return (
@@ -700,6 +819,18 @@ export default function InventarioClient({ categorias: catsIniciales, tipos: tip
           )
         })()}
 
+        {/* "Actividad reciente" se abre con su botón junto a Exportar Excel. En
+            lg+ aparece como columna a la derecha que crece con transición; las
+            tarjetas usan auto-fill y se reacomodan solas según el ancho que
+            queda. En celular/tablet se despliega arriba de la vista. */}
+        <div className="lg:flex lg:items-start">
+        <div className="flex-1 min-w-0">
+        <div inert={!verActividad}
+          className={`lg:hidden grid transition-[grid-template-rows,opacity] duration-300 ease-out ${
+            verActividad ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}>
+          <div className="overflow-hidden min-h-0">{renderActividad(false)}</div>
+        </div>
+
         {/* VISTA CATEGORÍAS */}
         {vista === 'categorias' && (
           <div>
@@ -717,9 +848,10 @@ export default function InventarioClient({ categorias: catsIniciales, tipos: tip
                   {categoriasFiltradas.length} categoría{categoriasFiltradas.length !== 1 ? 's' : ''}
                 </div>
                 {botonExportar}
+                {botonActividad}
               </div>
             )}
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-[repeat(auto-fill,minmax(230px,1fr))] gap-4">
             {categorias.length === 0 && (
               <div className="col-span-full text-center py-16 text-slate-400">
                 <Package className="w-16 h-16 mx-auto mb-3 opacity-20" />
@@ -834,6 +966,7 @@ export default function InventarioClient({ categorias: catsIniciales, tipos: tip
               </>)}
               <div className={`flex items-center gap-2 md:gap-3 ${tiposDeCat.length === 0 ? 'ml-auto' : ''}`}>
                 {botonExportar}
+                {botonActividad}
                 <button onClick={abrirModalTipo} className={claseBotonNuevo}>
                   <Plus size={14} strokeWidth={2.5} /> Nuevo tipo
                 </button>
@@ -846,7 +979,7 @@ export default function InventarioClient({ categorias: catsIniciales, tipos: tip
                 <div className="text-[13px]">Usa el botón &quot;Nuevo tipo&quot; para agregar uno</div>
               </div>
             )}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-[repeat(auto-fill,minmax(240px,1fr))] gap-3">
               {tiposFiltrados.map(tipo => {
                   const stock = stockPorTipo[tipo.id] || { total: 0, disponibles: 0 }
                   const campos = camposTipo.filter(c => c.clave !== 'nombre').slice(0, 2)
@@ -900,6 +1033,7 @@ export default function InventarioClient({ categorias: catsIniciales, tipos: tip
                 {unidadesDeTipo.length} unidad{unidadesDeTipo.length !== 1 ? 'es' : ''}
               </div>
               {botonExportar}
+              {botonActividad}
               <button onClick={abrirModalNueva} className={claseBotonNuevo}>
                 <Plus size={14} strokeWidth={2.5} /> Nueva unidad
               </button>
@@ -1089,6 +1223,14 @@ export default function InventarioClient({ categorias: catsIniciales, tipos: tip
             )}
           </div>
         )}
+        </div>
+        <aside inert={!verActividad}
+          className={`hidden lg:block flex-shrink-0 sticky top-0 overflow-hidden transition-[width,opacity] duration-300 ease-out ${
+            verActividad ? 'w-[324px] opacity-100' : 'w-0 opacity-0'}`}>
+          {/* ancho fijo por dentro: el contenido no se aplasta mientras la columna crece */}
+          <div className="w-[324px] pl-6">{renderActividad(true)}</div>
+        </aside>
+        </div>
       </div>
 
       {/* ── DRAWER HOJA DE VIDA ── */}
@@ -1419,8 +1561,52 @@ export default function InventarioClient({ categorias: catsIniciales, tipos: tip
                     <div className="mb-4">
                       <label className={labelCls}>Código de inventario<span className="text-[#D81B43] ml-1">*</span></label>
                       <input value={formUnidad.codigo_inventario || ''} onChange={e => setFormUnidad(f => ({ ...f, codigo_inventario: e.target.value }))}
-                        placeholder="ej. RL1234" className={inputCls} />
-                      <div className="text-[11px] text-slate-400 mt-1">Identifica la unidad en todo el sistema</div>
+                        placeholder={consecutivo === null ? 'Cargando consecutivo…' : 'ej. RL1234'}
+                        className={inputCls + (codigoRepetidoEn ? ' !border-red-300 focus:!border-red-400' : '')} />
+                      {codigoRepetidoEn ? (
+                        <div className="text-[11.5px] text-red-500 mt-1">Este código ya está registrado ({codigoRepetidoEn})</div>
+                      ) : (
+                        <div className="text-[11px] text-slate-400 mt-1">Identifica la unidad en todo el sistema</div>
+                      )}
+
+                      {/* Consulta de los últimos 5 códigos registrados — oculta por defecto */}
+                      {consecutivo?.ultimos && (
+                        <div className="mt-2">
+                          <button type="button" onClick={() => setVerUltimos(v => !v)}
+                            className="flex items-center gap-1.5 text-[12px] font-semibold text-[#1B3A6B] hover:underline">
+                            <Clock size={12} /> {verUltimos ? 'Ocultar últimos registrados' : 'Ver últimos registrados'}
+                          </button>
+                          {verUltimos && (() => {
+                            const lista = tabUltimos === 'categoria' ? consecutivo.ultimosCategoria : consecutivo.ultimos
+                            return (
+                              <div className="mt-2 border border-slate-200 rounded-[10px] overflow-hidden">
+                                <div className="flex bg-slate-50 border-b border-slate-200">
+                                  {[['categoria', 'Esta categoría'], ['todos', 'Todo el inventario']].map(([v, l]) => (
+                                    <button key={v} type="button" onClick={() => setTabUltimos(v)}
+                                      className={`flex-1 py-2 text-[12px] font-semibold border-b-2 -mb-px transition-colors ${
+                                        tabUltimos === v ? 'border-[#D81B43] text-[#D81B43] bg-white' : 'border-transparent text-slate-500'}`}>
+                                      {l}
+                                    </button>
+                                  ))}
+                                </div>
+                                {lista.length === 0 ? (
+                                  <div className="px-3 py-4 text-center text-[12px] text-slate-400">Esta categoría aún no tiene equipos</div>
+                                ) : lista.map((u, i) => (
+                                  <div key={u.codigo + i} className="flex items-center gap-2 px-3 py-2 border-b border-slate-100 last:border-0">
+                                    <span className="font-mono text-[12.5px] font-bold text-slate-700 w-[92px] flex-shrink-0 truncate">{u.codigo}</span>
+                                    <div className="min-w-0 flex-1">
+                                      <div className="text-[12px] text-slate-600 truncate">{u.equipo}</div>
+                                      {tabUltimos === 'todos' && <div className="text-[10.5px] text-slate-400 truncate">{u.categoria}</div>}
+                                    </div>
+                                    <span className="text-[10.5px] text-slate-400 flex-shrink-0">{u.fecha ? formatear(u.fecha, { year: undefined }) : '—'}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            )
+                          })()}
+                        </div>
+                      )}
+
                     </div>
                     <div>
                       <label className={labelCls}>Estado</label>

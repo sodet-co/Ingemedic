@@ -1,50 +1,54 @@
 'use client'
-import { useRouter } from 'next/navigation'
-import { Settings, LogOut } from 'lucide-react'
-import { createClient } from '@/lib/supabase'
-import { registrarBitacora } from '@/lib/bitacora'
-import { ULTIMA_ACTUALIZACION } from '@/lib/ultima-actualizacion'
+import Link from 'next/link'
+import { usePathname } from 'next/navigation'
+import { Truck, User } from 'lucide-react'
 
-function formatearFechaActualizacion(iso) {
-  const fecha = new Date(iso)
-  return fecha.toLocaleDateString('es-CO', { day: 'numeric', month: 'short', year: 'numeric' })
+export function iniciales(nombre) {
+  return (nombre || '?').trim().split(/\s+/).slice(0, 2).map(p => p[0]).join('').toUpperCase()
 }
 
-// Layout mínimo para el rol Repartidor — sin sidebar, sin barra inferior, sin FAB
-// radial (ese sistema de navegación móvil dual es para el admin con muchos
-// módulos; el repartidor solo tiene Entregas y Preferencias).
-export default function RepartidorHeader({ children, logoUrl }) {
-  const router = useRouter()
-  const supabase = createClient()
+const TABS = [
+  { href: '/admin/entregas',              label: 'Entregas',  Icono: Truck },
+  { href: '/admin/repartidor-preferencias', label: 'Mi perfil', Icono: User },
+]
 
-  async function cerrarSesion() {
-    const { data: { user } } = await supabase.auth.getUser()
-    await registrarBitacora({ modulo: 'auth', accion: 'logout', entidad: 'sesión', entidad_id: user?.id })
-    await supabase.auth.signOut()
-    window.location.href = '/admin/login'
-  }
+// Layout del rol Repartidor — mobile-first, sin el sidebar de admin.
+// Barra superior blanca (el logo es un JPG con fondo blanco: sobre la barra
+// azul de antes se veía como un recuadro pegado) + barra inferior con las
+// dos secciones al alcance del pulgar. Cerrar sesión vive en "Mi perfil".
+export default function RepartidorHeader({ children, logoUrl, nombre }) {
+  const pathname = usePathname()
 
   return (
-    <div className="flex flex-col h-screen">
-      <div className="relative h-14 bg-[#1B3A6B] flex items-center justify-between px-4 flex-shrink-0">
-        <div className="flex items-center gap-2">
-          <img src={logoUrl} className="h-7" alt="Ingemedic" />
-        </div>
-        <div className="flex items-center gap-3">
-          <button onClick={() => router.push('/admin/repartidor-preferencias')}>
-            <Settings size={20} className="text-white/80" />
-          </button>
-          <button onClick={cerrarSesion}>
-            <LogOut size={20} className="text-white/80" />
-          </button>
-        </div>
-        <div className="absolute bottom-0.5 right-4 text-[8px] text-white/35 whitespace-nowrap">
-          Act: {formatearFechaActualizacion(ULTIMA_ACTUALIZACION)}
-        </div>
-      </div>
-      <main className="flex-1 overflow-y-auto">
+    <div className="flex flex-col h-[100dvh] bg-[#F8FAFC]">
+      <header className="h-14 bg-white border-b border-slate-200 flex items-center justify-between px-4 flex-shrink-0">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={logoUrl} className="h-8 w-auto" alt="Ingemedic" />
+        <Link href="/admin/repartidor-preferencias" aria-label="Mi perfil"
+          className="w-9 h-9 rounded-full bg-[#1B3A6B] text-white text-[13px] font-bold flex items-center justify-center">
+          {iniciales(nombre)}
+        </Link>
+      </header>
+
+      <main className="flex-1 min-h-0 overflow-y-auto">
         {children}
       </main>
+
+      <nav className="flex-shrink-0 bg-white border-t border-slate-200 grid grid-cols-2"
+        style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
+        {TABS.map(({ href, label, Icono }) => {
+          const activa = pathname === href || pathname.startsWith(href + '/')
+          return (
+            <Link key={href} href={href}
+              className={`h-16 flex flex-col items-center justify-center gap-1 text-[11.5px] font-semibold transition-colors ${
+                activa ? 'text-[#D81B43]' : 'text-slate-400'
+              }`}>
+              <Icono size={22} strokeWidth={activa ? 2.4 : 2} />
+              {label}
+            </Link>
+          )
+        })}
+      </nav>
     </div>
   )
 }
