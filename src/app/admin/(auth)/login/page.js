@@ -9,6 +9,9 @@ const TOUR_KEY      = 'ingemedic_tour_completado'
 const TOUR_PASO_KEY = 'ingemedic_tour_paso'
 const TOUR_USER_KEY = 'ingemedic_tour_usuario'
 
+const MENSAJE_CREDENCIALES = 'Usuario/correo o contraseña incorrectos.'
+const MENSAJE_INACTIVO     = 'Tu usuario está desactivado. Habla con un administrador.'
+
 export default function LoginPage() {
   const [identifier, setIdentifier] = useState('')
   const [password, setPassword]     = useState('')
@@ -21,9 +24,12 @@ export default function LoginPage() {
   // render) y se adopta recién tras montar — igual patrón que el filtro de
   // Préstamos, para no volver a chocar con un error de hidratación.
   useEffect(() => {
-    if (new URLSearchParams(window.location.search).get('expirada')) {
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('expirada')) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setError('Tu sesión venció tras 8 horas — ingresa de nuevo.')
+    } else if (params.get('inactivo')) {
+      setError(MENSAJE_INACTIVO)
     }
   }, [])
 
@@ -32,32 +38,23 @@ export default function LoginPage() {
     setLoading(true)
     setError('')
 
-    const supabase = createClient()
-    const isEmail  = identifier.includes('@')
-    let email      = identifier
-    let userId     = null
+    const supabase   = createClient()
+    const ingresado  = identifier.trim()
+    const isEmail    = ingresado.includes('@')
+    let email        = ingresado.toLowerCase()
+    let userId       = null
+
+    // Mismo mensaje si el usuario no existe o si la contraseña está mal:
+    // mensajes distintos dejaban averiguar qué nombres de usuario existen.
+    const fallar = (msg = MENSAJE_CREDENCIALES) => { setError(msg); setLoading(false) }
 
     if (!isEmail) {
       // Username → email con la función email_por_username (SECURITY DEFINER):
-      // devuelve solo ese usuario, sin exponer la tabla usuarios a visitantes
-      // sin sesión. Si la función todavía no existe en la BD, cae a la
-      // búsqueda directa de antes (case-insensitive con ilike).
-      let { data, error: fetchError } = await supabase
-        .rpc('email_por_username', { p_username: identifier.trim() })
+      // devuelve solo ese usuario, sin exponer la tabla usuarios sin sesión.
+      const { data, error: fetchError } = await supabase
+        .rpc('email_por_username', { p_username: ingresado })
         .maybeSingle()
-      if (fetchError?.code === 'PGRST202') {
-        ;({ data, error: fetchError } = await supabase
-          .from('usuarios')
-          .select('email, id')
-          .ilike('username', identifier.trim())
-          .single())
-      }
-
-      if (fetchError || !data) {
-        setError('Usuario no reconocido en el sistema.')
-        setLoading(false)
-        return
-      }
+      if (fetchError || !data) return fallar()
       email  = data.email
       userId = data.id
     }
@@ -68,9 +65,9 @@ export default function LoginPage() {
     })
 
     if (authError) {
-      setError('Correo/usuario o contraseña incorrectos.')
-      setLoading(false)
-      return
+      // Cuenta bloqueada al desactivar el usuario (ver /api/usuarios)
+      const baneado = authError.code === 'user_banned' || /banned/i.test(authError.message || '')
+      return fallar(baneado ? MENSAJE_INACTIVO : MENSAJE_CREDENCIALES)
     }
 
     // Si el usuario es diferente al último, resetear el tour
@@ -84,8 +81,8 @@ export default function LoginPage() {
 
     registrarBitacora({ modulo: 'auth', accion: 'login', entidad: 'sesión', entidad_id: authData.user?.id, detalle: { email } })
 
-    // Marca de inicio para el límite absoluto de sesión (8h, ver middleware.js).
-    document.cookie = `sesion_inicio=${Date.now()}; path=/; max-age=${60 * 60 * 24}`
+    // El límite de 8h lo calcula middleware.js con user.last_sign_in_at
+    // (ya no con una cookie del navegador).
     // El Panel de Atención y la franja de vigencia se cierran con una x "por
     // esta sesión" (ver PanelAtencion.js / BannerAtencion.js) — cada login
     // nuevo debe volver a mostrarlos, así el usuario los haya cerrado ayer.
@@ -150,7 +147,11 @@ export default function LoginPage() {
                 type="text"
                 value={identifier}
                 onChange={e => setIdentifier(e.target.value)}
-                placeholder="Ingresa tu correo"
+                placeholder="Correo o nombre de usuario"
+                autoComplete="username"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
                 className="w-full px-4 py-3.5 border border-slate-200 rounded-[10px] text-[16px] bg-white outline-none transition-all focus:border-[#2EB5D4]"
                 required
               />
@@ -166,6 +167,7 @@ export default function LoginPage() {
                   value={password}
                   onChange={e => setPassword(e.target.value)}
                   placeholder="Ingresa tu contraseña"
+                  autoComplete="current-password"
                   className="w-full px-4 pr-10 py-3.5 border border-slate-200 rounded-[10px] text-[16px] bg-white outline-none transition-all focus:border-[#2EB5D4]"
                   required
                 />

@@ -2,14 +2,14 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse } from 'next/server'
 import { esSuperAdmin, moduloDeRuta, puedeVerModulo, primerModuloPermitido, MODULOS_RUTA } from '@/lib/permisos'
 
-// Duración máxima de una sesión, sin importar actividad — hasta ahora la
-// sesión de Supabase se renovaba sola indefinidamente (el cliente refresca
-// el JWT solo) y la única forma de salir era el botón "Cerrar sesión".
-// La marca de inicio la pone src/app/admin/(auth)/login/page.js en una
-// cookie de texto plano (no httpOnly: solo la lee este middleware para
-// medir cuánto ha pasado, no protege nada por sí misma).
-const SESION_COOKIE = 'sesion_inicio'
+// Duración máxima de una sesión, sin importar actividad — la sesión de
+// Supabase se renueva sola indefinidamente (el cliente refresca el JWT).
+// Se mide desde `user.last_sign_in_at`: Supabase lo fija al iniciar sesión
+// con contraseña y NO cambia al refrescar el token, y viene verificado del
+// servidor de Auth. Antes se usaba una cookie puesta por el navegador
+// (`sesion_inicio`): bastaba borrarla para que el conteo arrancara de nuevo.
 const SESION_MAX_MS = 8 * 60 * 60 * 1000 // 8 horas
+const COOKIE_VIEJA  = 'sesion_inicio'
 
 export async function middleware(request) {
   let response = NextResponse.next({ request: { headers: request.headers } })
@@ -46,20 +46,22 @@ export async function middleware(request) {
     return NextResponse.redirect(new URL('/admin/dashboard', request.url))
   }
 
+  // Cierra la sesión y manda al login con un aviso (?expirada=1 / ?inactivo=1).
+  // signOut() escribe las cookies de sesión vaciadas en `response`; hay que
+  // copiarlas al redirect, o el navegador se quedaría con la sesión vieja.
+  async function cerrarSesion(motivo) {
+    await supabase.auth.signOut()
+    const salida = NextResponse.redirect(new URL(`/admin/login?${motivo}=1`, request.url))
+    response.cookies.getAll().forEach(c => salida.cookies.set(c))
+    salida.cookies.delete(COOKIE_VIEJA)
+    return salida
+  }
+
   // ── LÍMITE ABSOLUTO DE SESIÓN (8h desde el login, sin importar actividad) ──
   if (esRutaAdmin && !esLogin && user) {
-    const inicio = request.cookies.get(SESION_COOKIE)?.value
-    if (inicio && Date.now() - Number(inicio) > SESION_MAX_MS) {
-      await supabase.auth.signOut()
-      const salida = NextResponse.redirect(new URL('/admin/login?expirada=1', request.url))
-      salida.cookies.delete(SESION_COOKIE)
-      return salida
-    }
-    // Sesiones que ya existían antes de esta cookie (o que la perdieron por
-    // algún motivo) arrancan el conteo de nuevo en vez de cerrarse de una —
-    // no tiene sentido expulsar de golpe a alguien que ya estaba adentro.
-    if (!inicio) {
-      response.cookies.set(SESION_COOKIE, String(Date.now()), { path: '/', maxAge: 60 * 60 * 24 })
+    const inicioMs = Date.parse(user.last_sign_in_at || '')
+    if (inicioMs && Date.now() - inicioMs > SESION_MAX_MS) {
+      return cerrarSesion('expirada')
     }
   }
 
@@ -71,9 +73,16 @@ export async function middleware(request) {
   if (esRutaAdmin && !esLogin && !esSinAcceso && user) {
     const { data: usuario } = await supabase
       .from('usuarios')
-      .select('rol_id, roles (nombre)')
+      .select('rol_id, activo, roles (nombre)')
       .eq('email', user.email)
       .single()
+
+    // Usuario desactivado en Configuración → fuera. Desde 2026-09-25 además
+    // se bloquea en Supabase Auth (/api/usuarios), pero esto cubre sesiones
+    // que ya estaban abiertas al momento de desactivarlo.
+    if (usuario?.activo === false) {
+      return cerrarSesion('inactivo')
+    }
 
     const rolNombre = usuario?.roles?.nombre
 

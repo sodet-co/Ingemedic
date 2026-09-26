@@ -59,6 +59,37 @@ Lo que está sin resolver, ordenado por prioridad.
 
 # Entradas
 
+## 2026-09-25 — Login: usuarios desactivados, límite de 8h y mensajes
+**Qué se hizo:**
+- Desactivar un usuario ahora también lo bloquea en Supabase Auth
+  (`ban_duration`, en `/api/usuarios` PUT); reactivar lo desbloquea. Nadie
+  puede desactivarse a sí mismo. El middleware además saca con
+  `?inactivo=1` a quien tenga `usuarios.activo = false` con sesión abierta.
+- Límite de 8h calculado con `user.last_sign_in_at` (verificado por Auth,
+  no cambia al refrescar el token) en vez de la cookie `sesion_inicio`,
+  que se podía borrar para reiniciar el conteo. Al cerrar sesión por
+  límite/inactivo, las cookies vaciadas por `signOut()` se copian al
+  redirect (antes se perdían).
+- Login: mismo mensaje si el usuario no existe o la contraseña está mal
+  (antes permitía averiguar qué usernames existen); trim/lowercase del
+  correo; se quitó el fallback a la tabla `usuarios` (ya no servía tras
+  el RLS); `autoComplete`/`autoCapitalize` en los campos.
+**Por qué:** "desactivar" era solo una marca: el usuario seguía entrando y
+usando todo (RLS deja todo a `authenticated`).
+**Archivos:** `src/middleware.js`, `src/app/admin/(auth)/login/page.js`,
+`src/app/api/usuarios/route.js`
+**Verificado con usuario de Auth desechable:** ban → login da
+`user_banned` (con contraseña buena o mala) y el refresh de una sesión
+abierta también falla; unban → vuelve a entrar. `last_sign_in_at` viene en
+`getUser()`. Usuario borrado al final.
+**Nota:** al desplegar, quien haya iniciado sesión hace más de 8h será
+enviado al login una vez. Un usuario desactivado que escriba mal la
+contraseña igual ve "desactivado" (Supabase responde `user_banned` antes
+de validar la contraseña).
+**Pendiente:** en Supabase → Authentication → Settings: subir el mínimo
+de contraseña (la pantalla de usuarios exige 6) y activar la protección de
+contraseñas filtradas si el plan la incluye.
+
 ## 2026-09-25 — Las rutas /api/* no validaban sesión
 **Qué se hizo:** `src/lib/api-auth.js` → `verificarSesion({ modulos })`:
 exige sesión (401), usuario activo (403) y los mismos permisos de módulo

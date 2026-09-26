@@ -88,11 +88,20 @@ export async function PUT(request) {
       if (rol_id !== undefined && await esRolSuperAdmin(rol_id)) return PROHIBIDO_SUPERADMIN()
     }
 
-    // Actualizar en Auth si cambió email o password
-    if (email || password) {
+    // Nadie puede desactivarse a sí mismo (se quedaría por fuera sin forma de volver)
+    if (activo === false && id === actual.id) {
+      return NextResponse.json({ error: 'No puedes desactivar tu propio usuario.' }, { status: 400 })
+    }
+
+    // Actualizar en Auth si cambió email, password o el estado activo.
+    // Desactivar = bloquear la cuenta en Supabase Auth (ban): sin esto,
+    // `usuarios.activo = false` era solo una marca y el usuario seguía
+    // pudiendo iniciar sesión y usar todo el sistema.
+    if (email || password || activo !== undefined) {
       const authUpdate = {}
       if (email)    authUpdate.email    = email
       if (password) authUpdate.password = password
+      if (activo !== undefined) authUpdate.ban_duration = activo ? 'none' : '876000h' // ~100 años
 
       const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(id, authUpdate)
       if (authError) return NextResponse.json({ error: authError.message }, { status: 400 })
