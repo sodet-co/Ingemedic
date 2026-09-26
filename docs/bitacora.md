@@ -28,7 +28,8 @@ Lo que está sin resolver, ordenado por prioridad.
    `service_role` de Supabase y no verifica quién llama. Cualquiera que
    conozca la URL puede cambiar contraseña, email o rol de cualquier
    usuario mandando un `id` arbitrario. Detectado hace tiempo, nunca
-   arreglado. Es lo más urgente de esta lista.
+   arreglado. Es lo más urgente de esta lista — y con RLS ya encendido
+   (2026-09-25) es el único camino abierto que queda sin sesión.
 2. **Rol Repartidor.** La restricción no funcionaba por emails con
    mayúsculas inconsistentes entre `auth.users` y `usuarios`. Se entregó
    el `UPDATE usuarios SET email = LOWER(email)` pero nunca se confirmó
@@ -42,10 +43,21 @@ Lo que está sin resolver, ordenado por prioridad.
    aplicados: `Sidebar.js` duplica su propio modal de logout en vez de
    usar `ConfirmDialog`; sus 14 íconos hand-rolled deberían ser
    `lucide-react`; hay SVGs sueltos duplicando `Eye`/`EyeOff`/chevrons.
-6. **Datos por aclarar con el cliente:** 8 equipos con código RL colisionado
-   (RL630, RL765, RL768, RL764, cada uno en 2 equipos distintos) ·
-   19 registros en "Otros" sin confirmar si son equipo médico u oficina ·
-   "CANDELARIA" no es municipio del Cesar, parece error de captura.
+6. **Datos por aclarar con el cliente:** 19 registros en "Otros" sin
+   confirmar si son equipo médico u oficina · "CANDELARIA" no es municipio
+   del Cesar, parece error de captura. (Los códigos RL colisionados ya no
+   aparecen: la auditoría del 2026-09-25 encontró 0 códigos repetidos.)
+7. **Permisos por rol en RLS.** Hoy cualquier usuario con sesión puede todo
+   en las 20 tablas (política `autenticados_todo`). Falta: bitácora solo
+   admin/SuperAdmin, repartidor solo sus entregas. Las políticas viejas
+   `solo_admin_bitacora` y `repartidor_sus_entregas` excluyen a SuperAdmin
+   — no reutilizarlas tal cual.
+8. **Limpieza de datos (auditoría 2026-09-25):** datos de prueba de agosto
+   (LR-002, EQ-1, PR2, LR-123, ORD-2026-131..142) · 6 préstamos
+   "Finalizada" sin devolución · paciente duplicado ESNEIDER DAVID CORRALES
+   CORZO · 12 series repetidas · tipos escritos distinto (ENMIND/Enmind,
+   Pulmo Med/Pulmo-Med, cilindro 3.5) · tablas `tipos_equipo_bkp_20260921`
+   y `tmp_tipos_objetivo` · `configuracion_empresa.tel` vacío.
 
 ---
 
@@ -67,11 +79,18 @@ usuario logueado — nadie con sesión nota el cambio. Las políticas viejas
 (`solo_admin_bitacora`, `repartidor_sus_entregas`) quedan pero no
 restringen nada, porque las políticas permisivas se suman con OR.
 **Archivos:** `src/app/admin/(auth)/login/page.js`
-**SQL:** **sin correr.** Orden obligatorio: desplegar el login primero,
-después el SQL (si no, el login por username se rompe).
-**Pendiente:** correr SQL, re-sondear con anon, probar login por username
-y por email, crear préstamo, completar entrega como repartidor. Después:
-restricciones por rol (bitácora solo admin, repartidor solo sus entregas).
+**SQL:** corrido el 2026-09-25 (después del deploy 4801116). Re-sondeo
+con anon: de 36 tablas solo se leen `configuracion_empresa`, `municipios`
+y `departamentos` (estas dos ya tenían lectura pública; son datos DANE y no
+se pueden escribir). Escritura anon bloqueada (update en clientes: 0 filas;
+insert en roles: 42501). `usuarios` visibles sin sesión: 0. La RPC devuelve
+el email correcto (sin importar mayúsculas), vacío si no existe, y no
+permite listar con `%`.
+**Nota:** `configuracion_empresa.tel` está vacío en la BD — por eso la
+landing no muestra teléfono (no es por RLS).
+**Verificado por Sofía con sesión real (2026-09-25):** login por username
+y por email, módulos cargan con datos, crear/cancelar préstamo, crear
+paciente, repartidor ve sus entregas. Todo funciona.
 
 ## 2026-09-25 — Auditoría de integridad y seguridad (solo lectura)
 **Qué se hizo:** sondeo de duplicados, consistencia entre tablas y acceso
