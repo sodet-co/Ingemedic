@@ -555,10 +555,6 @@ export default function MantenimientosClient({ mantenimientosIniciales, tipos, e
         </div>
         <div className="ml-auto flex items-center gap-2">
           <BuzonNovedades />
-          <button onClick={() => { abrirModal() }}
-            className="hidden md:flex items-center gap-1.5 px-4 py-2 bg-[#D81B43] text-white text-[13px] font-semibold rounded-[9px] hover:bg-[#B0172F]">
-            <Plus size={14} strokeWidth={2.5} /> Nuevo mantenimiento
-          </button>
         </div>
       </div>
 
@@ -610,7 +606,7 @@ export default function MantenimientosClient({ mantenimientosIniciales, tipos, e
 
         {/* Filtros */}
         <div className="flex items-center gap-3 flex-shrink-0">
-          <div className="relative flex-1 md:max-w-[320px]">
+          <div className="relative flex-1 md:flex-none md:w-[340px]">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input value={search} onChange={e => setSearch(e.target.value)}
               placeholder="Buscar por código, equipo o técnico..."
@@ -631,7 +627,11 @@ export default function MantenimientosClient({ mantenimientosIniciales, tipos, e
               <X size={12} /> Limpiar
             </button>
           )}
-          <div className="text-[12px] text-slate-400 ml-auto">{filtrados.length} registro{filtrados.length !== 1 ? 's' : ''}</div>
+          <div className="text-[12px] text-slate-400 ml-auto flex-shrink-0">{filtrados.length} registro{filtrados.length !== 1 ? 's' : ''}</div>
+          <button onClick={() => { abrirModal() }}
+            className="hidden md:flex items-center gap-1.5 px-4 h-[38px] bg-[#D81B43] text-white text-[13px] font-semibold rounded-[9px] hover:bg-[#B0172F] transition-colors flex-shrink-0 whitespace-nowrap">
+            <Plus size={14} strokeWidth={2.5} /> Nuevo mantenimiento
+          </button>
         </div>
 
         {/* Cards móvil */}

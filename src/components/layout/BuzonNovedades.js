@@ -1,8 +1,7 @@
 'use client'
 import { useState, useEffect, useRef, useLayoutEffect } from 'react'
-import { Bell, Plus, X, Megaphone, AlertTriangle, Clock } from 'lucide-react'
+import { Bell, X, Megaphone, AlertTriangle, Clock, ChevronRight, Inbox } from 'lucide-react'
 import { createClient } from '@/lib/supabase'
-import { useUsuarioActual } from '@/lib/usuario-context'
 import { REGLAS_ATENCION, clavePospuesto } from '@/lib/atencion'
 import { diasParaVencer } from '@/lib/vigencia'
 
@@ -45,13 +44,13 @@ function formatearRelativo(iso) {
   return fecha.toLocaleDateString('es-CO', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
-const PANEL_W = 340
+const PANEL_W = 380
 const MARGEN_VIEWPORT = 12
 
 // Buzón de novedades del sistema, junto al nombre de cada módulo en su
-// topbar. El usuario actual y si es SuperAdmin vienen del UsuarioContext
-// (calculado una vez en layout.js) — así cada módulo solo agrega
-// `<BuzonNovedades />` sin tener que pasarle nada.
+// topbar. Es autocontenido — cada módulo solo agrega `<BuzonNovedades />`
+// sin tener que pasarle nada. Las novedades se publican directo en la
+// tabla `novedades_sistema` (ya no hay formulario en la app).
 //
 // El panel se posiciona con `position: fixed` y coordenadas calculadas en
 // JS a partir de la posición real del botón (no con clases condicionales
@@ -61,7 +60,6 @@ const MARGEN_VIEWPORT = 12
 // la pantalla. Calculándolo así, nunca se desborda sin importar dónde
 // esté el botón.
 export default function BuzonNovedades({ dark = false }) {
-  const { usuario, esSuperAdmin } = useUsuarioActual()
   const supabase = createClient()
   const btnRef = useRef(null)
 
@@ -70,11 +68,13 @@ export default function BuzonNovedades({ dark = false }) {
   const [buzonAbierto, setBuzonAbierto]     = useState(false)
   const [noLeidasNovedades, setNoLeidasNovedades] = useState(0)
   const [noLeidasAlertas, setNoLeidasAlertas]     = useState(0)
-  const [modalNueva, setModalNueva]         = useState(false)
-  const [form, setForm]                     = useState({ asunto: '', descripcion: '' })
-  const [guardando, setGuardando]           = useState(false)
-  const [error, setError]                   = useState('')
   const [panelPos, setPanelPos]             = useState(null)
+  const [pestana, setPestana]               = useState('todas')
+  // Ids que estaban sin leer al abrir el buzón. Al abrir se marcan como
+  // vistas de una vez (el badge se apaga), pero guardamos esta foto para
+  // poder resaltar cuáles eran las nuevas mientras el panel siga abierto.
+  const [nuevasIds, setNuevasIds]           = useState(() => new Set())
+  const [expandidas, setExpandidas]         = useState(() => new Set())
 
   const noLeidas = noLeidasNovedades + noLeidasAlertas
 
@@ -98,11 +98,6 @@ export default function BuzonNovedades({ dark = false }) {
     return data || []
   }
 
-  // Recarga usada después de publicar una novedad — no vive dentro del efecto
-  // de montaje para no duplicar la lógica de fetch.
-  async function cargarNovedades() {
-    aplicarNovedades(await fetchNovedades())
-  }
 
   // Préstamos vencidos/por vencer, calculados con las mismas reglas de
   // src/lib/atencion.js que usa el Panel de Atención del dashboard — el
@@ -161,6 +156,14 @@ export default function BuzonNovedades({ dark = false }) {
   }, [])
 
   function toggleBuzon() {
+    if (!buzonAbierto) {
+      const vistas = cargarAlertasVistas()
+      const nuevas = new Set(alertas.filter(a => !vistas.has(a.id)).map(a => a.id))
+      novedades.slice(0, noLeidasNovedades).forEach(n => nuevas.add(n.id))
+      setNuevasIds(nuevas)
+      setExpandidas(new Set())
+      setPestana('todas')
+    }
     setBuzonAbierto(v => {
       const next = !v
       if (next) {
@@ -192,39 +195,43 @@ export default function BuzonNovedades({ dark = false }) {
   useLayoutEffect(() => {
     if (!buzonAbierto || !btnRef.current) return
     function calcular() {
+      // En móvil el panel es una hoja inferior (patrón de drawers del proyecto)
+      if (window.innerWidth < 768) { setPanelPos({ movil: true }); return }
       const rect = btnRef.current.getBoundingClientRect()
       const panelW = Math.min(PANEL_W, window.innerWidth - MARGEN_VIEWPORT * 2)
       let left = rect.right - panelW
       left = Math.max(MARGEN_VIEWPORT, Math.min(left, window.innerWidth - panelW - MARGEN_VIEWPORT))
       setPanelPos({ left, top: rect.bottom + 8, width: panelW })
     }
+    function onKey(e) { if (e.key === 'Escape') setBuzonAbierto(false) }
     calcular()
     window.addEventListener('resize', calcular)
-    return () => window.removeEventListener('resize', calcular)
+    window.addEventListener('keydown', onKey)
+    return () => {
+      window.removeEventListener('resize', calcular)
+      window.removeEventListener('keydown', onKey)
+    }
   }, [buzonAbierto])
 
-  async function guardarNovedad() {
-    const asunto = form.asunto.trim()
-    const descripcion = form.descripcion.trim()
-    if (!asunto || !descripcion) { setError('Completa asunto y descripción'); return }
-    setGuardando(true)
-    setError('')
-    const { error: err } = await supabase.from('novedades_sistema').insert({
-      asunto, descripcion, creado_por: usuario?.id || null,
+  function toggleExpandida(id) {
+    setExpandidas(prev => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
     })
-    setGuardando(false)
-    if (err) { setError(err.message); return }
-    setForm({ asunto: '', descripcion: '' })
-    setModalNueva(false)
-    await cargarNovedades()
   }
 
   return (
     <div className="relative">
-      <button ref={btnRef} onClick={toggleBuzon} className="relative" title="Buzón de notificaciones">
+      <button ref={btnRef} onClick={toggleBuzon} title="Buzón de notificaciones"
+        className={`relative w-9 h-9 flex items-center justify-center rounded-full transition-colors ${
+          buzonAbierto
+            ? (dark ? 'bg-white/15' : 'bg-slate-100')
+            : (dark ? 'hover:bg-white/10' : 'hover:bg-slate-100')
+        }`}>
         <Bell size={19} className={dark ? 'text-white/80' : 'text-slate-500'} />
         {noLeidas > 0 && (
-          <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-1 flex items-center justify-center bg-[#D81B43] text-white text-[9.5px] font-bold rounded-full border-2 border-white">
+          <span className="absolute top-0 right-0 min-w-[16px] h-4 px-1 flex items-center justify-center bg-[#D81B43] text-white text-[9.5px] font-bold rounded-full border-2 border-white">
             {noLeidas > 9 ? '9+' : noLeidas}
           </span>
         )}
@@ -232,99 +239,150 @@ export default function BuzonNovedades({ dark = false }) {
 
       {buzonAbierto && panelPos && (
         <>
-          <div className="fixed inset-0 z-[59]" onClick={() => setBuzonAbierto(false)} />
-          <div style={{ position: 'fixed', left: panelPos.left, top: panelPos.top, width: panelPos.width, zIndex: 60 }}
-            className="bg-white rounded-xl border border-slate-200 shadow-lg max-h-[26rem] overflow-y-auto">
-            <div className="px-4 py-3.5 border-b border-slate-200 flex items-center justify-between sticky top-0 bg-white rounded-t-xl">
-              <span className="text-[14px] font-bold text-slate-800">Buzón de notificaciones</span>
-              {esSuperAdmin && (
-                <button onClick={() => setModalNueva(true)} className="text-[#D81B43] hover:bg-[#D81B43]/10 rounded-[6px] p-1 transition-colors" title="Nueva novedad">
-                  <Plus size={16} />
-                </button>
-              )}
-            </div>
-            {alertas.map(a => {
-              const estilo = ESTILO_SEVERIDAD[a.severidad] || ESTILO_SEVERIDAD.media
-              const Icono = estilo.icono
-              const etiquetaDias = a.dias < 0 ? `Venció hace ${Math.abs(a.dias)}d` : a.dias === 0 ? 'Vence hoy' : `Vence en ${a.dias}d`
-              return (
-                <div key={a.id} onClick={() => irAAlerta(a)}
-                  className="px-4 py-3 border-b border-slate-100 last:border-0 flex gap-3 hover:bg-slate-50 transition-colors cursor-pointer">
-                  <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: estilo.bg, color: estilo.color }}>
-                    <Icono size={15} />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="font-mono text-[11.5px] font-bold text-slate-700">{a.codigo}</span>
-                      <span className="text-[10.5px] font-semibold flex-shrink-0" style={{ color: estilo.color }}>{etiquetaDias}</span>
-                    </div>
-                    <div className="text-[12px] text-slate-600 mt-0.5 truncate">
-                      {a.cliente}{a.paciente && <span className="text-slate-400"> · {a.paciente}</span>}
-                    </div>
-                    {a.equipos.length > 0 && (
-                      <div className="text-[11px] text-slate-400 mt-0.5 truncate">
-                        {a.equipos.map(oe => `${nombreEquipoAlerta(oe.equipo)} · ${oe.equipo?.codigo}`).join(', ')}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )
-            })}
-            {novedades.map(n => (
-              <div key={n.id} className="px-4 py-3 border-b border-slate-100 last:border-0 flex gap-3 hover:bg-slate-50 transition-colors">
-                <div className="w-9 h-9 rounded-full bg-[#D81B43]/10 text-[#D81B43] flex items-center justify-center flex-shrink-0">
-                  <Megaphone size={15} />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="text-[12.5px] font-bold text-slate-800">{n.asunto}</div>
-                  <div className="text-[12px] text-slate-500 mt-0.5 whitespace-pre-wrap">{n.descripcion}</div>
-                  <div className="text-[10.5px] text-slate-400 mt-1">{formatearRelativo(n.fecha)}</div>
-                </div>
-              </div>
-            ))}
-            {alertas.length === 0 && novedades.length === 0 && (
-              <div className="px-4 py-6 text-center text-[12px] text-slate-400">Sin novedades recientes</div>
-            )}
-          </div>
-        </>
-      )}
+          <div className={`fixed inset-0 z-[59] ${panelPos.movil ? 'bg-black/40' : ''}`} onClick={() => setBuzonAbierto(false)} />
+          <div
+            style={panelPos.movil ? { zIndex: 60 } : { position: 'fixed', left: panelPos.left, top: panelPos.top, width: panelPos.width, zIndex: 60 }}
+            className={`bg-white flex flex-col overflow-hidden ${
+              panelPos.movil
+                ? 'fixed inset-x-0 bottom-0 max-h-[85vh] rounded-t-2xl shadow-2xl'
+                : 'rounded-xl border border-slate-200 shadow-xl max-h-[32rem]'
+            }`}>
 
-      {modalNueva && (
-        <>
-          <div className="fixed inset-0 bg-black/40 z-[70]" onClick={() => setModalNueva(false)} />
-          <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
-            <div className="bg-white rounded-2xl w-full max-w-[440px] shadow-2xl p-6" onClick={e => e.stopPropagation()}>
-              <div className="flex items-center justify-between mb-4">
-                <div className="text-[15px] font-bold text-slate-800">Nueva novedad</div>
-                <button onClick={() => setModalNueva(false)} className="text-slate-400 hover:text-slate-600">
-                  <X size={18} />
-                </button>
-              </div>
-              <div className="space-y-3">
+            {/* Encabezado */}
+            <div className="px-4 pt-3.5 pb-3 border-b border-slate-200 flex-shrink-0">
+              {panelPos.movil && <div className="w-10 h-1 rounded-full bg-slate-200 mx-auto mb-3" />}
+              <div className="flex items-center justify-between gap-2">
                 <div>
-                  <label className="block text-[11px] font-bold uppercase tracking-[0.07em] text-slate-500 mb-1.5">Asunto</label>
-                  <input value={form.asunto} onChange={e => setForm(f => ({ ...f, asunto: e.target.value }))}
-                    placeholder="ej. Nuevo módulo de historial"
-                    className="w-full px-3 py-2.5 border border-slate-200 rounded-[9px] text-[13.5px] outline-none focus:border-[#D81B43]" />
+                  <div className="text-[14px] font-bold text-slate-800">Notificaciones</div>
+                  <div className="text-[11.5px] text-slate-400 mt-0.5">
+                    {nuevasIds.size > 0
+                      ? `${nuevasIds.size} nueva${nuevasIds.size !== 1 ? 's' : ''} desde tu última visita`
+                      : 'Estás al día'}
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-[11px] font-bold uppercase tracking-[0.07em] text-slate-500 mb-1.5">Descripción</label>
-                  <textarea value={form.descripcion} onChange={e => setForm(f => ({ ...f, descripcion: e.target.value }))}
-                    rows={3} placeholder="Describe brevemente el cambio..."
-                    className="w-full px-3 py-2.5 border border-slate-200 rounded-[9px] text-[13.5px] outline-none focus:border-[#D81B43] resize-none" />
+                <div className="flex items-center gap-1">
+                  <button onClick={() => setBuzonAbierto(false)} title="Cerrar"
+                    className="text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-[7px] p-1.5 transition-colors">
+                    <X size={16} />
+                  </button>
                 </div>
-                {error && <div className="text-[12px] text-red-500">{error}</div>}
               </div>
-              <div className="flex gap-2 mt-5">
-                <button onClick={() => setModalNueva(false)}
-                  className="flex-1 py-2.5 border border-slate-200 rounded-[9px] text-[13px] font-medium text-slate-600 hover:border-slate-300 transition-colors">
-                  Cancelar
-                </button>
-                <button onClick={guardarNovedad} disabled={guardando}
-                  className="flex-1 py-2.5 bg-[#D81B43] text-white rounded-[9px] text-[13px] font-semibold hover:bg-[#B0172F] transition-colors disabled:opacity-60">
-                  {guardando ? 'Publicando...' : 'Publicar'}
-                </button>
+
+              {/* Pestañas */}
+              <div className="flex bg-slate-100 rounded-[8px] p-1 gap-1 mt-3">
+                {[
+                  { key: 'todas',     label: 'Todas',     n: alertas.length + novedades.length },
+                  { key: 'alertas',   label: 'Alertas',   n: alertas.length },
+                  { key: 'novedades', label: 'Novedades', n: novedades.length },
+                ].map(t => (
+                  <button key={t.key} onClick={() => setPestana(t.key)}
+                    className={`flex-1 px-2 py-1.5 rounded-[6px] text-[12px] font-medium transition-all ${
+                      pestana === t.key ? 'bg-white text-slate-800 font-semibold shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                    }`}>
+                    {t.label} <span className="text-[10.5px] opacity-60">({t.n})</span>
+                  </button>
+                ))}
               </div>
+            </div>
+
+            {/* Contenido */}
+            <div className={`flex-1 overflow-y-auto ${panelPos.movil ? 'pb-6' : ''}`}>
+              {pestana !== 'novedades' && alertas.length > 0 && (
+                <>
+                  {pestana === 'todas' && (
+                    <div className="px-4 pt-3 pb-1.5 text-[10.5px] font-bold uppercase tracking-[0.07em] text-slate-400">
+                      Préstamos que requieren atención
+                    </div>
+                  )}
+                  {alertas.map(a => {
+                    const estilo = ESTILO_SEVERIDAD[a.severidad] || ESTILO_SEVERIDAD.media
+                    const Icono = estilo.icono
+                    const etiquetaDias = a.dias < 0 ? `Venció hace ${Math.abs(a.dias)}d` : a.dias === 0 ? 'Vence hoy' : `Vence en ${a.dias}d`
+                    const esNueva = nuevasIds.has(a.id)
+                    return (
+                      <div key={a.id} onClick={() => irAAlerta(a)}
+                        className={`px-4 py-3 border-b border-slate-100 flex gap-3 hover:bg-slate-50 transition-colors cursor-pointer ${esNueva ? 'bg-[#2EB5D4]/[0.04]' : ''}`}>
+                        <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: estilo.bg, color: estilo.color }}>
+                          <Icono size={15} />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="flex items-center gap-1.5 min-w-0">
+                              {esNueva && <span className="w-1.5 h-1.5 rounded-full bg-[#2EB5D4] flex-shrink-0" title="Nueva" />}
+                              <span className="font-mono text-[11.5px] font-bold text-slate-700 truncate">{a.codigo}</span>
+                            </span>
+                            <span className="text-[10.5px] font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0" style={{ background: estilo.bg, color: estilo.color }}>
+                              {etiquetaDias}
+                            </span>
+                          </div>
+                          <div className="text-[12px] text-slate-600 mt-0.5 truncate">
+                            {a.cliente}{a.paciente && <span className="text-slate-400"> · {a.paciente}</span>}
+                          </div>
+                          {a.equipos.length > 0 && (
+                            <div className="text-[11px] text-slate-400 mt-0.5 truncate">
+                              {a.equipos.map(oe => `${nombreEquipoAlerta(oe.equipo)} · ${oe.equipo?.codigo}`).join(', ')}
+                            </div>
+                          )}
+                        </div>
+                        <ChevronRight size={14} className="text-slate-300 self-center flex-shrink-0" />
+                      </div>
+                    )
+                  })}
+                </>
+              )}
+
+              {pestana !== 'alertas' && novedades.length > 0 && (
+                <>
+                  {pestana === 'todas' && (
+                    <div className="px-4 pt-3 pb-1.5 text-[10.5px] font-bold uppercase tracking-[0.07em] text-slate-400">
+                      Novedades del sistema
+                    </div>
+                  )}
+                  {novedades.map(n => {
+                    const esNueva = nuevasIds.has(n.id)
+                    const abierta = expandidas.has(n.id)
+                    const larga = n.descripcion.length > 140 || n.descripcion.split('\n').length > 3
+                    return (
+                      <div key={n.id} className={`px-4 py-3 border-b border-slate-100 flex gap-3 ${esNueva ? 'bg-[#2EB5D4]/[0.04]' : ''}`}>
+                        <div className="w-9 h-9 rounded-full bg-[#1B3A6B]/10 text-[#1B3A6B] flex items-center justify-center flex-shrink-0">
+                          <Megaphone size={15} />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-start justify-between gap-2">
+                            <span className="flex items-center gap-1.5 min-w-0">
+                              {esNueva && <span className="w-1.5 h-1.5 rounded-full bg-[#2EB5D4] flex-shrink-0" title="Nueva" />}
+                              <span className="text-[12.5px] font-bold text-slate-800">{n.asunto}</span>
+                            </span>
+                            <span className="text-[10.5px] text-slate-400 flex-shrink-0 mt-0.5">{formatearRelativo(n.fecha)}</span>
+                          </div>
+                          <div className={`text-[12px] text-slate-500 mt-0.5 whitespace-pre-wrap ${larga && !abierta ? 'line-clamp-3' : ''}`}>
+                            {n.descripcion}
+                          </div>
+                          {larga && (
+                            <button onClick={() => toggleExpandida(n.id)}
+                              className="text-[11.5px] font-semibold text-[#1B3A6B] hover:underline mt-1">
+                              {abierta ? 'Ver menos' : 'Ver más'}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </>
+              )}
+
+              {((pestana === 'todas' && alertas.length === 0 && novedades.length === 0) ||
+                (pestana === 'alertas' && alertas.length === 0) ||
+                (pestana === 'novedades' && novedades.length === 0)) && (
+                <div className="px-4 py-10 text-center text-slate-400">
+                  <Inbox className="w-10 h-10 mx-auto mb-2 opacity-20" />
+                  <div className="text-[12.5px] font-semibold">
+                    {pestana === 'alertas' ? 'Ningún préstamo requiere atención' :
+                     pestana === 'novedades' ? 'Sin novedades publicadas' :
+                     'Sin notificaciones'}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </>

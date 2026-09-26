@@ -19,6 +19,7 @@ import { useOrdenable } from '@/hooks/useOrdenable'
 import { usePaginacion } from '@/hooks/usePaginacion'
 import { formatear, formatearSoloFecha, hoyBogota } from '@/lib/fechas'
 import { devolverEquipo as devolverEquipoLib } from '@/lib/prestamos'
+import { buscarCedulaDuplicada, mensajeCedulaDuplicada, esErrorCedulaDuplicada, MENSAJE_CEDULA_DUPLICADA } from '@/lib/pacientes'
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
 const LOGO_URL = `${SUPABASE_URL}/storage/v1/object/public/logos/logo-ingemedic.png`
@@ -131,6 +132,11 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
   const [filtroPaciente, setFiltroPaciente] = useState('todos') // 'todos' | 'con_equipo' | 'sin_equipo'
   const [drawerPaciente, setDrawerPaciente] = useState(null)
   const [ordenesPorEquipo, setOrdenesPorEquipo] = useState({ loading: false, mapa: {} })
+  // Crear paciente desde este módulo. La otra vía (crearlo dentro del wizard
+  // de Nuevo préstamo, OrdenesClient.js) sigue igual — mismos campos y mismas
+  // validaciones que allá, para que los dos caminos dejen datos equivalentes.
+  const [modalPaciente, setModalPaciente] = useState(false)
+  const [formPaciente, setFormPaciente] = useState({})
 
   // ESC cierra el detalle abierto y regresa a la vista normal — el listener solo
   // existe mientras hay algo seleccionado, para no interceptar ESC en el resto de la app.
@@ -153,7 +159,8 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
     setTimeout(() => setToast(null), 3000)
   }
 
-  function cerrarModal() { setModal(false); setFormDirty(false) }
+  // Cierra cualquiera de los dos modales (cliente o paciente) — comparten formDirty y el ConfirmDialog de salir
+  function cerrarModal() { setModal(false); setModalPaciente(false); setFormDirty(false) }
   function intentarCerrarModal() { if (formDirty) setConfirmarSalir(true); else cerrarModal() }
 
   function abrirModal(cliente = null) {
@@ -178,6 +185,43 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
       setMunicipiosFiltrados([])
     }
     setModal(true)
+  }
+
+  function abrirModalPaciente() {
+    setFormDirty(false)
+    setFormPaciente({ nombre: '', cedula: '', direccion: '', ciudad: '', telefono: '', correo: '' })
+    setModalPaciente(true)
+  }
+
+  async function guardarPaciente() {
+    const f = formPaciente
+    if (!f.nombre?.trim()) { showToast('El nombre del paciente es requerido', 'error'); return }
+    if (!f.direccion?.trim()) { showToast('La dirección del paciente es requerida', 'error'); return }
+    if (f.correo?.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.correo.trim())) { showToast('El correo no tiene un formato válido', 'error'); return }
+    const cedula = f.cedula?.trim()
+    const duplicado = buscarCedulaDuplicada(pacientes, cedula)
+    if (duplicado) { showToast(mensajeCedulaDuplicada(duplicado), 'error'); return }
+    setSaving(true)
+    const { data, error } = await supabase.from('pacientes')
+      .insert({
+        nombre:    f.nombre.trim(),
+        cedula:    cedula || null,
+        direccion: f.direccion.trim(),
+        ciudad:    f.ciudad?.trim() || null,
+        telefono:  f.telefono?.trim() || null,
+        correo:    f.correo?.trim() || null,
+      })
+      .select('*')
+      .single()
+    if (error) {
+      showToast(esErrorCedulaDuplicada(error) ? MENSAJE_CEDULA_DUPLICADA : 'Error: ' + error.message, 'error')
+      setSaving(false); return
+    }
+    skipSyncUntil.current = Date.now() + 2500
+    setPacientes(prev => [...prev, data].sort((a, b) => (a.nombre || '').localeCompare(b.nombre || '', 'es')))
+    showToast('Paciente creado')
+    registrarBitacora({ modulo: 'clientes', accion: 'crear', entidad: 'paciente', entidad_id: data.id, detalle: { nombre: data.nombre } })
+    setSaving(false); cerrarModal()
   }
 
   function onChangeDepartamento(depId) {
@@ -688,6 +732,14 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
     }
   }, [clientes, conteoEquiposPorCliente])
 
+  // El Excel trae clientes y pacientes, por eso va en la franja de filtros de ambas pestañas
+  const botonExportar = (
+    <button onClick={exportarExcel} disabled={exportando}
+      className="hidden md:flex items-center gap-1.5 px-3 h-[38px] text-[13px] font-medium text-slate-600 border border-slate-200 rounded-[9px] hover:border-slate-300 transition-all disabled:opacity-50 flex-shrink-0 whitespace-nowrap">
+      <Download size={13} /> {exportando ? 'Exportando…' : 'Exportar Excel'}
+    </button>
+  )
+
   return (
     <div className="flex flex-col h-full overflow-hidden">
       {/* Topbar */}
@@ -698,28 +750,14 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
         </div>
         <div className="ml-auto flex items-center gap-2">
           <BuzonNovedades />
-        <div className="hidden md:flex items-center gap-2">
-          <button onClick={exportarExcel} disabled={exportando}
-            className="flex items-center gap-1.5 px-3 py-2 text-[13px] font-medium text-slate-600 border border-slate-200 rounded-[9px] hover:border-slate-300 transition-all disabled:opacity-50">
-            <Download size={13} /> {exportando ? 'Exportando…' : 'Exportar Excel'}
-          </button>
-          {tabActiva === 'clientes' && (
-            <button onClick={() => abrirModal()}
-              className="flex items-center gap-1.5 px-4 py-2 bg-[#D81B43] text-white text-[13px] font-semibold rounded-[9px] hover:bg-[#B0172F] transition-colors">
-              <Plus size={14} strokeWidth={2.5} /> Nuevo cliente
-            </button>
-          )}
-        </div>
         </div>
       </div>
 
-      {/* FAB móvil */}
-      {tabActiva === 'clientes' && (
-        <button onClick={() => abrirModal()}
-          className="fixed bottom-[calc(var(--mobile-nav-space,0px)+16px)] right-4 z-30 md:hidden shadow-lg rounded-full w-14 h-14 bg-[#D81B43] text-white flex items-center justify-center">
-          <Plus size={22} strokeWidth={2.5} />
-        </button>
-      )}
+      {/* FAB móvil — crea cliente o paciente según la pestaña activa */}
+      <button onClick={() => tabActiva === 'clientes' ? abrirModal() : abrirModalPaciente()}
+        className="fixed bottom-[calc(var(--mobile-nav-space,0px)+16px)] right-4 z-30 md:hidden shadow-lg rounded-full w-14 h-14 bg-[#D81B43] text-white flex items-center justify-center">
+        <Plus size={22} strokeWidth={2.5} />
+      </button>
 
       {/* Pestañas Clientes / Pacientes */}
       <div className="flex gap-1 border-b border-slate-200 px-4 md:px-7 flex-shrink-0 bg-white">
@@ -740,14 +778,14 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
           {/* FRANJA 1 — Filtros, SIEMPRE fija, nunca cambia con la selección */}
           <div className="p-3 md:p-6 pb-3 md:pb-4 flex-shrink-0 border-b border-slate-200">
               <div className="flex flex-col gap-2 md:flex-row md:items-center md:gap-3">
-                <div className="relative flex-1 md:max-w-[340px]">
+                <div className="relative w-full md:w-[340px] md:flex-shrink-0">
                   <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                   <input value={search} onChange={e => setSearch(e.target.value)}
                     placeholder="Buscar por nombre, NIT, email o teléfono..."
                     className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-[9px] text-[13px] outline-none focus:border-[#D81B43] bg-white" />
                 </div>
-                <div className="flex items-center gap-2">
-                  <div className="flex items-center gap-2 overflow-x-auto flex-1">
+                <div className="flex items-center gap-2 md:gap-3 md:flex-1 min-w-0">
+                  <div className="flex items-center gap-2 overflow-x-auto flex-1 min-w-0">
                     {[
                       { value: 'todos', label: `Todos (${stats.total})` },
                       { value: 'con_prestamos', label: `Con préstamos activos (${stats.conPrestamos})` },
@@ -763,10 +801,15 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
                     ))}
                   </div>
                   {!drawer && (
-                    <div className="hidden md:block text-[12px] text-slate-400 flex-shrink-0 md:ml-auto">
+                    <div className="hidden md:block text-[12px] text-slate-400 flex-shrink-0">
                       {clientesFiltrados.length} cliente{clientesFiltrados.length !== 1 ? 's' : ''}
                     </div>
                   )}
+                  {botonExportar}
+                  <button onClick={() => abrirModal()}
+                    className="hidden md:flex items-center gap-1.5 px-4 h-[38px] bg-[#D81B43] text-white text-[13px] font-semibold rounded-[9px] hover:bg-[#B0172F] transition-colors flex-shrink-0 whitespace-nowrap">
+                    <Plus size={14} strokeWidth={2.5} /> Nuevo cliente
+                  </button>
                 </div>
               </div>
             </div>
@@ -1239,14 +1282,14 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
           {/* FRANJA 1 — Filtros, SIEMPRE fija, nunca cambia con la selección */}
           <div className="p-3 md:p-6 pb-3 md:pb-4 flex-shrink-0 border-b border-slate-200">
               <div className="flex flex-col gap-2 md:flex-row md:items-center md:gap-3">
-                <div className="relative flex-1 md:max-w-[340px]">
+                <div className="relative w-full md:w-[340px] md:flex-shrink-0">
                   <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                   <input value={searchPaciente} onChange={e => setSearchPaciente(e.target.value)}
                     placeholder="Buscar por nombre, cédula o ciudad..."
                     className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-[9px] text-[13px] outline-none focus:border-[#D81B43] bg-white" />
                 </div>
-                <div className="flex items-center gap-2">
-                  <div className="flex items-center gap-2 overflow-x-auto flex-1">
+                <div className="flex items-center gap-2 md:gap-3 md:flex-1 min-w-0">
+                  <div className="flex items-center gap-2 overflow-x-auto flex-1 min-w-0">
                     {[
                       { value: 'todos', label: `Todos (${statsPacientes.total})` },
                       { value: 'con_equipo', label: `Con equipo activo (${statsPacientes.conEquipo})` },
@@ -1262,10 +1305,15 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
                     ))}
                   </div>
                   {!drawerPaciente && (
-                    <div className="hidden md:block text-[12px] text-slate-400 flex-shrink-0 md:ml-auto">
+                    <div className="hidden md:block text-[12px] text-slate-400 flex-shrink-0">
                       {pacientesFiltrados.length} paciente{pacientesFiltrados.length !== 1 ? 's' : ''}
                     </div>
                   )}
+                  {botonExportar}
+                  <button onClick={abrirModalPaciente}
+                    className="hidden md:flex items-center gap-1.5 px-4 h-[38px] bg-[#D81B43] text-white text-[13px] font-semibold rounded-[9px] hover:bg-[#B0172F] transition-colors flex-shrink-0 whitespace-nowrap">
+                    <Plus size={14} strokeWidth={2.5} /> Nuevo paciente
+                  </button>
                 </div>
               </div>
             </div>
@@ -1282,7 +1330,7 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
                 <div className="text-center py-16 text-slate-400">
                     <HeartPulse className="w-12 h-12 mx-auto mb-3 opacity-20" />
                     <div className="font-semibold mb-1">{searchPaciente || filtroPaciente !== 'todos' ? 'Sin resultados' : 'Sin pacientes registrados'}</div>
-                    <div className="text-[13px]">{searchPaciente || filtroPaciente !== 'todos' ? 'Intenta con otros filtros' : 'Los pacientes se crean desde el módulo de Órdenes'}</div>
+                    <div className="text-[13px]">{searchPaciente || filtroPaciente !== 'todos' ? 'Intenta con otros filtros' : 'Usa "Nuevo paciente" o regístralo al crear un préstamo'}</div>
                   </div>
               ) : drawerPaciente ? (
                 /* Lista compacta — solo se ve cuando la columna está angosta (detalle abierto) */
@@ -1619,6 +1667,84 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
                 <button onClick={guardarCliente} disabled={saving}
                   className="px-5 py-2.5 bg-[#D81B43] text-white rounded-[9px] text-[13px] font-semibold hover:bg-[#B0172F] disabled:opacity-50">
                   {saving ? 'Guardando...' : form.id ? 'Guardar cambios' : 'Crear cliente'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* ── MODAL NUEVO PACIENTE ── */}
+      {modalPaciente && (
+        <>
+          <div className="fixed inset-0 bg-black/40 z-40 backdrop-blur-sm" onClick={() => intentarCerrarModal()} />
+          <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center p-0 md:p-4">
+            <div className="bg-white rounded-t-2xl md:rounded-2xl w-full max-w-[560px] max-h-[calc(100vh-2rem)] flex flex-col shadow-2xl overflow-hidden"
+              onClick={e => e.stopPropagation()}>
+              <div className="px-6 py-4 border-b flex items-center justify-between flex-shrink-0">
+                <h3 className="text-[16px] font-bold text-slate-800">Nuevo paciente</h3>
+                <button onClick={() => intentarCerrarModal()} className="text-slate-400 hover:text-slate-600 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100"><X size={16} /></button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4" onChange={() => setFormDirty(true)}>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className={labelCls}>Nombre <span className="text-[#D81B43]">*</span></label>
+                    <input value={formPaciente.nombre || ''} onChange={e => setFormPaciente(f => ({ ...f, nombre: e.target.value }))}
+                      placeholder="Nombre completo" className={inputCls} />
+                  </div>
+                  <div>
+                    <label className={labelCls}>Cédula</label>
+                    <input value={formPaciente.cedula || ''}
+                      onChange={e => setFormPaciente(f => ({ ...f, cedula: e.target.value.replace(/[^0-9]/g, '') }))}
+                      placeholder="1234567890" inputMode="numeric" className={inputCls} />
+                  </div>
+                </div>
+
+                <div>
+                  <label className={labelCls}>Dirección <span className="text-[#D81B43]">*</span></label>
+                  <input value={formPaciente.direccion || ''} onChange={e => setFormPaciente(f => ({ ...f, direccion: e.target.value }))}
+                    placeholder="Calle 10 # 5-20" className={inputCls} />
+                </div>
+
+                <div>
+                  <label className={labelCls}>Ciudad</label>
+                  <input value={formPaciente.ciudad || ''} onChange={e => setFormPaciente(f => ({ ...f, ciudad: e.target.value }))}
+                    placeholder="Valledupar" className={inputCls} />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className={labelCls}>Teléfono</label>
+                    <div className="flex">
+                      <span className="inline-flex items-center px-3 border border-r-0 border-slate-200 rounded-l-[9px] text-[13px] text-slate-500 bg-slate-50 select-none whitespace-nowrap">+57</span>
+                      <input value={formPaciente.telefono || ''}
+                        onChange={e => setFormPaciente(f => ({ ...f, telefono: e.target.value.replace(/\D/g, '').slice(0, 12) }))}
+                        placeholder="3001234567" inputMode="numeric"
+                        className={`${inputCls} rounded-l-none border-l-0`} />
+                    </div>
+                  </div>
+                  <div>
+                    <label className={labelCls}>Correo</label>
+                    <input value={formPaciente.correo || ''} onChange={e => setFormPaciente(f => ({ ...f, correo: e.target.value }))}
+                      type="email" placeholder="correo@ejemplo.com"
+                      className={inputCls + (formPaciente.correo && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formPaciente.correo.trim()) ? ' !border-red-300 focus:!border-red-400' : '')} />
+                    {formPaciente.correo && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formPaciente.correo.trim()) && (
+                      <p className="text-[11px] text-red-400 mt-1">Formato inválido</p>
+                    )}
+                  </div>
+                </div>
+
+                <p className="text-[11.5px] text-slate-400">
+                  También puedes registrar pacientes al crear un préstamo, desde el paso de datos del paciente.
+                </p>
+              </div>
+
+              <div className="px-6 py-4 border-t border-slate-200 flex justify-end gap-2 flex-shrink-0 bg-white">
+                <button onClick={() => intentarCerrarModal()} className="px-4 py-2.5 border border-slate-200 rounded-[9px] text-[13px] font-medium text-slate-600 hover:border-slate-300">Cancelar</button>
+                <button onClick={guardarPaciente} disabled={saving}
+                  className="px-5 py-2.5 bg-[#D81B43] text-white rounded-[9px] text-[13px] font-semibold hover:bg-[#B0172F] disabled:opacity-50">
+                  {saving ? 'Guardando...' : 'Crear paciente'}
                 </button>
               </div>
             </div>

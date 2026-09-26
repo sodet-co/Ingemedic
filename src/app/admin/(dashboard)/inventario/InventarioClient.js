@@ -601,6 +601,21 @@ export default function InventarioClient({ categorias: catsIniciales, tipos: tip
     return <IconoTipo tipo={tipo} categorias={categorias} size={size} />
   }
 
+  // Acciones de la franja de filtros — exporta según la vista en la que se esté
+  const botonExportar = (
+    <button
+      onClick={() => {
+        if (vista === 'unidades' && tipoActual) exportar('unidades', { tipo_id: tipoActual.id })
+        else if (vista === 'tipos' && catActual) exportar('tipos', { categoria_id: catActual.id })
+        else exportar('completo')
+      }}
+      disabled={exportando}
+      className="hidden md:flex items-center gap-1.5 px-3 h-[38px] text-[13px] font-medium text-slate-600 border border-slate-200 rounded-[9px] hover:border-slate-300 transition-all disabled:opacity-50 flex-shrink-0 whitespace-nowrap bg-white">
+      <Download size={13} /> {exportando ? 'Exportando…' : 'Exportar Excel'}
+    </button>
+  )
+  const claseBotonNuevo = 'hidden md:flex items-center gap-1.5 px-4 h-[38px] bg-[#D81B43] text-white text-[13px] font-semibold rounded-[9px] hover:bg-[#B0172F] transition-colors flex-shrink-0 whitespace-nowrap'
+
   return (
     <div className="flex flex-col h-full overflow-hidden">
 
@@ -631,28 +646,6 @@ export default function InventarioClient({ categorias: catsIniciales, tipos: tip
             <button onClick={volver}
               className="hidden md:flex items-center gap-1.5 px-3 py-2 text-[13px] font-medium text-slate-500 border border-slate-200 rounded-[9px] hover:border-slate-300 transition-all">
               ← Volver
-            </button>
-          )}
-          <button
-            onClick={() => {
-              if (vista === 'unidades' && tipoActual) exportar('unidades', { tipo_id: tipoActual.id })
-              else if (vista === 'tipos' && catActual) exportar('tipos', { categoria_id: catActual.id })
-              else exportar('completo')
-            }}
-            disabled={exportando}
-            className="hidden md:flex items-center gap-1.5 px-3 py-2 text-[13px] font-medium text-slate-600 border border-slate-200 rounded-[9px] hover:border-slate-300 transition-all disabled:opacity-50">
-            <Download size={13} /> {exportando ? 'Exportando…' : 'Exportar Excel'}
-          </button>
-          {vista === 'tipos' && (
-            <button onClick={abrirModalTipo}
-              className="hidden md:flex items-center gap-1.5 px-4 py-2 bg-[#D81B43] text-white text-[13px] font-semibold rounded-[9px] hover:bg-[#B0172F] transition-colors">
-              <Plus size={14} strokeWidth={2.5} /> Nuevo tipo
-            </button>
-          )}
-          {vista === 'unidades' && (
-            <button onClick={abrirModalNueva}
-              className="hidden md:flex items-center gap-1.5 px-4 py-2 bg-[#D81B43] text-white text-[13px] font-semibold rounded-[9px] hover:bg-[#B0172F] transition-colors">
-              <Plus size={14} strokeWidth={2.5} /> Nueva unidad
             </button>
           )}
         </div>
@@ -710,12 +703,18 @@ export default function InventarioClient({ categorias: catsIniciales, tipos: tip
         {vista === 'categorias' && (
           <div>
             {categorias.length > 0 && (
-              <div className="relative flex-1 min-w-[160px] md:max-w-[260px] mb-4">
-                <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input
-                  value={buscarCategoria} onChange={e => setBuscarCategoria(e.target.value)}
-                  placeholder="Buscar categoría..."
-                  className="w-full pl-8 pr-4 py-2 border border-slate-200 rounded-[9px] text-[13px] outline-none focus:border-[#D81B43] bg-white h-[38px]" />
+              <div className="flex items-center gap-2 md:gap-3 mb-4">
+                <div className="relative flex-1 md:flex-none md:w-[340px]">
+                  <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    value={buscarCategoria} onChange={e => setBuscarCategoria(e.target.value)}
+                    placeholder="Buscar categoría..."
+                    className="w-full pl-8 pr-4 py-2 border border-slate-200 rounded-[9px] text-[13px] outline-none focus:border-[#D81B43] bg-white h-[38px]" />
+                </div>
+                <div className="hidden md:block text-[12px] text-slate-400 flex-shrink-0 ml-auto">
+                  {categoriasFiltradas.length} categoría{categoriasFiltradas.length !== 1 ? 's' : ''}
+                </div>
+                {botonExportar}
               </div>
             )}
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
@@ -764,8 +763,9 @@ export default function InventarioClient({ categorias: catsIniciales, tipos: tip
         {/* VISTA TIPOS */}
         {vista === 'tipos' && (
           <div>
-            {tiposDeCat.length > 0 && (
-              <div className="flex flex-wrap items-center gap-2 mb-4">
+            {/* La franja se muestra aunque no haya tipos, para no perder "Nuevo tipo" */}
+            <div className={`${tiposDeCat.length === 0 ? 'hidden md:flex' : 'flex'} flex-wrap items-center gap-2 md:gap-3 mb-4`}>
+              {tiposDeCat.length > 0 && (<>
                 {/* Buscador de tipo (marca) */}
                 <div className="relative flex-1 min-w-[160px] md:max-w-[220px]">
                   <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -827,8 +827,14 @@ export default function InventarioClient({ categorias: catsIniciales, tipos: tip
                 <div className="text-[12px] text-slate-400 flex-shrink-0 ml-auto">
                   {tiposFiltrados.length} tipo{tiposFiltrados.length !== 1 ? 's' : ''}
                 </div>
+              </>)}
+              <div className={`flex items-center gap-2 md:gap-3 ${tiposDeCat.length === 0 ? 'ml-auto' : ''}`}>
+                {botonExportar}
+                <button onClick={abrirModalTipo} className={claseBotonNuevo}>
+                  <Plus size={14} strokeWidth={2.5} /> Nuevo tipo
+                </button>
               </div>
-            )}
+            </div>
             {tiposDeCat.length === 0 && (
               <div className="text-center py-12 text-slate-400">
                 <Inbox className="w-16 h-16 mx-auto mb-3 opacity-20" />
@@ -878,15 +884,19 @@ export default function InventarioClient({ categorias: catsIniciales, tipos: tip
         {/* VISTA UNIDADES */}
         {vista === 'unidades' && (
           <div>
-            <div className="flex items-center gap-2 mb-3">
-              <div className="relative flex-1 min-w-[160px] max-w-[300px]">
+            <div className="flex items-center gap-2 md:gap-3 mb-3">
+              <div className="relative flex-1 md:flex-none md:w-[340px]">
                 <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar..."
                   className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-[9px] text-[13px] outline-none focus:border-[#D81B43] bg-white" />
               </div>
-              <div className="text-[12px] text-slate-400 ml-auto">
+              <div className="text-[12px] text-slate-400 ml-auto flex-shrink-0">
                 {unidadesDeTipo.length} unidad{unidadesDeTipo.length !== 1 ? 'es' : ''}
               </div>
+              {botonExportar}
+              <button onClick={abrirModalNueva} className={claseBotonNuevo}>
+                <Plus size={14} strokeWidth={2.5} /> Nueva unidad
+              </button>
             </div>
             <div className="bg-white border border-slate-200 rounded-xl p-3 md:p-4 mb-4 shadow-sm">
               <div className="grid grid-cols-2 md:grid-cols-3 gap-3">

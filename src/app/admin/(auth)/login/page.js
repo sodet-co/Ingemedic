@@ -38,12 +38,20 @@ export default function LoginPage() {
     let userId     = null
 
     if (!isEmail) {
-      // Búsqueda case-insensitive con ilike
-      const { data, error: fetchError } = await supabase
-        .from('usuarios')
-        .select('email, id')
-        .ilike('username', identifier.trim())
-        .single()
+      // Username → email con la función email_por_username (SECURITY DEFINER):
+      // devuelve solo ese usuario, sin exponer la tabla usuarios a visitantes
+      // sin sesión. Si la función todavía no existe en la BD, cae a la
+      // búsqueda directa de antes (case-insensitive con ilike).
+      let { data, error: fetchError } = await supabase
+        .rpc('email_por_username', { p_username: identifier.trim() })
+        .maybeSingle()
+      if (fetchError?.code === 'PGRST202') {
+        ;({ data, error: fetchError } = await supabase
+          .from('usuarios')
+          .select('email, id')
+          .ilike('username', identifier.trim())
+          .single())
+      }
 
       if (fetchError || !data) {
         setError('Usuario no reconocido en el sistema.')

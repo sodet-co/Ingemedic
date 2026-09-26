@@ -10,6 +10,7 @@ import ConfirmDialog from '@/components/ui/ConfirmDialog'
 import ModalDevolucion from '@/components/entregas/ModalDevolucion'
 import Paginador from '@/components/ui/Paginador'
 import { devolverEquipo as devolverEquipoLib } from '@/lib/prestamos'
+import { buscarCedulaDuplicada, mensajeCedulaDuplicada, esErrorCedulaDuplicada, MENSAJE_CEDULA_DUPLICADA } from '@/lib/pacientes'
 import BuzonNovedades from '@/components/layout/BuzonNovedades'
 import { useOrdenable } from '@/hooks/useOrdenable'
 import { usePaginacion } from '@/hooks/usePaginacion'
@@ -677,6 +678,10 @@ export default function OrdenesClient({
     if (wForm.tiene_paciente && !wForm.pacienteNuevo.direccion.trim()) {
       showToast('La dirección del paciente es obligatoria', 'error'); return
     }
+    if (wForm.tiene_paciente) {
+      const duplicado = buscarCedulaDuplicada(pacientesLocal, wForm.pacienteNuevo.cedula, wForm.paciente_id || null)
+      if (duplicado) { showToast(mensajeCedulaDuplicada(duplicado), 'error'); return }
+    }
     setSeccion1Completa(true)
     setTimeout(() => seccion2Ref.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50)
   }
@@ -726,6 +731,10 @@ export default function OrdenesClient({
     if (wForm.tiene_paciente && !wForm.pacienteNuevo.direccion.trim()) {
       showToast('La dirección del paciente es obligatoria', 'error'); return
     }
+    if (wForm.tiene_paciente) {
+      const duplicado = buscarCedulaDuplicada(pacientesLocal, wForm.pacienteNuevo.cedula, wForm.paciente_id || null)
+      if (duplicado) { showToast(mensajeCedulaDuplicada(duplicado), 'error'); return }
+    }
     if (wForm.domicilio && !wForm.repartidor_id) {
       showToast('Selecciona un repartidor', 'error'); return
     }
@@ -751,7 +760,8 @@ export default function OrdenesClient({
         correo:    wForm.pacienteNuevo.correo.trim() || null,
       }).eq('id', pacienteId)
       if (errUpdatePac) {
-        showToast('Error actualizando paciente: ' + errUpdatePac.message, 'error'); setSaving(false); return
+        showToast(esErrorCedulaDuplicada(errUpdatePac) ? MENSAJE_CEDULA_DUPLICADA : 'Error actualizando paciente: ' + errUpdatePac.message, 'error')
+        setSaving(false); return
       }
       setPacientesLocal(prev => prev.map(p => p.id === pacienteId ? {
         ...p,
@@ -769,7 +779,8 @@ export default function OrdenesClient({
           correo:    wForm.pacienteNuevo.correo.trim() || null,
         }).select('id').single()
       if (errPac) {
-        showToast('Error creando paciente: ' + errPac.message, 'error'); setSaving(false); return
+        showToast(esErrorCedulaDuplicada(errPac) ? MENSAJE_CEDULA_DUPLICADA : 'Error creando paciente: ' + errPac.message, 'error')
+        setSaving(false); return
       }
       pacienteId = nuevoPaciente.id
       setPacientesLocal(prev => [...prev, {
@@ -937,12 +948,6 @@ export default function OrdenesClient({
         </div>
         <div className="ml-auto flex items-center gap-2">
           <BuzonNovedades />
-          {vista === 'lista' && (
-          <button onClick={iniciarNuevoPrestamo}
-            className="hidden md:flex items-center gap-1.5 px-4 py-2 bg-[#D81B43] text-white text-[13px] font-semibold rounded-[9px] hover:bg-[#B0172F] transition-colors">
-            <Plus size={14} strokeWidth={2.5} /> Nuevo préstamo
-          </button>
-          )}
         </div>
       </div>
 
@@ -961,15 +966,17 @@ export default function OrdenesClient({
 
           {/* FRANJA 1 — Filtros, SIEMPRE fija, nunca cambia con la selección */}
           <div className="p-3 md:p-6 pb-3 md:pb-4 flex-shrink-0 border-b border-slate-200">
+            <div className="flex flex-col gap-2 md:gap-3">
+              {/* Fila 1 — búsqueda, pestañas, conteo y acción principal */}
               <div className="flex flex-col gap-2 md:flex-row md:items-center md:gap-3">
-                <div className="relative flex-1 md:max-w-[340px]">
+                <div className="relative w-full md:w-[340px] md:flex-shrink-0">
                   <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                   <input value={search} onChange={e => setSearch(e.target.value)}
                     placeholder="Buscar por código o cliente..."
                     className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-[9px] text-[13px] outline-none focus:border-[#D81B43] bg-white" />
                 </div>
-                <div className="flex items-center gap-2">
-                  <div className="flex items-center gap-2 overflow-x-auto flex-1">
+                <div className="flex items-center gap-2 md:gap-3 md:flex-1 min-w-0">
+                  <div className="flex items-center gap-2 overflow-x-auto flex-1 min-w-0">
                     {[
                       { key: 'todos',    label: 'Todos'    },
                       { key: 'en_curso', label: 'En curso' },
@@ -987,14 +994,19 @@ export default function OrdenesClient({
                     ))}
                   </div>
                   {!drawer && (
-                    <div className="hidden md:block text-[12px] text-slate-400 flex-shrink-0 md:ml-auto">
+                    <div className="hidden md:block text-[12px] text-slate-400 flex-shrink-0">
                       {ordenesFiltradas.length} préstamo{ordenesFiltradas.length !== 1 ? 's' : ''}
                     </div>
                   )}
+                  <button onClick={iniciarNuevoPrestamo}
+                    className="hidden md:flex items-center gap-1.5 px-4 h-[38px] bg-[#D81B43] text-white text-[13px] font-semibold rounded-[9px] hover:bg-[#B0172F] transition-colors flex-shrink-0 whitespace-nowrap">
+                    <Plus size={14} strokeWidth={2.5} /> Nuevo préstamo
+                  </button>
                 </div>
+              </div>
 
-                {/* Panel de filtros */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-3">
+              {/* Fila 2 — panel de filtros */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                   <select value={filtroEstadoDetalle} onChange={e => setFiltroEstadoDetalle(e.target.value)}
                     className="w-full px-3 py-2 border border-slate-200 rounded-[9px] text-[12.5px] text-slate-700 outline-none focus:border-[#D81B43] bg-white h-[38px]">
                     <option value="">Estado</option>
@@ -1018,7 +1030,7 @@ export default function OrdenesClient({
                 </div>
 
                 {filtroAtencion && (
-                  <div className="flex items-center gap-1.5 mt-1">
+                  <div className="flex items-center gap-1.5">
                     <span className="inline-flex items-center gap-1.5 bg-[#FFFBEB] border border-[#F59E0B]/40 text-[#B45309] text-[12px] font-medium px-3 py-1.5 rounded-full">
                       Filtro: {filtroAtencion === 'prestamos_vencidos' ? 'préstamos vencidos' : 'préstamos por vencer'}
                       <button type="button" onClick={() => setFiltroAtencion('')} className="hover:text-[#7C2D12]">
@@ -1619,8 +1631,8 @@ export default function OrdenesClient({
                       </div>
                       <div>
                         <label className={labelCls}>Cédula</label>
-                        <input value={wForm.pacienteNuevo.cedula} onChange={e => setWForm(f => ({ ...f, pacienteNuevo: { ...f.pacienteNuevo, cedula: e.target.value } }))}
-                          type="text" className={inputCls} />
+                        <input value={wForm.pacienteNuevo.cedula} onChange={e => setWForm(f => ({ ...f, pacienteNuevo: { ...f.pacienteNuevo, cedula: e.target.value.replace(/[^0-9]/g, '') } }))}
+                          type="text" inputMode="numeric" className={inputCls} />
                       </div>
                       <div>
                         <label className={labelCls}>Dirección <span className="text-[#D81B43]">*</span></label>

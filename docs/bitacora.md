@@ -51,6 +51,101 @@ Lo que está sin resolver, ordenado por prioridad.
 
 # Entradas
 
+## 2026-09-25 — Cerrar acceso anónimo: RLS en 20 tablas
+**Qué se hizo:** el login por username ahora usa la RPC
+`email_por_username` (SECURITY DEFINER) con fallback a la query directa si
+la función aún no existe (error PGRST202). SQL entregado para: crear la
+función, política `autenticados_todo` (FOR ALL TO authenticated) + ENABLE
+RLS en las 20 tablas que anon podía leer/escribir, lectura anónima solo de
+`configuracion_empresa` (la landing la usa sin sesión), y quitar la
+política "Permitir buscar email por username".
+**Por qué así:** las tablas ya tenían políticas pero RLS apagado. Encender
+RLS tal cual rompía: `bitacora` y `entregas` solo tenían SELECT (sin
+INSERT/UPDATE) y excluían a SuperAdmin; `orden_equipos` y
+`plantillas_orden` no tenían ninguna. Se replicó lo que hoy puede hacer un
+usuario logueado — nadie con sesión nota el cambio. Las políticas viejas
+(`solo_admin_bitacora`, `repartidor_sus_entregas`) quedan pero no
+restringen nada, porque las políticas permisivas se suman con OR.
+**Archivos:** `src/app/admin/(auth)/login/page.js`
+**SQL:** **sin correr.** Orden obligatorio: desplegar el login primero,
+después el SQL (si no, el login por username se rompe).
+**Pendiente:** correr SQL, re-sondear con anon, probar login por username
+y por email, crear préstamo, completar entrega como repartidor. Después:
+restricciones por rol (bitácora solo admin, repartidor solo sus entregas).
+
+## 2026-09-25 — Auditoría de integridad y seguridad (solo lectura)
+**Qué se hizo:** sondeo de duplicados, consistencia entre tablas y acceso
+anónimo. Script en el scratchpad de la sesión (no quedó en el repo).
+**Hallazgos:**
+- **CRÍTICO — acceso anónimo.** Con la anon key (pública, va en el JS del
+  navegador) se LEEN 20 tablas sin sesión: `clientes`, `usuarios` (emails),
+  `ordenes_servicio`, `orden_equipos`, `equipos`, `entregas`, `bitacora`,
+  `configuracion_empresa`, `plantillas_orden`, catálogos. Y se puede
+  ESCRIBIR: confirmado en `clientes` (update con el mismo valor, sin cambio
+  real). `pacientes` y `mantenimientos` sí están bloqueadas.
+- 12 series de equipo repetidas (ej. MZJ5S174551 en RL703/RL687/RL088;
+  CTX14B5J108 en un BMC y un CPAP). Requiere revisión física.
+- LR-002 en dos préstamos "Entregada" a la vez (ORD-2026-137 y -163);
+  ORD-2026-131..142 parecen datos de prueba de agosto.
+- 6 préstamos "Finalizada" con equipos sin fecha de devolución
+  (ORD-2026-002, -021, -134, -135, -136, -161).
+- Paciente duplicado: ESNEIDER DAVID CORRALES CORZO (uno sin cédula,
+  con ORD-2026-084).
+- Tipos casi duplicados por escritura: ENMIND/Enmind, Pulmo Med/Pulmo-Med,
+  "Cilindro 3.5 M3"/"cilindro 3.5m3".
+- `tipos_equipo_bkp_20260921` y `tmp_tipos_objetivo` siguen en public.
+**Sin problemas:** códigos de equipo/préstamo/entrega, emails, NIT de
+clientes, estados de equipo vs préstamos abiertos, entregas vs préstamo.
+**Pendiente:** todo lo de arriba. Lo de seguridad primero.
+
+## 2026-09-25 — Cédula de paciente única
+**Qué se hizo:** `src/lib/pacientes.js` con la validación compartida
+(`buscarCedulaDuplicada`, normaliza a solo dígitos). La usan el modal
+Nuevo paciente y el wizard de Nuevo préstamo (al avanzar el paso 1 y al
+guardar; al editar un paciente existente se excluye a sí mismo). Mensaje:
+"Cédula ya registrada en el sistema (Nombre)". Si la BD rechaza igual
+(error 23505 del índice), se muestra el mismo mensaje en español. El campo
+cédula del wizard ahora solo acepta dígitos.
+**Archivos:** `src/lib/pacientes.js`, `ClientesClient.js`, `OrdenesClient.js`
+**SQL:** índice único `pacientes_cedula_unica` sobre
+`regexp_replace(cedula, '[^0-9]', '', 'g')`, parcial (excluye NULL/vacía).
+**Ya corrido y verificado (2026-09-25)** con registros desechables:
+rechaza cédula repetida y con puntos, permite varios sin cédula, rechaza
+editar con cédula ajena, permite conservar la propia. El error real
+(23505 "pacientes_cedula_unica") lo reconoce `esErrorCedulaDuplicada`.
+Todo borrado; conteo quedó en 168.
+
+## 2026-09-25 — Crear paciente desde el módulo Clientes
+**Qué se hizo:** botón "Nuevo paciente" en la franja de filtros de la
+pestaña Pacientes (y el FAB móvil ahora crea cliente o paciente según la
+pestaña). Modal propio con los mismos campos y validaciones que el wizard
+de Nuevo préstamo (nombre y dirección obligatorios). La vía del wizard
+sigue igual. Extra respecto al wizard: rechaza una cédula que ya exista.
+**Por qué:** antes un paciente solo se podía crear dentro de un préstamo.
+**Archivos:** `src/app/admin/(dashboard)/clientes/ClientesClient.js`
+**Verificado con datos reales (2026-09-25):** se insertó un paciente de
+prueba con el mismo payload, `activo` queda `true` por defecto, aparece en
+la pestaña Pacientes, en el buscador del wizard y en el export; FKs
+`ordenes_servicio.paciente_id` y `equipos.paciente_actual_id` existen. Se
+borró; conteo volvió a 168. La BD **no** tiene UNIQUE en `pacientes.cedula`
+(hoy 0 repetidas, 78 sin cédula): solo el formulario de Clientes lo evita.
+**Pendiente:** el insert se probó con service_role, no con sesión de
+usuario. La política de INSERT para `authenticated` se asume bien porque el
+wizard ya inserta en `pacientes` desde el navegador. `creado_por` queda
+`null` (igual que en el wizard).
+
+## 2026-09-25 — Buzón de notificaciones rediseñado; se quitó publicar novedades desde la app
+**Qué se hizo:** el buzón (`BuzonNovedades`) ahora tiene pestañas Todas /
+Alertas / Novedades, marca de "nuevo" por ítem, "Ver más" en novedades
+largas y hoja inferior en móvil. Se quitó el botón "+ Novedad" del
+SuperAdmin junto con su modal: era el **único** lugar de la app para
+publicar en `novedades_sistema`.
+**Por qué:** pedido explícito de quitar el botón.
+**Archivos:** `src/components/layout/BuzonNovedades.js`
+**Pendiente:** publicar una novedad ahora solo se puede con un INSERT
+directo en `novedades_sistema` (asunto, descripcion, creado_por). Si se
+vuelve a necesitar desde la app, el formulario está en el historial de git.
+
 ## 2026-09-24 — Dashboard: se quitaron 3 secciones (Órdenes activas, Entregas retrasadas, Entregas hoy)
 
 **Qué se hizo:** por pedido directo, se quitaron del dashboard las
