@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
+import { verificarSesion } from '@/lib/api-auth'
 import Papa from 'papaparse'
 
 const supabaseAdmin = createClient(
@@ -7,6 +8,9 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY,
   { auth: { autoRefreshToken: false, persistSession: false } }
 )
+
+// Permisos de módulo que exige esta ruta (ver src/lib/api-auth.js)
+const MODULOS = ['configuracion', 'configuracion.cargue']
 
 function limpiar(val) {
   if (val === undefined || val === null) return null
@@ -45,6 +49,9 @@ function leerAtributos(fila, campos) {
 
 export async function POST(request) {
   try {
+    const { respuesta } = await verificarSesion({ modulos: MODULOS })
+    if (respuesta) return respuesta
+
     const formData = await request.formData()
     const tipoCarga = formData.get('tipo')
     const categoriaId = formData.get('categoria_id')

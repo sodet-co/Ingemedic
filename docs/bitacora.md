@@ -24,12 +24,8 @@ sesión: si crece sin control, deja de servir.
 
 Lo que está sin resolver, ordenado por prioridad.
 
-1. **Seguridad — `/api/usuarios` sin validar sesión.** El endpoint usa
-   `service_role` de Supabase y no verifica quién llama. Cualquiera que
-   conozca la URL puede cambiar contraseña, email o rol de cualquier
-   usuario mandando un `id` arbitrario. Detectado hace tiempo, nunca
-   arreglado. Es lo más urgente de esta lista — y con RLS ya encendido
-   (2026-09-25) es el único camino abierto que queda sin sesión.
+1. **Probar con sesión real las rutas `/api/*` protegidas el 2026-09-25**
+   (ver entrada de ese día). Sin sesión ya se verificó 401 en las 7.
 2. **Rol Repartidor.** La restricción no funcionaba por emails con
    mayúsculas inconsistentes entre `auth.users` y `usuarios`. Se entregó
    el `UPDATE usuarios SET email = LOWER(email)` pero nunca se confirmó
@@ -62,6 +58,30 @@ Lo que está sin resolver, ordenado por prioridad.
 ---
 
 # Entradas
+
+## 2026-09-25 — Las rutas /api/* no validaban sesión
+**Qué se hizo:** `src/lib/api-auth.js` → `verificarSesion({ modulos })`:
+exige sesión (401), usuario activo (403) y los mismos permisos de módulo
+que el middleware (`puedeVerModulo`; SuperAdmin inmune). Aplicado en las 6
+rutas: `usuarios` (configuracion + configuracion.usuarios),
+`exportar/clientes` (clientes), `exportar/inventario` (inventario),
+`cargue` y `cargue/plantilla` (configuracion + configuracion.cargue),
+`documentos` (solo sesión; hoy nadie la llama).
+Además, en `/api/usuarios` solo un SuperAdmin puede asignar el rol
+SuperAdmin o editar/desactivar a un SuperAdmin; el select de rol en
+Configuración → Usuarios oculta SuperAdmin a quien no lo es.
+**Por qué:** el middleware tiene `matcher: ['/admin/:path*']`, así que
+`/api/*` no tenía ninguna protección, y todas usan service_role (se saltan
+RLS). Confirmado antes del arreglo: sin sesión se descargaba el Excel con
+los 168 pacientes. `/api/usuarios` permitía crear un SuperAdmin sin sesión.
+Un Administrador podía asignarse SuperAdmin desde la pantalla.
+**Archivos:** `src/lib/api-auth.js`, las 6 `src/app/api/**/route.js`,
+`configuracion/ConfiguracionClient.js`
+**Verificado:** sin sesión, las 7 llamadas (6 rutas, POST y PUT de
+usuarios) responden 401.
+**Pendiente:** probar con sesión real: exportar clientes e inventario,
+descargar plantilla y hacer un cargue, crear/editar/desactivar usuario
+como Administrador y como SuperAdmin.
 
 ## 2026-09-25 — Cerrar acceso anónimo: RLS en 20 tablas
 **Qué se hizo:** el login por username ahora usa la RPC

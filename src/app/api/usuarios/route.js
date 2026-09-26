@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
+import { verificarSesion } from '@/lib/api-auth'
 
 // Cliente admin con service_role — solo en el servidor
 const supabaseAdmin = createClient(
@@ -8,13 +9,31 @@ const supabaseAdmin = createClient(
   { auth: { autoRefreshToken: false, persistSession: false } }
 )
 
+// Misma regla que la pantalla: módulo Configuración + sección Usuarios.
+const MODULOS_USUARIOS = ['configuracion', 'configuracion.usuarios']
+
+async function esRolSuperAdmin(rolId) {
+  if (!rolId) return false
+  const { data } = await supabaseAdmin.from('roles').select('nombre').eq('id', rolId).maybeSingle()
+  return data?.nombre === 'SuperAdmin'
+}
+
+// Solo un SuperAdmin puede crear/editar/desactivar un SuperAdmin o asignar
+// ese rol — si no, un Administrador podría subirse a sí mismo de nivel.
+const PROHIBIDO_SUPERADMIN = () =>
+  NextResponse.json({ error: 'Solo un SuperAdmin puede asignar o modificar el rol SuperAdmin.' }, { status: 403 })
+
 export async function POST(request) {
   try {
+    const { usuario: actual, respuesta } = await verificarSesion({ modulos: MODULOS_USUARIOS })
+    if (respuesta) return respuesta
+
     const { nombre, email, username, password, rol_id } = await request.json()
 
     if (!nombre || !email || !username || !password || !rol_id) {
       return NextResponse.json({ error: 'Todos los campos son requeridos' }, { status: 400 })
     }
+    if (!actual.esSuperAdmin && await esRolSuperAdmin(rol_id)) return PROHIBIDO_SUPERADMIN()
 
     // 1. Crear usuario en Auth
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
@@ -56,9 +75,18 @@ export async function POST(request) {
 
 export async function PUT(request) {
   try {
+    const { usuario: actual, respuesta } = await verificarSesion({ modulos: MODULOS_USUARIOS })
+    if (respuesta) return respuesta
+
     const { id, nombre, email, username, rol_id, password, activo } = await request.json()
 
     if (!id) return NextResponse.json({ error: 'ID requerido' }, { status: 400 })
+
+    if (!actual.esSuperAdmin) {
+      const { data: objetivo } = await supabaseAdmin.from('usuarios').select('rol_id').eq('id', id).maybeSingle()
+      if (await esRolSuperAdmin(objetivo?.rol_id)) return PROHIBIDO_SUPERADMIN()
+      if (rol_id !== undefined && await esRolSuperAdmin(rol_id)) return PROHIBIDO_SUPERADMIN()
+    }
 
     // Actualizar en Auth si cambió email o password
     if (email || password) {

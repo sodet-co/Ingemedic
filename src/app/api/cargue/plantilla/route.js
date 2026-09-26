@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
+import { verificarSesion } from '@/lib/api-auth'
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -7,9 +8,15 @@ const supabaseAdmin = createClient(
   { auth: { autoRefreshToken: false, persistSession: false } }
 )
 
+// Permisos de módulo que exige esta ruta (ver src/lib/api-auth.js)
+const MODULOS = ['configuracion', 'configuracion.cargue']
+
 const COLUMNAS_BASE_CLIENTES = ['tipo_persona', 'nombre', 'nit_cc', 'digito_verificacion', 'departamento', 'municipio', 'direccion', 'telefono', 'email']
 
 export async function GET(request) {
+  const { respuesta } = await verificarSesion({ modulos: MODULOS })
+  if (respuesta) return respuesta
+
   const { searchParams } = new URL(request.url)
   const tipo        = searchParams.get('tipo')
   const categoriaId = searchParams.get('categoria_id')

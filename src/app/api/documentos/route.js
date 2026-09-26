@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
+import { verificarSesion } from '@/lib/api-auth'
 import { formatear, formatearSoloFecha } from '@/lib/fechas'
 
 const supabaseAdmin = createClient(
@@ -7,6 +8,9 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY,
   { auth: { autoRefreshToken: false, persistSession: false } }
 )
+
+// Permisos de módulo que exige esta ruta (ver src/lib/api-auth.js)
+const MODULOS = []
 
 function reemplazarVariables(html, variables) {
   return html.replace(/\{\{\s*([a-zA-Z0-9_\.]+)\s*\}\}/g, (_, key) => {
@@ -20,6 +24,9 @@ function formatearFecha(fecha) {
 
 export async function POST(request) {
   try {
+    const { respuesta } = await verificarSesion({ modulos: MODULOS })
+    if (respuesta) return respuesta
+
     const { tipo, orden_id, mantenimiento_id } = await request.json()
 
     // 1. Cargar datos de la empresa

@@ -253,6 +253,8 @@ export default function ConfiguracionClient({
   const seccionActiva = navVisible.some(n => n.id === seccion) ? seccion : (navVisible[0]?.id ?? seccion)
 
   const rolesSinSuperAdmin = roles.filter(r => r.nombre !== 'SuperAdmin')
+  // Solo un SuperAdmin puede asignar ese rol (lo exige también /api/usuarios)
+  const rolesAsignables = esSuperAdmin ? roles : rolesSinSuperAdmin
   const rolIdActivoPermisos = rolSeleccionadoPermisos || rolesSinSuperAdmin[0]?.id || null
   const permisosDelRolSeleccionado = todosPermisos.filter(p => p.rol_id === rolIdActivoPermisos)
 
@@ -732,7 +734,7 @@ export default function ConfiguracionClient({
                     <h2 className="text-[20px] font-bold text-slate-800">Usuarios</h2>
                     <p className="text-[13px] text-slate-400 mt-0.5">Gestiona quién tiene acceso al sistema</p>
                   </div>
-                  <button onClick={() => abrirModal('usuario', { rol_id: roles[0]?.id })}
+                  <button onClick={() => abrirModal('usuario', { rol_id: rolesAsignables[0]?.id })}
                     className="flex items-center gap-1.5 px-4 py-2 bg-[#D81B43] text-white text-[13px] font-semibold rounded-[9px] hover:bg-[#B0172F] transition-colors">
                     <Plus size={14} /> Nuevo usuario
                   </button>
@@ -1296,7 +1298,7 @@ export default function ConfiguracionClient({
                   <div>
                     <label className={labelCls}>Rol</label>
                     <select value={form.rol_id || ''} onChange={e => setForm(f => ({ ...f, rol_id: e.target.value }))} className={inputCls}>
-                      {roles.map(r => <option key={r.id} value={r.id}>{r.nombre}</option>)}
+                      {rolesAsignables.map(r => <option key={r.id} value={r.id}>{r.nombre}</option>)}
                     </select>
                   </div>
                   <div>

@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
+import { verificarSesion } from '@/lib/api-auth'
 import ExcelJS from 'exceljs'
 import { formatear, hoyBogota } from '@/lib/fechas'
 import { traerTodosLosEquipos } from '@/lib/equipos'
@@ -9,6 +10,9 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY,
   { auth: { autoRefreshToken: false, persistSession: false } }
 )
+
+// Permisos de módulo que exige esta ruta (ver src/lib/api-auth.js)
+const MODULOS = ['inventario']
 
 // Paleta Ingemedic
 const ROJO    = 'D81B43'
@@ -65,6 +69,9 @@ function colorEstado(cell, estadoNombre) {
 
 export async function POST(request) {
   try {
+    const { respuesta } = await verificarSesion({ modulos: MODULOS })
+    if (respuesta) return respuesta
+
     const { nivel, categoria_id, tipo_id } = await request.json()
 
     const wb = new ExcelJS.Workbook()
