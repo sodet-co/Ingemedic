@@ -1,6 +1,7 @@
 'use client'
 import { useState, useMemo, Fragment } from 'react'
 import { Search, Download, ToggleLeft, ToggleRight, Calendar } from 'lucide-react'
+import LimpiarFiltros from '@/components/ui/LimpiarFiltros'
 import { hoyBogota } from '@/lib/fechas'
 import BuzonNovedades from '@/components/layout/BuzonNovedades'
 
@@ -10,6 +11,8 @@ export default function ServiciosClient({ serviciosIniciales }) {
   const [desde, setDesde]         = useState(() => hoyBogota().slice(0, 7) + '-01')
   const [hasta, setHasta]         = useState(() => hoyBogota())
   const [agrupado, setAgrupado]   = useState(false)
+  const desdeDefecto = hoyBogota().slice(0, 7) + '-01'
+  const hastaDefecto = hoyBogota()
 
   const filtrados = useMemo(() => {
     return serviciosIniciales.filter(s => {
@@ -166,6 +169,9 @@ export default function ServiciosClient({ serviciosIniciales }) {
             <span className="text-[12px] text-slate-500 font-medium">Hasta</span>
             <input type="date" value={hasta} onChange={e => setHasta(e.target.value)}
               className="px-3 py-2 border border-slate-200 rounded-[9px] text-[13px] outline-none focus:border-[#2EB5D4] bg-white" />
+
+            <LimpiarFiltros activo={!!search || filtroEstado !== 'todos' || desde !== desdeDefecto || hasta !== hastaDefecto}
+              onLimpiar={() => { setSearch(''); setFiltroEstado('todos'); setDesde(desdeDefecto); setHasta(hastaDefecto) }} />
 
             <button onClick={exportarCSV}
               className="ml-auto flex items-center gap-1.5 px-4 py-2 bg-[#059669] text-white text-[13px] font-semibold rounded-[9px] hover:bg-[#047857] transition-colors flex-shrink-0">

@@ -9,6 +9,7 @@ import {
   ArrowUpRight, ArrowDownLeft, Filter, Calendar
 } from 'lucide-react'
 import ConfirmDialog from '@/components/ui/ConfirmDialog'
+import LimpiarFiltros from '@/components/ui/LimpiarFiltros'
 import BuzonNovedades from '@/components/layout/BuzonNovedades'
 import { formatear, soloDia } from '@/lib/fechas'
 import FirmaPad from '@/components/entregas/FirmaPad'
@@ -714,12 +715,8 @@ export default function EntregasClient({ entregasIniciales, ordenesEnReparto, es
             <Filter size={13} /> Filtros {hayFiltros && '•'}
           </button>
 
-          {hayFiltros && (
-            <button onClick={() => { setFiltroEstado(''); setFiltroRep(''); setFiltroFecha(''); setFiltroCliente('') }}
-              className="text-[12px] text-slate-400 hover:text-red-500 flex items-center gap-1">
-              <X size={12} /> Limpiar
-            </button>
-          )}
+          <LimpiarFiltros activo={!!(hayFiltros || search)}
+            onLimpiar={() => { setSearch(''); setFiltroEstado(''); setFiltroRep(''); setFiltroFecha(''); setFiltroCliente('') }} />
         </div>
 
         {/* Panel filtros */}

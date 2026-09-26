@@ -6,7 +6,7 @@ import {
   Users, Lock, Tag, Cpu, Building2,
   FileText, Upload, Plus, X, Edit3, Trash2,
   Check, Save, ClipboardList, Download, CheckCircle2, Smartphone,
-  ChevronDown, ChevronRight
+  ChevronDown, ChevronRight, Search
 } from 'lucide-react'
 import { GaleriaIconos, IconoEquipo } from '@/components/inventario/IconosEquipo'
 import { MODULOS_PRINCIPALES, MODULOS_CONFIGURACION, MODULOS_OCULTOS_POR_DEFECTO, puedeVerModulo } from '@/lib/permisos'
@@ -58,23 +58,87 @@ function ResultadoCargue({ resultado }) {
   )
 }
 
+// Piezas compartidas por las dos tarjetas de cargue
+function PasoCargue({ n, titulo, deshabilitado = false, children }) {
+  return (
+    <div className={`flex gap-3 transition-opacity ${deshabilitado ? 'opacity-40 pointer-events-none' : ''}`}>
+      <div className="w-6 h-6 rounded-full bg-[#D81B43]/10 text-[#D81B43] text-[12px] font-bold flex items-center justify-center flex-shrink-0 mt-0.5">{n}</div>
+      <div className="flex-1 min-w-0">
+        <div className="text-[13px] font-semibold text-slate-700 mb-2">{titulo}</div>
+        {children}
+      </div>
+    </div>
+  )
+}
+
+function ColumnasCargue({ columnas }) {
+  if (!columnas.length) return <div className="text-[12px] text-slate-400">Sin columnas adicionales</div>
+  return (
+    <div className="flex flex-wrap gap-1">
+      {columnas.map(c => <code key={c} className="text-[11px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">{c}</code>)}
+    </div>
+  )
+}
+
+// Toda la zona es clickeable (label) y también acepta arrastrar y soltar
+function ZonaArchivo({ archivo, onArchivo }) {
+  const [dragOver, setDragOver] = useState(false)
+  return (
+    <label
+      onDragOver={e => { e.preventDefault(); setDragOver(true) }}
+      onDragLeave={() => setDragOver(false)}
+      onDrop={e => { e.preventDefault(); e.stopPropagation(); setDragOver(false); const f = e.dataTransfer.files?.[0]; if (f) onArchivo(f) }}
+      className={`flex items-center gap-3 border-2 border-dashed rounded-[10px] px-4 py-4 cursor-pointer transition-all ${
+        dragOver || archivo ? 'border-[#D81B43] bg-[#D81B43]/5' : 'border-slate-200 hover:border-[#D81B43]'
+      }`}>
+      <Upload size={20} className={archivo ? 'text-[#D81B43]' : 'text-slate-300'} />
+      <div className="min-w-0">
+        <div className="text-[13px] font-semibold text-slate-600 truncate">{archivo ? archivo.name : 'Arrastra tu CSV aquí o haz clic para elegirlo'}</div>
+        <div className="text-[11.5px] text-slate-400">{archivo ? `${(archivo.size / 1024).toFixed(1)} KB · clic para cambiarlo` : 'Solo archivos .csv'}</div>
+      </div>
+      <input type="file" accept=".csv,text/csv" className="hidden"
+        onChange={e => { const f = e.target.files?.[0]; if (f) onArchivo(f); e.target.value = '' }} />
+    </label>
+  )
+}
+
+function AccionesCargue({ archivo, cargando, textoImportar, onImportar, onCancelar }) {
+  if (!archivo) return null
+  return (
+    <div className="flex items-center gap-2 mt-3">
+      <button onClick={onImportar} disabled={cargando}
+        className="px-4 py-2 bg-[#D81B43] text-white rounded-[9px] text-[13px] font-semibold hover:bg-[#B0172F] disabled:opacity-50">
+        {cargando ? 'Procesando...' : textoImportar}
+      </button>
+      <button onClick={onCancelar} disabled={cargando}
+        className="px-3 py-2 border border-slate-200 rounded-[9px] text-[13px] text-slate-500 hover:border-slate-300">
+        Cancelar
+      </button>
+    </div>
+  )
+}
+
+function EncabezadoCargue({ Icono, titulo, sub }) {
+  return (
+    <div className="px-5 py-4 border-b border-slate-100 flex items-center gap-3">
+      <div className="w-9 h-9 rounded-lg bg-[#D81B43]/10 text-[#D81B43] flex items-center justify-center flex-shrink-0"><Icono size={16} /></div>
+      <div>
+        <div className="text-[14px] font-bold text-slate-700">{titulo}</div>
+        <div className="text-[12px] text-slate-400 mt-0.5">{sub}</div>
+      </div>
+    </div>
+  )
+}
+
+const btnPlantillaCls = 'inline-flex items-center gap-1.5 px-3 py-2 border border-slate-200 rounded-[8px] text-[12.5px] font-medium text-slate-600 hover:border-[#D81B43] hover:text-[#D81B43] transition-all'
+
 function CargueEquipos({ cats }) {
   const [catId, setCatId]         = useState('')
   const [archivo, setArchivo]     = useState(null)
   const [cargando, setCargando]   = useState(false)
   const [resultado, setResultado] = useState(null)
-  const [dragOver, setDragOver]   = useState(false)
   const cat         = cats.find(c => c.id === catId)
   const camposExtra = [...(cat?.atributos_extra?.campos_tipo || []), ...(cat?.atributos_extra?.campos_unidad || [])]
-  const colsInfo    = camposExtra.map(c => c.clave).join(', ') || '—'
-
-  function handleDrop(e) {
-    e.preventDefault(); e.stopPropagation()
-    setDragOver(false)
-    if (!catId) return
-    const file = e.dataTransfer.files?.[0]
-    if (file) { setArchivo(file); setResultado(null) }
-  }
 
   async function descargarPlantilla() {
     if (!catId) return
@@ -95,78 +159,41 @@ function CargueEquipos({ cats }) {
     setResultado(await res.json()); setCargando(false)
   }
   return (
-    <div className="bg-white rounded-xl border border-slate-200 shadow-sm mb-5 overflow-hidden">
-      <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <div className="text-[14px] font-bold text-slate-700">Equipos</div>
-          <div className="text-[12px] text-slate-400 mt-0.5">Importa unidades — columnas según la categoría</div>
-        </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          <select value={catId} onChange={e => { setCatId(e.target.value); setArchivo(null); setResultado(null) }}
-            className="px-3 py-2 border border-slate-200 rounded-[8px] text-[13px] outline-none focus:border-[#D81B43] bg-white text-slate-600">
+    <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden h-full">
+      <EncabezadoCargue Icono={Cpu} titulo="Equipos" sub="Importa unidades — las columnas dependen de la categoría" />
+      <div className="p-5 space-y-5">
+        <PasoCargue n={1} titulo="Elige la categoría">
+          <select value={catId} onChange={e => { setCatId(e.target.value); setArchivo(null); setResultado(null) }} className={inputCls}>
             <option value="">Seleccionar categoría...</option>
             {cats.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
           </select>
-          <button onClick={descargarPlantilla} disabled={!catId}
-            className="flex items-center gap-1.5 px-3 py-2 border border-slate-200 rounded-[8px] text-[12.5px] font-medium text-slate-600 hover:border-[#D81B43] hover:text-[#D81B43] transition-all disabled:opacity-40 disabled:pointer-events-none">
+          {catId && (
+            <div className="mt-2">
+              <div className="text-[11px] text-slate-400 mb-1">Columnas propias de esta categoría:</div>
+              <ColumnasCargue columnas={camposExtra.map(c => c.clave)} />
+            </div>
+          )}
+        </PasoCargue>
+        <PasoCargue n={2} titulo="Descarga la plantilla y llénala" deshabilitado={!catId}>
+          <button onClick={descargarPlantilla} className={btnPlantillaCls}>
             <Download size={13} /> Descargar plantilla
           </button>
-        </div>
-      </div>
-      <div className="p-5 space-y-4">
-        {catId && <div className="text-[12px] text-slate-400"><span className="font-semibold text-slate-600">Columnas:</span> {colsInfo}</div>}
-        <div
-          onDragOver={e => { e.preventDefault(); if (catId) setDragOver(true) }}
-          onDragLeave={() => setDragOver(false)}
-          onDrop={handleDrop}
-          className={`border-2 border-dashed rounded-[10px] p-8 text-center transition-all ${
-            !catId   ? 'border-slate-200 opacity-50' :
-            dragOver ? 'border-[#D81B43] bg-[#D81B43]/5' :
-            archivo  ? 'border-[#D81B43] bg-[#D81B43]/5' :
-            'border-slate-200 hover:border-[#D81B43]'
-          }`}>
-          <Upload size={28} className="mx-auto mb-2 text-slate-300" />
-          <div className="text-[13.5px] font-semibold text-slate-500 mb-1">
-            {!catId ? 'Selecciona una categoría primero' : archivo ? archivo.name : 'Arrastra tu CSV aquí o haz clic'}
-          </div>
-          {catId && (
-            <label className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-slate-200 rounded-[8px] text-[12px] font-medium text-slate-500 hover:border-[#D81B43] hover:text-[#D81B43] cursor-pointer transition-all mt-2">
-              <Upload size={12} /> Seleccionar archivo
-              <input type="file" accept=".csv,text/csv" className="hidden"
-                onChange={e => { setArchivo(e.target.files?.[0] || null); setResultado(null); e.target.value = '' }} />
-            </label>
-          )}
-        </div>
-        {archivo && (
-          <div className="flex items-center gap-2">
-            <button onClick={procesarCargue} disabled={cargando}
-              className="px-3 py-2 bg-[#D81B43] text-white rounded-[9px] text-[13px] font-medium hover:bg-[#B0172F] disabled:opacity-50">
-              {cargando ? 'Procesando...' : 'Importar equipos'}
-            </button>
-            <button onClick={() => { setArchivo(null); setResultado(null) }}
-              className="px-3 py-2 border border-slate-200 rounded-[9px] text-[13px] text-slate-500 hover:border-slate-300">
-              Cancelar
-            </button>
-          </div>
-        )}
+        </PasoCargue>
+        <PasoCargue n={3} titulo="Sube el archivo" deshabilitado={!catId}>
+          <ZonaArchivo archivo={archivo} onArchivo={f => { setArchivo(f); setResultado(null) }} />
+          <AccionesCargue archivo={archivo} cargando={cargando} textoImportar="Importar equipos"
+            onImportar={procesarCargue} onCancelar={() => { setArchivo(null); setResultado(null) }} />
+        </PasoCargue>
         <ResultadoCargue resultado={resultado} />
       </div>
     </div>
   )
 }
 
-function CargueCard({ titulo, tipo, sub, cols }) {
+function CargueCard({ titulo, tipo, sub, cols, Icono = Upload }) {
   const [archivo, setArchivo]     = useState(null)
   const [cargando, setCargando]   = useState(false)
   const [resultado, setResultado] = useState(null)
-  const [dragOver, setDragOver]   = useState(false)
-
-  function handleDrop(e) {
-    e.preventDefault(); e.stopPropagation()
-    setDragOver(false)
-    const file = e.dataTransfer.files?.[0]
-    if (file) { setArchivo(file); setResultado(null) }
-  }
 
   async function descargarPlantilla() {
     const res = await fetch(`/api/cargue/plantilla?tipo=${tipo}`)
@@ -182,48 +209,23 @@ function CargueCard({ titulo, tipo, sub, cols }) {
     setResultado(await res.json()); setCargando(false)
   }
   return (
-    <div className="bg-white rounded-xl border border-slate-200 shadow-sm mb-5 overflow-hidden">
-      <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
-        <div>
-          <div className="text-[14px] font-bold text-slate-700">{titulo}</div>
-          <div className="text-[12px] text-slate-400 mt-0.5">{sub}</div>
-        </div>
-        <button onClick={descargarPlantilla}
-          className="flex items-center gap-1.5 px-3 py-1.5 border border-slate-200 rounded-[8px] text-[12.5px] font-medium text-slate-600 hover:border-[#D81B43] hover:text-[#D81B43] transition-all">
-          <Download size={13} /> Descargar plantilla
-        </button>
-      </div>
-      <div className="p-5 space-y-4">
-        <div
-          onDragOver={e => { e.preventDefault(); setDragOver(true) }}
-          onDragLeave={() => setDragOver(false)}
-          onDrop={handleDrop}
-          className={`border-2 border-dashed rounded-[10px] p-8 text-center transition-all ${
-            dragOver ? 'border-[#D81B43] bg-[#D81B43]/5' :
-            archivo  ? 'border-[#D81B43] bg-[#D81B43]/5' :
-            'border-slate-200 hover:border-[#D81B43]'
-          }`}>
-          <Upload size={28} className="mx-auto mb-2 text-slate-300" />
-          <div className="text-[13.5px] font-semibold text-slate-500 mb-1">
-            {archivo ? archivo.name : 'Arrastra tu CSV aquí o haz clic'}
+    <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden h-full">
+      <EncabezadoCargue Icono={Icono} titulo={titulo} sub={sub} />
+      <div className="p-5 space-y-5">
+        <PasoCargue n={1} titulo="Descarga la plantilla y llénala">
+          <button onClick={descargarPlantilla} className={btnPlantillaCls}>
+            <Download size={13} /> Descargar plantilla
+          </button>
+          <div className="mt-2">
+            <div className="text-[11px] text-slate-400 mb-1">Columnas:</div>
+            <ColumnasCargue columnas={cols.split(',').map(c => c.trim()).filter(Boolean)} />
           </div>
-          <div className="text-[12px] text-slate-400 mb-3">Columnas: {cols}</div>
-          <label className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-slate-200 rounded-[8px] text-[12px] font-medium text-slate-500 hover:border-[#D81B43] hover:text-[#D81B43] cursor-pointer transition-all">
-            <Upload size={12} /> Seleccionar archivo
-            <input type="file" accept=".csv,text/csv" className="hidden"
-              onChange={e => { setArchivo(e.target.files?.[0] || null); setResultado(null); e.target.value = '' }} />
-          </label>
-        </div>
-        {archivo && (
-          <div className="flex items-center gap-2">
-            <button onClick={procesarCargue} disabled={cargando}
-              className="px-3 py-2 bg-[#D81B43] text-white rounded-[9px] text-[13px] font-medium hover:bg-[#B0172F] disabled:opacity-50">
-              {cargando ? 'Procesando...' : `Importar ${titulo.toLowerCase()}`}
-            </button>
-            <button onClick={() => { setArchivo(null); setResultado(null) }}
-              className="px-3 py-2 border border-slate-200 rounded-[9px] text-[13px] text-slate-500">Cancelar</button>
-          </div>
-        )}
+        </PasoCargue>
+        <PasoCargue n={2} titulo="Sube el archivo">
+          <ZonaArchivo archivo={archivo} onArchivo={f => { setArchivo(f); setResultado(null) }} />
+          <AccionesCargue archivo={archivo} cargando={cargando} textoImportar={`Importar ${titulo.toLowerCase()}`}
+            onImportar={procesarCargue} onCancelar={() => { setArchivo(null); setResultado(null) }} />
+        </PasoCargue>
         <ResultadoCargue resultado={resultado} />
       </div>
     </div>
@@ -332,12 +334,9 @@ export default function ConfiguracionClient({
   const [form, setForm]               = useState({})
   const [listaExpandida, setListaExpandida] = useState(null)
   const [tipoExpandido, setTipoExpandido]   = useState(null)
-  const [categoriasExpandidas, setCategoriasExpandidas] = useState(() => {
-    const primeraConTipos = catsIniciales.find(cat =>
-      tiposIniciales.some(t => (t.categoria_id ?? t.categoria?.id) === cat.id)
-    )
-    return primeraConTipos ? new Set([primeraConTipos.id]) : new Set()
-  })
+  // Tipos de equipo: categoría seleccionada a la izquierda (null = la primera con tipos) y buscador
+  const [catTiposId, setCatTiposId] = useState(null)
+  const [buscarTipo, setBuscarTipo] = useState('')
   const [nuevaActividad, setNuevaActividad] = useState('')
   const [empresa, setEmpresa]         = useState(empresaInicial)
   const [subiendoLogo, setSubiendoLogo] = useState(false)
@@ -666,7 +665,7 @@ export default function ConfiguracionClient({
   const tiposPorCategoria = cats.map(cat => ({
     categoria: cat,
     tipos: tipos.filter(t => (t.categoria_id ?? t.categoria?.id) === cat.id),
-  })).filter(g => g.tipos.length > 0)
+  }))
 
   // ── RENDER ────────────────────────────────────────────────
   return (
@@ -724,7 +723,7 @@ export default function ConfiguracionClient({
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-3 md:p-6 pb-28 md:pb-6">
-          <div className="max-w-[860px]">
+          <div className="max-w-[1280px]">
 
             {/* USUARIOS */}
             {seccionActiva === 'usuarios' && (
@@ -815,7 +814,7 @@ export default function ConfiguracionClient({
                     {/* Checkboxes de módulos para el rol seleccionado */}
                     <div className="flex-1 bg-white rounded-xl border border-slate-200 shadow-sm p-5">
                       <div className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-3">Módulos</div>
-                      <div className="space-y-0.5 mb-6">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-x-4 gap-y-0.5 mb-6">
                         {MODULOS_PRINCIPALES.map(m => {
                           const visible   = puedeVerModulo(m.modulo, permisosDelRolSeleccionado)
                           const guardando = guardandoPermiso === `${rolIdActivoPermisos}:${m.modulo}`
@@ -832,7 +831,7 @@ export default function ConfiguracionClient({
                       </div>
 
                       <div className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-3">Dentro de Configuración</div>
-                      <div className="space-y-0.5">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-x-4 gap-y-0.5">
                         {MODULOS_CONFIGURACION.map(m => {
                           const visible    = puedeVerModulo(m.modulo, permisosDelRolSeleccionado)
                           const guardando  = guardandoPermiso === `${rolIdActivoPermisos}:${m.modulo}`
@@ -870,13 +869,13 @@ export default function ConfiguracionClient({
                     <Plus size={14} /> Nueva categoría
                   </button>
                 </div>
-                <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                  {cats.map((c, i) => {
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                  {cats.map(c => {
                     const nT = c.atributos_extra?.campos_tipo?.length || 0
                     const nU = c.atributos_extra?.campos_unidad?.length || 0
                     const iconoClave = c.imagen_url?.startsWith('icono:') ? c.imagen_url.replace('icono:', '') : null
                     return (
-                      <div key={c.id} className={`flex items-center gap-3 px-5 py-4 hover:bg-slate-50 transition-colors ${i < cats.length - 1 ? 'border-b border-slate-100' : ''}`}>
+                      <div key={c.id} className="bg-white rounded-xl border border-slate-200 shadow-sm flex items-center gap-3 px-4 py-3.5 hover:border-slate-300 transition-colors">
                         {/* Ícono categoría */}
                         <div className="w-10 h-10 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-center flex-shrink-0">
                           {iconoClave
@@ -884,8 +883,8 @@ export default function ConfiguracionClient({
                             : <Tag size={16} className="text-slate-300" />
                           }
                         </div>
-                        <div className="flex-1">
-                          <div className="text-[13.5px] font-semibold text-slate-700">{c.nombre}</div>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-[13.5px] font-semibold text-slate-700 truncate">{c.nombre}</div>
                           {c.descripcion && <div className="text-[12px] text-slate-400 mt-0.5">{c.descripcion}</div>}
                           <div className="text-[11.5px] text-slate-400 mt-1">
                             {tipos.filter(t => t.categoria_id === c.id).length} tipos
@@ -900,132 +899,157 @@ export default function ConfiguracionClient({
                       </div>
                     )
                   })}
-                  {cats.length === 0 && <div className="text-center py-12 text-slate-400">Sin categorías configuradas</div>}
+                  {cats.length === 0 && <div className="col-span-full bg-white rounded-xl border border-slate-200 shadow-sm text-center py-12 text-slate-400">Sin categorías configuradas</div>}
                 </div>
               </div>
             )}
 
-            {/* TIPOS */}
-            {seccionActiva === 'tipos' && (
+            {/* TIPOS — maestro-detalle: categorías a la izquierda, tipos de la seleccionada a la derecha */}
+            {seccionActiva === 'tipos' && (() => {
+              const grupoActivo = tiposPorCategoria.find(g => g.categoria.id === catTiposId)
+                || tiposPorCategoria.find(g => g.tipos.length > 0)
+                || tiposPorCategoria[0]
+              const q = buscarTipo.trim().toLowerCase()
+              const tiposVisibles = (grupoActivo?.tipos || []).filter(t =>
+                !q || [t.atributos?.nombre, t.nombre].some(v => (v || '').toLowerCase().includes(q)))
+              return (
               <div>
                 <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
                   <div>
                     <h2 className="text-[20px] font-bold text-slate-800">Tipos de equipo</h2>
                     <p className="text-[13px] text-slate-400 mt-0.5">Cada tipo agrupa unidades del mismo modelo</p>
                   </div>
-                  <button onClick={() => abrirModal('tipo', {})}
+                  <button onClick={() => abrirModal('tipo', grupoActivo ? { categoria_id: grupoActivo.categoria.id } : {})}
                     className="flex items-center gap-1.5 px-4 py-2 bg-[#D81B43] text-white text-[13px] font-semibold rounded-[9px] hover:bg-[#B0172F] transition-colors">
                     <Plus size={14} /> Nuevo tipo
                   </button>
                 </div>
 
-                {tipos.length === 0 && (
-                  <div className="bg-white rounded-xl border border-slate-200 shadow-sm text-center py-12 text-slate-400">Sin tipos configurados</div>
-                )}
-
-                {tiposPorCategoria.map(grupo => {
-                  const abierta = categoriasExpandidas.has(grupo.categoria.id)
-                  return (
-                    <div key={grupo.categoria.id} className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden mb-3">
-
-                      {/* HEADER DE CATEGORÍA */}
-                      <div className="flex items-center gap-3 px-5 py-3.5 cursor-pointer hover:bg-slate-50 transition-colors"
-                        onClick={() => setCategoriasExpandidas(prev => {
-                          const next = new Set(prev)
-                          next.has(grupo.categoria.id) ? next.delete(grupo.categoria.id) : next.add(grupo.categoria.id)
-                          return next
-                        })}>
-                        <div className="text-slate-400">
-                          {abierta ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-                        </div>
-                        <span className="text-[14px] font-bold text-slate-800 flex-1">{grupo.categoria.nombre}</span>
-                        <span className="text-[12px] bg-slate-100 text-slate-600 px-2.5 py-1 rounded-full font-semibold">
-                          {grupo.tipos.length} {grupo.tipos.length === 1 ? 'tipo' : 'tipos'}
-                        </span>
-                        <button onClick={e => { e.stopPropagation(); abrirModal('tipo', { categoria_id: grupo.categoria.id }) }}
-                          className="flex items-center gap-1 px-2.5 py-1.5 text-[12px] font-semibold text-[#D81B43] hover:bg-[#D81B43]/5 rounded-[7px] transition-colors">
-                          <Plus size={12} /> Agregar
+                {!grupoActivo ? (
+                  <div className="bg-white rounded-xl border border-slate-200 shadow-sm text-center py-12 text-slate-400">
+                    Primero crea una categoría
+                    <button onClick={() => setSeccion('categorias')} className="ml-2 text-[#D81B43] font-medium hover:underline">Ir a Categorías →</button>
+                  </div>
+                ) : (
+                <div className="flex flex-col md:flex-row gap-4 md:items-start">
+                  {/* Categorías: columna en escritorio, chips con scroll en móvil */}
+                  <div className="w-full md:w-[230px] flex-shrink-0 bg-white rounded-xl border border-slate-200 shadow-sm p-1.5 flex md:flex-col gap-1 overflow-x-auto">
+                    {tiposPorCategoria.map(g => {
+                      const activa = g.categoria.id === grupoActivo.categoria.id
+                      return (
+                        <button key={g.categoria.id}
+                          onClick={() => { setCatTiposId(g.categoria.id); setTipoExpandido(null); setBuscarTipo('') }}
+                          className={`flex items-center justify-between gap-2 px-3 py-2 rounded-[8px] text-left flex-shrink-0 md:flex-shrink transition-all ${activa ? 'bg-[#D81B43]/8 text-[#D81B43]' : 'text-slate-600 hover:bg-slate-50'}`}>
+                          <span className="text-[13px] font-semibold whitespace-nowrap md:whitespace-normal md:truncate">{g.categoria.nombre}</span>
+                          <span className={`text-[11px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0 ${activa ? 'bg-[#D81B43]/10' : g.tipos.length ? 'bg-slate-100 text-slate-500' : 'bg-slate-50 text-slate-300'}`}>
+                            {g.tipos.length}
+                          </span>
                         </button>
-                      </div>
+                      )
+                    })}
+                  </div>
 
-                      {/* FILAS DE TIPO — solo si la categoría está abierta */}
-                      {abierta && (
-                        <div className="border-t border-slate-100">
-                          {grupo.tipos.map(t => {
-                            const cat = grupo.categoria
-                            const camposTipo = cat?.atributos_extra?.campos_tipo || []
-                            const expanded = tipoExpandido === t.id
-                            const nombre = t.atributos?.nombre || t.nombre || '—'
-                            const tieneIcono   = t.imagen_url?.startsWith('icono:')
-                            const tieneImagen  = t.imagen_url && !tieneIcono
-                            const iconoClave   = tieneIcono ? t.imagen_url.replace('icono:', '') : null
-                            const iconoCatClave = !t.imagen_url && cat?.imagen_url?.startsWith('icono:')
-                              ? cat.imagen_url.replace('icono:', '') : null
-                            return (
-                              <div key={t.id} className="border-b border-slate-100 last:border-b-0">
-                                <div className={`flex items-center gap-3 pl-10 pr-5 py-3.5 cursor-pointer hover:bg-slate-50 transition-colors ${expanded ? 'bg-slate-50' : ''}`}
-                                  onClick={() => setTipoExpandido(prev => prev === t.id ? null : t.id)}>
-                                  <div className="w-9 h-9 rounded-lg bg-slate-100 flex items-center justify-center flex-shrink-0 overflow-hidden">
-                                    {tieneImagen
-                                      ? <img src={t.imagen_url} alt={nombre} className="w-full h-full object-contain p-1" />
-                                      : iconoClave
-                                      ? <IconoEquipo clave={iconoClave} size={22} color="#D81B43" />
-                                      : iconoCatClave
-                                      ? <IconoEquipo clave={iconoCatClave} size={20} color="#94A3B8" />
-                                      : <Cpu size={16} className="text-slate-300" />
-                                    }
-                                  </div>
-                                  <div className="flex-1 min-w-0">
-                                    <div className="text-[14px] font-bold text-slate-700">{nombre}</div>
-                                    <div className="flex items-center gap-3 mt-0.5 flex-wrap">
-                                      {t.lista
-                                        ? <span className="text-[11.5px] font-semibold text-[#0F7B55]">✓ {t.lista.nombre}</span>
-                                        : <span className="text-[11.5px] text-slate-400">Sin lista de mantenimiento</span>}
-                                      {camposTipo.length > 0 && <span className="text-[11.5px] text-[#25A9E0]">· {camposTipo.length} columnas</span>}
-                                    </div>
-                                  </div>
-                                  <div className="flex items-center gap-1.5 flex-shrink-0" onClick={e => e.stopPropagation()}>
-                                    <button onClick={() => abrirModal('tipo', { ...t, categoria_id: t.categoria_id ?? t.categoria?.id, lista_mantenimiento_id: t.lista_mantenimiento_id ?? t.lista?.id })}
-                                      className="p-1.5 text-slate-400 hover:text-[#D81B43] hover:bg-slate-100 rounded-[6px] transition-all"><Edit3 size={13} /></button>
-                                    <button onClick={() => eliminarTipo(t.id)}
-                                      className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-[6px] transition-all"><Trash2 size={13} /></button>
-                                  </div>
-                                  <div className="text-slate-400 ml-1">
-                                    {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                                  </div>
+                  {/* Tipos de la categoría seleccionada */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 md:gap-3 mb-3 flex-wrap">
+                      <div className="min-w-0">
+                        <div className="text-[15px] font-bold text-slate-800 truncate">{grupoActivo.categoria.nombre}</div>
+                        <div className="text-[12px] text-slate-400">
+                          {q ? `${tiposVisibles.length} de ${grupoActivo.tipos.length}` : grupoActivo.tipos.length} tipo{grupoActivo.tipos.length !== 1 ? 's' : ''}
+                        </div>
+                      </div>
+                      {grupoActivo.tipos.length > 0 && (
+                        <div className="relative w-full sm:w-[240px] sm:ml-auto">
+                          <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                          <input value={buscarTipo} onChange={e => setBuscarTipo(e.target.value)} placeholder="Buscar modelo o marca..."
+                            className="w-full pl-8 pr-3 h-[36px] border border-slate-200 rounded-[8px] text-[13px] outline-none focus:border-[#D81B43] bg-white" />
+                        </div>
+                      )}
+                      <button onClick={() => abrirModal('tipo', { categoria_id: grupoActivo.categoria.id })}
+                        className={`flex items-center gap-1 px-3 h-[36px] text-[12.5px] font-semibold text-[#D81B43] border border-[#D81B43]/30 hover:bg-[#D81B43]/5 rounded-[8px] transition-colors flex-shrink-0 ${grupoActivo.tipos.length === 0 ? 'ml-auto' : ''}`}>
+                        <Plus size={13} /> Agregar aquí
+                      </button>
+                    </div>
+
+                    {tiposVisibles.length === 0 ? (
+                      <div className="bg-white rounded-xl border border-slate-200 shadow-sm text-center py-12 text-slate-400 text-[13px]">
+                        {q ? `Ningún tipo coincide con "${buscarTipo}"` : 'Esta categoría todavía no tiene tipos'}
+                      </div>
+                    ) : (
+                    <div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-3 items-start">
+                      {tiposVisibles.map(t => {
+                        const cat = grupoActivo.categoria
+                        const camposTipo = cat?.atributos_extra?.campos_tipo || []
+                        const expanded = tipoExpandido === t.id
+                        const nombre = t.atributos?.nombre || t.nombre || '—'
+                        const tieneIcono   = t.imagen_url?.startsWith('icono:')
+                        const tieneImagen  = t.imagen_url && !tieneIcono
+                        const iconoClave   = tieneIcono ? t.imagen_url.replace('icono:', '') : null
+                        const iconoCatClave = !t.imagen_url && cat?.imagen_url?.startsWith('icono:')
+                          ? cat.imagen_url.replace('icono:', '') : null
+                        return (
+                          <div key={t.id} className={`bg-white rounded-xl border overflow-hidden transition-shadow ${expanded ? 'border-slate-300 shadow-sm' : 'border-slate-200 hover:border-slate-300'}`}>
+                            <div className="flex items-center gap-3 px-3 py-3 cursor-pointer"
+                              onClick={() => setTipoExpandido(prev => prev === t.id ? null : t.id)}>
+                              <div className="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center flex-shrink-0 overflow-hidden">
+                                {tieneImagen
+                                  ? <img src={t.imagen_url} alt={nombre} className="w-full h-full object-contain p-1" />
+                                  : iconoClave
+                                  ? <IconoEquipo clave={iconoClave} size={22} color="#D81B43" />
+                                  : iconoCatClave
+                                  ? <IconoEquipo clave={iconoCatClave} size={20} color="#94A3B8" />
+                                  : <Cpu size={16} className="text-slate-300" />
+                                }
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="text-[13.5px] font-bold text-slate-700 truncate">{nombre}</div>
+                                {t.nombre && t.nombre !== nombre && <div className="text-[11.5px] text-slate-500 truncate">{t.nombre}</div>}
+                                <div className="text-[11px] mt-0.5 truncate">
+                                  {t.lista
+                                    ? <span className="font-semibold text-[#0F7B55]">✓ {t.lista.nombre}</span>
+                                    : <span className="text-slate-400">Sin lista de mantenimiento</span>}
                                 </div>
-                                {expanded && (
-                                  <div className="border-t border-slate-200 bg-[#F8FAFC] pl-10 pr-6 py-4">
-                                    {camposTipo.length > 0 ? (
-                                      <>
-                                        <div className="text-[9.5px] font-bold uppercase tracking-[0.12em] text-slate-400 mb-3">Columnas del tipo</div>
-                                        <div className="flex flex-wrap gap-6">
-                                          {camposTipo.map(campo => (
-                                            <div key={campo.clave}>
-                                              <div className="text-[10px] font-semibold uppercase text-slate-400">{campo.nombre}</div>
-                                              <div className="text-[13.5px] font-medium text-slate-700 mt-0.5">{t.atributos?.[campo.clave] || '—'}</div>
-                                            </div>
-                                          ))}
-                                        </div>
-                                      </>
-                                    ) : (
-                                      <div className="text-[12.5px] text-slate-400">
-                                        Esta categoría no tiene columnas del tipo.
-                                        <button onClick={() => setSeccion('categorias')} className="ml-2 text-[#D81B43] font-medium hover:underline">Ir a Categorías →</button>
+                              </div>
+                              <div className="flex items-center gap-0.5 flex-shrink-0" onClick={e => e.stopPropagation()}>
+                                <button onClick={() => abrirModal('tipo', { ...t, categoria_id: t.categoria_id ?? t.categoria?.id, lista_mantenimiento_id: t.lista_mantenimiento_id ?? t.lista?.id })}
+                                  className="p-1.5 text-slate-400 hover:text-[#D81B43] hover:bg-slate-100 rounded-[6px] transition-all"><Edit3 size={13} /></button>
+                                <button onClick={() => eliminarTipo(t.id)}
+                                  className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-[6px] transition-all"><Trash2 size={13} /></button>
+                              </div>
+                              <div className="text-slate-400">
+                                {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                              </div>
+                            </div>
+                            {expanded && (
+                              <div className="border-t border-slate-200 bg-[#F8FAFC] px-3 py-3">
+                                {camposTipo.length > 0 ? (
+                                  <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+                                    {camposTipo.map(campo => (
+                                      <div key={campo.clave} className="min-w-0">
+                                        <div className="text-[10px] font-semibold uppercase text-slate-400 truncate">{campo.nombre}</div>
+                                        <div className="text-[13px] font-medium text-slate-700 mt-0.5 break-words">{t.atributos?.[campo.clave] || '—'}</div>
                                       </div>
-                                    )}
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <div className="text-[12.5px] text-slate-400">
+                                    Esta categoría no tiene columnas del tipo.
+                                    <button onClick={() => setSeccion('categorias')} className="ml-2 text-[#D81B43] font-medium hover:underline">Ir a Categorías →</button>
                                   </div>
                                 )}
                               </div>
-                            )
-                          })}
-                        </div>
-                      )}
+                            )}
+                          </div>
+                        )
+                      })}
                     </div>
-                  )
-                })}
+                    )}
+                  </div>
+                </div>
+                )}
               </div>
-            )}
+              )
+            })()}
 
             {/* LISTAS */}
             {seccionActiva === 'listas' && (
@@ -1040,9 +1064,9 @@ export default function ConfiguracionClient({
                     <Plus size={14} /> Nueva lista
                   </button>
                 </div>
-                <div className="space-y-3">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 items-start">
                   {listas.length === 0 && (
-                    <div className="bg-white rounded-xl border border-slate-200 shadow-sm text-center py-12 text-slate-400">
+                    <div className="col-span-full bg-white rounded-xl border border-slate-200 shadow-sm text-center py-12 text-slate-400">
                       <ClipboardList size={32} className="mx-auto mb-2 opacity-30" />
                       <div>Sin listas configuradas</div>
                     </div>
@@ -1104,53 +1128,75 @@ export default function ConfiguracionClient({
             {/* EMPRESA */}
             {seccionActiva === 'empresa' && (
               <div>
-                <h2 className="text-[20px] font-bold text-slate-800 mb-1">Datos de la empresa</h2>
-                <p className="text-[13px] text-slate-400 mb-6">Información que aparece en los documentos generados</p>
-                <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
-                  <div className="flex items-center gap-5 mb-6 pb-6 border-b border-slate-100">
-                    <div className="w-20 h-20 rounded-xl border-2 border-slate-200 flex items-center justify-center bg-slate-50 overflow-hidden flex-shrink-0">
-                      {empresa.logo_url ? <Image src={empresa.logo_url} alt="Logo" width={80} height={80} className="object-contain p-1" /> : <Building2 size={28} className="text-slate-300" />}
+                <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
+                  <div>
+                    <h2 className="text-[20px] font-bold text-slate-800">Datos de la empresa</h2>
+                    <p className="text-[13px] text-slate-400 mt-0.5">Información que aparece en los documentos generados</p>
+                  </div>
+                  <button onClick={guardarEmpresa} className="flex items-center gap-1.5 px-5 py-2.5 bg-[#D81B43] text-white text-[13px] font-semibold rounded-[9px] hover:bg-[#B0172F] transition-colors">
+                    <Save size={14} /> Guardar cambios
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
+                  {/* Logo */}
+                  <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+                    <div className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-3">Logo</div>
+                    <div className="h-[150px] rounded-xl border-2 border-dashed border-slate-200 bg-slate-50 flex items-center justify-center overflow-hidden mb-3">
+                      {empresa.logo_url
+                        ? <Image src={empresa.logo_url} alt="Logo" width={240} height={150} className="object-contain max-h-full max-w-full w-auto h-auto p-3" />
+                        : <Building2 size={36} className="text-slate-300" />}
                     </div>
-                    <div>
-                      <div className="text-[13.5px] font-semibold text-slate-700 mb-1">Logo de la empresa</div>
+                    <div className="flex items-center gap-3 flex-wrap">
                       <label className={`flex items-center gap-1.5 px-3 py-2 border border-slate-200 rounded-[8px] text-[12.5px] font-medium transition-all cursor-pointer w-fit ${subiendoLogo ? 'opacity-50 pointer-events-none text-slate-400' : 'text-slate-600 hover:border-[#D81B43] hover:text-[#D81B43]'}`}>
                         <Upload size={13} /> {subiendoLogo ? 'Subiendo...' : 'Cambiar logo'}
                         <input type="file" accept="image/*" className="hidden" onChange={e => { const f = e.target.files[0]; if (f) subirLogo(f); e.target.value = '' }} />
                       </label>
-                      {empresa.logo_url && <button onClick={() => setEmpresa(p => ({ ...p, logo_url: null }))} className="mt-2 text-[12px] text-red-400 hover:text-red-600 block">Quitar logo</button>}
+                      {empresa.logo_url && <button onClick={() => setEmpresa(p => ({ ...p, logo_url: null }))} className="text-[12px] text-red-400 hover:text-red-600">Quitar logo</button>}
                     </div>
+                    <p className="text-[11.5px] text-slate-400 mt-3">Aparece en el encabezado de actas y documentos.</p>
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+
+                  {/* Datos legales y de contacto */}
+                  <div className="lg:col-span-2 space-y-4">
                     {[
-                      { key: 'razon_social', label: 'Razón social', full: true },
-                      { key: 'nit', label: 'NIT' }, { key: 'tel', label: 'Teléfono' },
-                      { key: 'email', label: 'Email' },
-                      { key: 'dir', label: 'Dirección', full: true },
-                      { key: 'rep', label: 'Representante legal' }, { key: 'web', label: 'Página web' },
-                    ].map(f => (
-                      <div key={f.key} className={f.full ? 'col-span-2' : ''}>
-                        <label className={labelCls}>{f.label}</label>
-                        <input value={empresa[f.key] || ''} onChange={e => setEmpresa(p => ({ ...p, [f.key]: e.target.value }))} className={inputCls} />
+                      { titulo: 'Datos legales', campos: [
+                        { key: 'razon_social', label: 'Razón social', full: true },
+                        { key: 'nit', label: 'NIT', placeholder: '900123456-7' },
+                        { key: 'rep', label: 'Representante legal' },
+                      ] },
+                      { titulo: 'Contacto', campos: [
+                        { key: 'tel', label: 'Teléfono', placeholder: '300 123 4567' },
+                        { key: 'email', label: 'Email', placeholder: 'contacto@empresa.com' },
+                        { key: 'dir', label: 'Dirección', full: true },
+                        { key: 'web', label: 'Página web', placeholder: 'www.empresa.com', full: true },
+                      ] },
+                    ].map(bloque => (
+                      <div key={bloque.titulo} className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+                        <div className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-3">{bloque.titulo}</div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          {bloque.campos.map(c => (
+                            <div key={c.key} className={c.full ? 'sm:col-span-2' : ''}>
+                              <label className={labelCls}>{c.label}</label>
+                              <input value={empresa[c.key] || ''} placeholder={c.placeholder}
+                                onChange={e => setEmpresa(p => ({ ...p, [c.key]: e.target.value }))} className={inputCls} />
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     ))}
                   </div>
 
                   {/* Cláusula de certificación — se incluye en el acta de entrega, en un lugar fijo, antes de las firmas */}
-                  <div className="mt-5 pt-5 border-t border-slate-100">
-                    <label className={labelCls}>Cláusula de certificación (aparece en el acta de entrega, antes de las firmas)</label>
+                  <div className="lg:col-span-3 bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+                    <div className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-1">Acta de entrega</div>
+                    <div className="text-[12.5px] text-slate-500 mb-3">Cláusula de certificación — siempre aparece en el mismo lugar del acta, justo antes de las firmas.</div>
                     <textarea
                       value={empresa.clausula_certificacion ?? 'El firmante certifica y confirma haber leído los documentos anexos dispuestos previo a la firma de los mismos, por lo cual acepta los términos allí contenidos y confirma la entrega de los equipos relacionados en los estados indicados.'}
                       onChange={e => setEmpresa(p => ({ ...p, clausula_certificacion: e.target.value }))}
-                      rows={4}
+                      rows={3}
                       placeholder="Texto de la cláusula..."
-                      className="w-full px-3 py-2.5 border border-slate-200 rounded-[9px] text-[13.5px] text-slate-800 outline-none focus:border-[#D81B43] bg-white resize-none placeholder:text-slate-400" />
-                    <div className="text-[11.5px] text-slate-400 mt-1.5">Esta cláusula siempre aparece en el mismo lugar del acta, justo antes de las firmas.</div>
-                  </div>
-
-                  <div className="flex justify-end mt-5">
-                    <button onClick={guardarEmpresa} className="flex items-center gap-1.5 px-5 py-2.5 bg-[#D81B43] text-white text-[13px] font-semibold rounded-[9px] hover:bg-[#B0172F] transition-colors">
-                      <Save size={14} /> Guardar cambios
-                    </button>
+                      className="w-full px-3 py-2.5 border border-slate-200 rounded-[9px] text-[13.5px] text-slate-800 outline-none focus:border-[#D81B43] bg-white resize-y placeholder:text-slate-400" />
                   </div>
                 </div>
               </div>
@@ -1161,21 +1207,21 @@ export default function ConfiguracionClient({
               <div>
                 <h2 className="text-[20px] font-bold text-slate-800 mb-1">Plantillas de documentos</h2>
                 <p className="text-[13px] text-slate-400 mb-6">Documentos legales usados en las órdenes de servicio</p>
-                <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                  {plantillas.map((p, i) => (
-                    <div key={p.id} className={`flex items-center gap-3 px-5 py-4 hover:bg-slate-50 transition-colors ${i < plantillas.length - 1 ? 'border-b border-slate-100' : ''}`}>
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                  {plantillas.map(p => (
+                    <div key={p.id} className="bg-white rounded-xl border border-slate-200 shadow-sm flex items-center gap-3 px-4 py-3.5 hover:border-slate-300 transition-colors">
                       <div className="w-8 h-8 rounded-[8px] bg-[#D81B43]/10 flex items-center justify-center flex-shrink-0"><FileText size={15} className="text-[#D81B43]" /></div>
-                      <div className="flex-1">
-                        <div className="text-[13.5px] font-semibold text-slate-700">{p.nombre}</div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[13.5px] font-semibold text-slate-700 truncate">{p.nombre}</div>
                         {p.descripcion && <div className="text-[12px] text-slate-400 mt-0.5">{p.descripcion}</div>}
                         <div className="text-[11px] text-slate-300 font-mono mt-0.5">v{p.version || '1'}</div>
                       </div>
-                      <button onClick={() => previsualizarPlantilla(p)} className="px-3 py-1.5 border border-slate-200 rounded-[7px] text-[12px] font-medium text-slate-600 hover:border-[#D81B43] hover:text-[#D81B43] transition-all">
+                      <button onClick={() => previsualizarPlantilla(p)} className="flex-shrink-0 px-3 py-1.5 border border-slate-200 rounded-[7px] text-[12px] font-medium text-slate-600 hover:border-[#D81B43] hover:text-[#D81B43] transition-all">
                         Previsualizar
                       </button>
                     </div>
                   ))}
-                  {plantillas.length === 0 && <div className="text-center py-12 text-slate-400">Sin plantillas configuradas</div>}
+                  {plantillas.length === 0 && <div className="col-span-full bg-white rounded-xl border border-slate-200 shadow-sm text-center py-12 text-slate-400">Sin plantillas configuradas</div>}
                 </div>
               </div>
             )}
@@ -1185,15 +1231,17 @@ export default function ConfiguracionClient({
               <div>
                 <h2 className="text-[20px] font-bold text-slate-800 mb-1">Cargue masivo</h2>
                 <p className="text-[13px] text-slate-400 mb-6">Importa equipos y clientes desde archivos CSV</p>
-                <CargueEquipos cats={cats} />
-                <CargueCard titulo="Clientes" tipo="clientes" sub="Importa clientes desde CSV"
-                  cols="tipo_persona, nombre, nit_cc, departamento, municipio, direccion, telefono, email" />
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+                  <CargueEquipos cats={cats} />
+                  <CargueCard titulo="Clientes" tipo="clientes" sub="Importa clientes desde CSV" Icono={Users}
+                    cols="tipo_persona, nombre, nit_cc, departamento, municipio, direccion, telefono, email" />
+                </div>
               </div>
             )}
 
             {/* PREFERENCIAS */}
             {seccionActiva === 'preferencias' && (
-              <div>
+              <div className="max-w-[860px]">
                 <h2 className="text-[20px] font-bold text-slate-800 mb-1">Preferencias</h2>
                 <p className="text-[13px] text-slate-400 mb-6">Ajustes de la experiencia en dispositivos móviles</p>
 

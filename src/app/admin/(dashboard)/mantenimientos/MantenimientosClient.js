@@ -9,6 +9,7 @@ import {
   FileText, Download, Paperclip, Eye
 } from 'lucide-react'
 import ConfirmDialog from '@/components/ui/ConfirmDialog'
+import LimpiarFiltros from '@/components/ui/LimpiarFiltros'
 import Paginador from '@/components/ui/Paginador'
 import { usePaginacion } from '@/hooks/usePaginacion'
 import { formatear, formatearSoloFecha, hoyBogota } from '@/lib/fechas'
@@ -621,12 +622,8 @@ export default function MantenimientosClient({ mantenimientosIniciales, tipos, e
                   }`}>{t.nombre}</button>
             ))}
           </div>
-          {(filtroEstado || filtroTipo) && (
-            <button onClick={() => { setFiltroEstado(''); setFiltroTipo('') }}
-              className="flex items-center gap-1 text-[12px] text-slate-400 hover:text-red-500">
-              <X size={12} /> Limpiar
-            </button>
-          )}
+          <LimpiarFiltros activo={!!(search || filtroEstado || filtroTipo)}
+            onLimpiar={() => { setSearch(''); setFiltroEstado(''); setFiltroTipo('') }} />
           <div className="text-[12px] text-slate-400 ml-auto flex-shrink-0">{filtrados.length} registro{filtrados.length !== 1 ? 's' : ''}</div>
           <button onClick={() => { abrirModal() }}
             className="hidden md:flex items-center gap-1.5 px-4 h-[38px] bg-[#D81B43] text-white text-[13px] font-semibold rounded-[9px] hover:bg-[#B0172F] transition-colors flex-shrink-0 whitespace-nowrap">

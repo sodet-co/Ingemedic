@@ -3,6 +3,7 @@ import { useState, useMemo, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { Search, Filter, Download, User, Clock } from 'lucide-react'
+import LimpiarFiltros from '@/components/ui/LimpiarFiltros'
 import Paginador from '@/components/ui/Paginador'
 import { usePaginacion } from '@/hooks/usePaginacion'
 import { formatear, paraGuardar, hoyBogota } from '@/lib/fechas'
@@ -154,12 +155,8 @@ export default function BitacoraClient({ registrosIniciales }) {
               className="px-3 py-2 border border-slate-200 rounded-[9px] text-[13px] outline-none focus:border-[#2EB5D4] bg-white" />
           </div>
 
-          {(filtroModulo || filtroAccion || desde || hasta || search) && (
-            <button onClick={() => { setSearch(''); setFiltroModulo(''); setFiltroAccion(''); setDesde(''); setHasta('') }}
-              className="text-[12px] text-slate-400 hover:text-red-500 transition-colors font-medium">
-              Limpiar filtros
-            </button>
-          )}
+          <LimpiarFiltros activo={!!(filtroModulo || filtroAccion || desde || hasta || search)}
+            onLimpiar={() => { setSearch(''); setFiltroModulo(''); setFiltroAccion(''); setDesde(''); setHasta('') }} />
         </div>
 
         {/* Stats rápidas */}

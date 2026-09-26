@@ -10,6 +10,7 @@ import {
   HeartPulse
 } from 'lucide-react'
 import ConfirmDialog from '@/components/ui/ConfirmDialog'
+import LimpiarFiltros from '@/components/ui/LimpiarFiltros'
 import ModalDevolucion from '@/components/entregas/ModalDevolucion'
 import Paginador from '@/components/ui/Paginador'
 import { Box } from '@/components/ui/Skeleton'
@@ -800,6 +801,8 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
                       </button>
                     ))}
                   </div>
+                  <LimpiarFiltros activo={!!search || filtroCliente !== 'todos'}
+                    onLimpiar={() => { setSearch(''); setFiltroCliente('todos') }} />
                   {!drawer && (
                     <div className="hidden md:block text-[12px] text-slate-400 flex-shrink-0">
                       {clientesFiltrados.length} cliente{clientesFiltrados.length !== 1 ? 's' : ''}
@@ -1304,6 +1307,8 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
                       </button>
                     ))}
                   </div>
+                  <LimpiarFiltros activo={!!searchPaciente || filtroPaciente !== 'todos'}
+                    onLimpiar={() => { setSearchPaciente(''); setFiltroPaciente('todos') }} />
                   {!drawerPaciente && (
                     <div className="hidden md:block text-[12px] text-slate-400 flex-shrink-0">
                       {pacientesFiltrados.length} paciente{pacientesFiltrados.length !== 1 ? 's' : ''}

@@ -7,6 +7,7 @@ import { paraGuardar, paraInput, formatear, formatearSoloFecha, hoyBogota, sumar
 import { estaVencida, diasParaVencer } from '@/lib/vigencia'
 import { IconoTipo } from '@/components/inventario/IconoTipo'
 import ConfirmDialog from '@/components/ui/ConfirmDialog'
+import LimpiarFiltros from '@/components/ui/LimpiarFiltros'
 import ModalDevolucion from '@/components/entregas/ModalDevolucion'
 import Paginador from '@/components/ui/Paginador'
 import { devolverEquipo as devolverEquipoLib } from '@/lib/prestamos'
@@ -993,6 +994,9 @@ export default function OrdenesClient({
                       </button>
                     ))}
                   </div>
+                  <LimpiarFiltros
+                    activo={!!(search || filtroEstadoDetalle || filtroCliente || filtroMarca || filtroCategoria || filtroAtencion)}
+                    onLimpiar={() => { setSearch(''); setFiltroEstadoDetalle(''); setFiltroCliente(''); setFiltroMarca(''); setFiltroCategoria(''); setFiltroAtencion('') }} />
                   {!drawer && (
                     <div className="hidden md:block text-[12px] text-slate-400 flex-shrink-0">
                       {ordenesFiltradas.length} préstamo{ordenesFiltradas.length !== 1 ? 's' : ''}

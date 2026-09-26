@@ -5,6 +5,7 @@ import { useState, useMemo, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { Package, Inbox, Plus, X, Search, Download, Edit3, FileText, AlertTriangle, Clock, CheckCircle2, Box, Hash, Tag, Layers, SlidersHorizontal, Loader2 } from 'lucide-react'
+import LimpiarFiltros from '@/components/ui/LimpiarFiltros'
 import { IconoEquipo, GaleriaIconos } from '@/components/inventario/IconosEquipo'
 import { IconoTipo } from '@/components/inventario/IconoTipo'
 import Paginador from '@/components/ui/Paginador'
@@ -711,6 +712,7 @@ export default function InventarioClient({ categorias: catsIniciales, tipos: tip
                     placeholder="Buscar categoría..."
                     className="w-full pl-8 pr-4 py-2 border border-slate-200 rounded-[9px] text-[13px] outline-none focus:border-[#D81B43] bg-white h-[38px]" />
                 </div>
+                <LimpiarFiltros activo={!!buscarCategoria} onLimpiar={() => setBuscarCategoria('')} />
                 <div className="hidden md:block text-[12px] text-slate-400 flex-shrink-0 ml-auto">
                   {categoriasFiltradas.length} categoría{categoriasFiltradas.length !== 1 ? 's' : ''}
                 </div>
@@ -824,6 +826,8 @@ export default function InventarioClient({ categorias: catsIniciales, tipos: tip
                   <option value="con_disponibles">Con disponibles</option>
                   <option value="sin_disponibles">Sin disponibles</option>
                 </select>
+                <LimpiarFiltros activo={!!search || filtroDisponibilidad !== 'todos'}
+                  onLimpiar={() => { setSearch(''); setFiltroDisponibilidad('todos') }} />
                 <div className="text-[12px] text-slate-400 flex-shrink-0 ml-auto">
                   {tiposFiltrados.length} tipo{tiposFiltrados.length !== 1 ? 's' : ''}
                 </div>
@@ -890,6 +894,8 @@ export default function InventarioClient({ categorias: catsIniciales, tipos: tip
                 <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar..."
                   className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-[9px] text-[13px] outline-none focus:border-[#D81B43] bg-white" />
               </div>
+              <LimpiarFiltros activo={!!search || !!filtroEstado || Object.values(filtrosCampos).some(Boolean)}
+                onLimpiar={() => { setSearch(''); setFiltroEstado(''); setFiltrosCampos({}) }} />
               <div className="text-[12px] text-slate-400 ml-auto flex-shrink-0">
                 {unidadesDeTipo.length} unidad{unidadesDeTipo.length !== 1 ? 'es' : ''}
               </div>
