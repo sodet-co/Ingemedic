@@ -59,6 +59,21 @@ Lo que está sin resolver, ordenado por prioridad.
 
 # Entradas
 
+## 2026-09-26 — Editar paciente desde el módulo Clientes
+**Qué se hizo:** botón "Editar" en el pie del panel de detalle del paciente
+(igual que el de cliente). Reutiliza el modal de "Nuevo paciente" en modo
+edición: mismos campos y validaciones; la cédula duplicada excluye al propio
+paciente. El panel ahora muestra también el correo. Se registra en bitácora
+(`accion: 'editar'`, `entidad: 'paciente'`). Si el update afecta 0 filas
+(PGRST116: RLS o paciente borrado) se muestra un mensaje claro.
+**Archivos:** `clientes/ClientesClient.js`
+**Verificado con datos reales (service_role):** paciente desechable → update
+conservando su cédula ✓, update con cédula ajena → 23505
+`pacientes_cedula_unica` ✓, id inexistente → PGRST116 ✓. Borrado; conteo
+quedó en 174.
+**Pendiente:** probar en el navegador con sesión real (la política
+`autenticados_todo` debería permitir el UPDATE).
+
 ## 2026-09-25 — Login robusto
 **Qué se hizo:** `login/page.js` — todo el flujo en try/catch (antes una
 caída de red dejaba "Verificando..." para siempre); mensajes distintos para

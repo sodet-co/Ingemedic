@@ -188,9 +188,20 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
     setModal(true)
   }
 
-  function abrirModalPaciente() {
+  // Sin argumento abre "Nuevo paciente"; con un paciente abre el mismo modal en modo edición
+  function abrirModalPaciente(paciente = null) {
     setFormDirty(false)
-    setFormPaciente({ nombre: '', cedula: '', direccion: '', ciudad: '', telefono: '', correo: '' })
+    setFormPaciente(paciente
+      ? {
+          id:        paciente.id,
+          nombre:    paciente.nombre || '',
+          cedula:    (paciente.cedula || '').replace(/[^0-9]/g, ''),
+          direccion: paciente.direccion || '',
+          ciudad:    paciente.ciudad || '',
+          telefono:  (paciente.telefono || '').replace(/\D/g, '').slice(0, 12),
+          correo:    paciente.correo || '',
+        }
+      : { nombre: '', cedula: '', direccion: '', ciudad: '', telefono: '', correo: '' })
     setModalPaciente(true)
   }
 
@@ -200,28 +211,42 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
     if (!f.direccion?.trim()) { showToast('La dirección del paciente es requerida', 'error'); return }
     if (f.correo?.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.correo.trim())) { showToast('El correo no tiene un formato válido', 'error'); return }
     const cedula = f.cedula?.trim()
-    const duplicado = buscarCedulaDuplicada(pacientes, cedula)
+    // Al editar se excluye a sí mismo, para poder conservar su propia cédula
+    const duplicado = buscarCedulaDuplicada(pacientes, cedula, f.id || null)
     if (duplicado) { showToast(mensajeCedulaDuplicada(duplicado), 'error'); return }
     setSaving(true)
-    const { data, error } = await supabase.from('pacientes')
-      .insert({
-        nombre:    f.nombre.trim(),
-        cedula:    cedula || null,
-        direccion: f.direccion.trim(),
-        ciudad:    f.ciudad?.trim() || null,
-        telefono:  f.telefono?.trim() || null,
-        correo:    f.correo?.trim() || null,
-      })
-      .select('*')
-      .single()
+    const payload = {
+      nombre:    f.nombre.trim(),
+      cedula:    cedula || null,
+      direccion: f.direccion.trim(),
+      ciudad:    f.ciudad?.trim() || null,
+      telefono:  f.telefono?.trim() || null,
+      correo:    f.correo?.trim() || null,
+    }
+    const query = f.id
+      ? supabase.from('pacientes').update(payload).eq('id', f.id)
+      : supabase.from('pacientes').insert(payload)
+    const { data, error } = await query.select('*').single()
     if (error) {
-      showToast(esErrorCedulaDuplicada(error) ? MENSAJE_CEDULA_DUPLICADA : 'Error: ' + error.message, 'error')
+      // PGRST116 en un update = 0 filas afectadas (RLS lo bloqueó en silencio o el paciente ya no existe)
+      const msg = esErrorCedulaDuplicada(error) ? MENSAJE_CEDULA_DUPLICADA
+        : error.code === 'PGRST116' ? 'No se pudo actualizar el paciente (sin permiso o ya no existe)'
+        : 'Error: ' + error.message
+      showToast(msg, 'error')
       setSaving(false); return
     }
     skipSyncUntil.current = Date.now() + 2500
-    setPacientes(prev => [...prev, data].sort((a, b) => (a.nombre || '').localeCompare(b.nombre || '', 'es')))
-    showToast('Paciente creado')
-    registrarBitacora({ modulo: 'clientes', accion: 'crear', entidad: 'paciente', entidad_id: data.id, detalle: { nombre: data.nombre } })
+    const ordenar = lista => lista.sort((a, b) => (a.nombre || '').localeCompare(b.nombre || '', 'es'))
+    if (f.id) {
+      setPacientes(prev => ordenar(prev.map(p => p.id === data.id ? data : p)))
+      if (drawerPaciente?.id === data.id) setDrawerPaciente(data)
+      showToast('Paciente actualizado')
+      registrarBitacora({ modulo: 'clientes', accion: 'editar', entidad: 'paciente', entidad_id: data.id, detalle: { nombre: data.nombre } })
+    } else {
+      setPacientes(prev => ordenar([...prev, data]))
+      showToast('Paciente creado')
+      registrarBitacora({ modulo: 'clientes', accion: 'crear', entidad: 'paciente', entidad_id: data.id, detalle: { nombre: data.nombre } })
+    }
     setSaving(false); cerrarModal()
   }
 
@@ -1317,7 +1342,7 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
                     </div>
                   )}
                   {botonExportar}
-                  <button onClick={abrirModalPaciente}
+                  <button onClick={() => abrirModalPaciente()}
                     className="hidden md:flex items-center gap-1.5 px-4 h-[38px] bg-[#D81B43] text-white text-[13px] font-semibold rounded-[9px] hover:bg-[#B0172F] transition-colors flex-shrink-0 whitespace-nowrap">
                     <Plus size={14} strokeWidth={2.5} /> Nuevo paciente
                   </button>
@@ -1489,6 +1514,7 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
                     { label: 'Teléfono', value: drawerPaciente.telefono, icon: <Phone size={12} /> },
                     { label: 'Dirección', value: drawerPaciente.direccion, icon: <MapPin size={12} /> },
                     { label: 'Ciudad', value: drawerPaciente.ciudad, icon: <MapPin size={12} /> },
+                    { label: 'Correo', value: drawerPaciente.correo, icon: <Mail size={12} /> },
                   ].filter(f => f.value).map(f => (
                     <div key={f.label} className="flex justify-between text-[12.5px]">
                       <span className="text-slate-400 flex items-center gap-1">{f.icon}{f.label}</span>
@@ -1556,6 +1582,13 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
                     </div>
                   )}
                 </div>
+              </div>
+
+              <div className="px-6 py-4 border-t border-slate-200 flex gap-2 flex-shrink-0">
+                <button onClick={() => abrirModalPaciente(drawerPaciente)}
+                  className="flex items-center gap-1.5 px-4 py-2.5 border border-slate-200 rounded-[9px] text-[13px] font-medium text-slate-600 hover:border-slate-300 transition-all">
+                  <Edit3 size={13} /> Editar
+                </button>
               </div>
             </div>
           )}
@@ -1683,7 +1716,7 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
         </>
       )}
 
-      {/* ── MODAL NUEVO PACIENTE ── */}
+      {/* ── MODAL CREAR / EDITAR PACIENTE ── */}
       {modalPaciente && (
         <>
           <div className="fixed inset-0 bg-black/40 z-40 backdrop-blur-sm" onClick={() => intentarCerrarModal()} />
@@ -1691,7 +1724,7 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
             <div className="bg-white rounded-t-2xl md:rounded-2xl w-full max-w-[560px] max-h-[calc(100vh-2rem)] flex flex-col shadow-2xl overflow-hidden"
               onClick={e => e.stopPropagation()}>
               <div className="px-6 py-4 border-b flex items-center justify-between flex-shrink-0">
-                <h3 className="text-[16px] font-bold text-slate-800">Nuevo paciente</h3>
+                <h3 className="text-[16px] font-bold text-slate-800">{formPaciente.id ? 'Editar paciente' : 'Nuevo paciente'}</h3>
                 <button onClick={() => intentarCerrarModal()} className="text-slate-400 hover:text-slate-600 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100"><X size={16} /></button>
               </div>
 
@@ -1744,16 +1777,18 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
                   </div>
                 </div>
 
-                <p className="text-[11.5px] text-slate-400">
-                  También puedes registrar pacientes al crear un préstamo, desde el paso de datos del paciente.
-                </p>
+                {!formPaciente.id && (
+                  <p className="text-[11.5px] text-slate-400">
+                    También puedes registrar pacientes al crear un préstamo, desde el paso de datos del paciente.
+                  </p>
+                )}
               </div>
 
               <div className="px-6 py-4 border-t border-slate-200 flex justify-end gap-2 flex-shrink-0 bg-white">
                 <button onClick={() => intentarCerrarModal()} className="px-4 py-2.5 border border-slate-200 rounded-[9px] text-[13px] font-medium text-slate-600 hover:border-slate-300">Cancelar</button>
                 <button onClick={guardarPaciente} disabled={saving}
                   className="px-5 py-2.5 bg-[#D81B43] text-white rounded-[9px] text-[13px] font-semibold hover:bg-[#B0172F] disabled:opacity-50">
-                  {saving ? 'Guardando...' : 'Crear paciente'}
+                  {saving ? 'Guardando...' : formPaciente.id ? 'Guardar cambios' : 'Crear paciente'}
                 </button>
               </div>
             </div>
