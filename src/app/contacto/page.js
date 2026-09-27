@@ -1,7 +1,7 @@
 'use client'
 import Header from '@/components/Header'
 import Footer from '@/components/Footer'
-import { MapPin, Phone, Mail, Clock, Headphones, Send, CheckCircle2, MessageSquare } from 'lucide-react'
+import { MapPin, Phone, Mail, Clock, Headphones, Send, CheckCircle2, MessageSquare, Loader2 } from 'lucide-react'
 import { useState } from 'react'
 
 function WhatsappIcon({ size = 18, className = '' }) {
@@ -19,15 +19,44 @@ function WhatsappIcon({ size = 18, className = '' }) {
 }
 
 export default function ContactoPage() {
+  const FORM_VACIO = { nombre: '', telefono: '', correo: '', servicio: 'Suministro de Oxígeno', mensaje: '', sitio_web: '' }
   const [enviado, setEnviado] = useState(false)
-  const [form, setForm] = useState({ nombre: '', telefono: '', correo: '', servicio: 'Suministro de Oxígeno', mensaje: '' })
+  const [enviando, setEnviando] = useState(false)
+  const [error, setError] = useState('')
+  const [form, setForm] = useState(FORM_VACIO)
 
-  const handleSubmit = (e) => {
+  // Envía a /api/contacto: valida y responde al instante; el correo (Google Apps
+  // Script) sale en segundo plano desde el servidor.
+  const handleSubmit = async (e) => {
     e.preventDefault()
-    setEnviado(true)
-    setTimeout(() => setEnviado(false), 6000)
-    setForm({ nombre: '', telefono: '', correo: '', servicio: 'Suministro de Oxígeno', mensaje: '' })
+    if (enviando) return
+    setEnviando(true)
+    setError('')
+    setEnviado(false)
+    try {
+      const res = await fetch('/api/contacto', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || !data.ok) {
+        setError(res.status === 400 && data.error ? data.error : 'No pudimos enviar tu mensaje.')
+        return
+      }
+      setEnviado(true)
+      setForm(FORM_VACIO)
+    } catch {
+      setError('No pudimos enviar tu mensaje. Revisa tu conexión.')
+    } finally {
+      setEnviando(false)
+    }
   }
+
+  // Si el envío falla, el cliente no pierde lo que escribió: se lo llevamos a WhatsApp
+  const waFallback = 'https://wa.me/573103861480?text=' + encodeURIComponent(
+    `Hola, soy ${form.nombre || '—'}. ${form.servicio ? `Me interesa: ${form.servicio}. ` : ''}${form.mensaje}`
+  )
 
   return (
     <div className="min-h-screen bg-white text-slate-800 font-sans selection:bg-blue-600 selection:text-white">
@@ -153,7 +182,26 @@ export default function ContactoPage() {
               </div>
             )}
 
+            {error && (
+              <div role="alert" className="p-4 rounded-2xl bg-red-50 border border-red-200 text-red-800 text-xs font-bold mb-6 shadow-sm">
+                {error}{' '}
+                <a href={waFallback} target="_blank" rel="noopener noreferrer" className="underline">
+                  Envíalo por WhatsApp
+                </a>{' '}
+                o llámanos al 310 3861480.
+              </div>
+            )}
+
             <form onSubmit={handleSubmit} className="space-y-4">
+              {/* Honeypot anti-spam: oculto para personas, los bots lo llenan */}
+              <div aria-hidden="true" className="absolute -left-[9999px] w-px h-px overflow-hidden">
+                <label>
+                  No llenar
+                  <input type="text" tabIndex={-1} autoComplete="off"
+                    value={form.sitio_web} onChange={(e) => setForm({ ...form, sitio_web: e.target.value })} />
+                </label>
+              </div>
+
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1.5">Nombre Completo *</label>
                 <input
@@ -221,9 +269,12 @@ export default function ContactoPage() {
 
               <button
                 type="submit"
-                className="w-full h-12 rounded-xl bg-[#0A2656] hover:bg-[#0A2656] text-white text-xs font-bold flex items-center justify-center gap-2 shadow-lg hover:scale-[1.01] active:scale-95 transition-all cursor-pointer"
+                disabled={enviando}
+                className="w-full h-12 rounded-xl bg-[#0A2656] hover:bg-[#0A2656] text-white text-xs font-bold flex items-center justify-center gap-2 shadow-lg hover:scale-[1.01] active:scale-95 transition-all cursor-pointer disabled:opacity-70 disabled:cursor-wait disabled:hover:scale-100"
               >
-                <Send size={16} /> Enviar Solicitud de Información
+                {enviando
+                  ? <><Loader2 size={16} className="animate-spin" /> Enviando…</>
+                  : <><Send size={16} /> Enviar Solicitud de Información</>}
               </button>
             </form>
           </div>

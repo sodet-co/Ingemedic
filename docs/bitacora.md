@@ -59,6 +59,33 @@ Lo que está sin resolver, ordenado por prioridad.
 
 # Entradas
 
+## 2026-09-26 — Formulario de contacto: ahora sí envía (Google Apps Script)
+**Qué se hizo:** antes `/contacto` mostraba "¡Mensaje recibido!" sin enviar
+nada: todas las solicitudes se perdían. Ahora el formulario hace POST a
+`/api/contacto` (ruta pública a propósito), que valida (obligatorios,
+teléfono ≥ 7 dígitos, correo, largos máximos), descarta bots con un campo
+trampa (`sitio_web`) y reenvía a un Google Apps Script que manda el correo a
+sodetteam2024@gmail.com (con "Responder" al correo del cliente y link de
+WhatsApp). El script tarda 2–8 s, así que la ruta responde apenas valida
+y el envío sigue en segundo plano con `after()`. Si Google falla, el
+cliente ya vio "recibido": el error y los datos quedan en los logs de
+Vercel ("[contacto] Apps Script falló"). Si la ruta rechaza o no hay red,
+se ofrece mandar lo escrito por WhatsApp.
+**Por qué por /api y no directo al script:** la URL del script queda solo en
+el servidor, y se valida antes de gastar la cuota de Gmail (~100/día).
+**Archivos:** `contacto/page.js`, `api/contacto/route.js`,
+`scripts/google-apps-script/contacto.gs` (se pega en script.google.com; los
+pasos de despliegue están en el encabezado del archivo)
+**Verificado (2026-09-26):** script desplegado por Sofía (cuenta
+sodetteam2024), URL en `.env.local`. Directo al script: `{"ok":true}` en
+1,5 s. Por `/api/contacto` en localhost: válido → 200 en 0,7 s; sin
+mensaje, teléfono corto, correo malo y no-JSON → 400 con su mensaje; bot
+(campo trampa) → 200 sin enviar.
+Sofía confirmó que los correos de prueba llegaron.
+**Pendiente:** agregar `CONTACTO_SCRIPT_URL` en Vercel (sin eso, producción
+responde 503 y ofrece WhatsApp). Sin límite de envíos por IP: si llega
+spam, agregarlo.
+
 ## 2026-09-26 — Editar paciente desde el módulo Clientes
 **Qué se hizo:** botón "Editar" en el pie del panel de detalle del paciente
 (igual que el de cliente). Reutiliza el modal de "Nuevo paciente" en modo
@@ -71,8 +98,8 @@ paciente. El panel ahora muestra también el correo. Se registra en bitácora
 conservando su cédula ✓, update con cédula ajena → 23505
 `pacientes_cedula_unica` ✓, id inexistente → PGRST116 ✓. Borrado; conteo
 quedó en 174.
-**Pendiente:** probar en el navegador con sesión real (la política
-`autenticados_todo` debería permitir el UPDATE).
+**Verificado por Sofía con sesión real en producción (2026-09-26):**
+editar un paciente y guardar funciona.
 
 ## 2026-09-25 — Login robusto
 **Qué se hizo:** `login/page.js` — todo el flujo en try/catch (antes una
