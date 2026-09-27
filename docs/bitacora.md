@@ -95,6 +95,15 @@ Lo que está sin resolver, ordenado por prioridad.
 `noindex, nofollow`, sitemap (4), robots, redirecciones 308, JSON-LD
 parsea (3 tipos, 6 preguntas). `next build` en una copia aislada (para no
 romper el dev): compila, `/` estática.
+**Verificado en producción (2026-09-26, tras el deploy de `fe8dd53`):**
+los 4 títulos y canonical con www, `/admin/login` `noindex, nofollow`,
+og:image absoluta con www (98 KB), sitemap (4), robots, `/catalogo`,
+`/servicios` y el dominio sin www → 308 a www, JSON-LD con los 3 tipos,
+home `X-Vercel-Cache: HIT` en 0,4–0,5 s (antes MISS, 3,4 s), foto del
+carrusel 50 KB WebP.
+**Nota:** el commit `97ac9d5` quedó solo con el borrado de las páginas
+alias (un `git add` falló por una ruta ya borrada); el resto está en
+`fe8dd53`.
 **Pendiente:**
 - Fuera del código: Perfil de Empresa en Google, verificar Search Console
   y enviar el sitemap, redes sociales en `sameAs` (page.js) si existen.
@@ -128,9 +137,11 @@ sodetteam2024), URL en `.env.local`. Directo al script: `{"ok":true}` en
 mensaje, teléfono corto, correo malo y no-JSON → 400 con su mensaje; bot
 (campo trampa) → 200 sin enviar.
 Sofía confirmó que los correos de prueba llegaron.
-**Pendiente:** agregar `CONTACTO_SCRIPT_URL` en Vercel (sin eso, producción
-responde 503 y ofrece WhatsApp). Sin límite de envíos por IP: si llega
-spam, agregarlo.
+En producción (2026-09-26): `CONTACTO_SCRIPT_URL` ya está en Vercel (la
+ruta valida en vez de responder 503).
+**Pendiente:** un envío real desde ingemedic.com.co/contacto (no se hizo
+para no mandar otro correo de prueba). Sin límite de envíos por IP: si
+llega spam, agregarlo.
 
 ## 2026-09-26 — Editar paciente desde el módulo Clientes
 **Qué se hizo:** botón "Editar" en el pie del panel de detalle del paciente
