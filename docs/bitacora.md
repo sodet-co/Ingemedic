@@ -59,6 +59,52 @@ Lo que está sin resolver, ordenado por prioridad.
 
 # Entradas
 
+## 2026-09-26 — SEO del sitio público
+**Qué se hizo:**
+- **Dominio:** todo apunta a `https://www.ingemedic.com.co` (el real; sin
+  www redirige 308). Fuente única: `src/lib/sitio.js` (URL, teléfonos,
+  dirección, horario, INVIMA, páginas del sitemap).
+- **Título, descripción y canonical propios** por página
+  (`metadatosPagina()`). Las páginas `'use client'` los declaran en un
+  `layout.js` de su carpeta. No se pone canonical en el layout raíz: lo
+  heredarían todas y dirían que son la home.
+- **Imagen para compartir** `app/opengraph-image.jpg` (1200×630, 98 KB:
+  WhatsApp no muestra la vista previa grande si pasa de ~300 KB). Se generó
+  una vez con `next/og` + sharp: logo, texto y foto de la planta.
+- **Sitemap** con las 4 páginas; **robots** bloquea `/api/`; **`/admin`
+  lleva `noindex`** (`app/admin/layout.js`). /admin no se bloquea en
+  robots.txt a propósito: si Google no puede entrar, no ve el noindex.
+- **Datos para Google (JSON-LD):** `MedicalBusiness` con teléfonos,
+  correo, dirección, horario y área (Valledupar/Cesar) + `WebSite` +
+  `FAQPage`. Las FAQ se movieron a `components/landing/faqs.js` para
+  que las lean la landing y page.js (servidor).
+- **Home estática:** antes consultaba `configuracion_empresa` con el
+  cliente de servidor (cookies) y era dinámica: sin caché, ~3,4 s. Ahora
+  `/` sale ○ en el build. Imágenes de la landing con `next/image` (foto del
+  carrusel: 947 KB → 50 KB WebP en celular) y la primera precargada.
+- **Duplicados:** `/catalogo` y `/servicios` redirigen (308) a
+  `/portafolio` (`next.config.mjs`); se borraron sus páginas alias.
+- "región del **C**esar" en Quiénes somos; palabras clave sin contenido
+  real (camas hospitalarias) fuera.
+**Archivos:** `lib/sitio.js`, `app/layout.js`, `app/page.js`,
+`app/LandingPage.js`, `app/sitemap.js`, `app/robots.js`,
+`app/admin/layout.js`, `app/{portafolio,quienes-somos,contacto}/layout.js`,
+`app/opengraph-image.{jpg,alt.txt}`, `components/landing/faqs.js`,
+`components/Header.js`, `next.config.mjs`, `quienes-somos/page.js`
+**Verificado:** en localhost, títulos/canonical/og por página, admin
+`noindex, nofollow`, sitemap (4), robots, redirecciones 308, JSON-LD
+parsea (3 tipos, 6 preguntas). `next build` en una copia aislada (para no
+romper el dev): compila, `/` estática.
+**Pendiente:**
+- Fuera del código: Perfil de Empresa en Google, verificar Search Console
+  y enviar el sitemap, redes sociales en `sameAs` (page.js) si existen.
+- Si cambian teléfono/dirección/horario, editar `lib/sitio.js` (la
+  landing ya NO lee `configuracion_empresa`). Ninguna página pública la
+  lee ya: la lectura anónima de esa tabla se podría quitar (sin SQL aún).
+- Validar en producción con Rich Results Test y el depurador de Facebook.
+- Las otras páginas (portafolio, quiénes somos, contacto) aún usan `<img>`
+  y el estilo viejo.
+
 ## 2026-09-26 — Formulario de contacto: ahora sí envía (Google Apps Script)
 **Qué se hizo:** antes `/contacto` mostraba "¡Mensaje recibido!" sin enviar
 nada: todas las solicitudes se perdían. Ahora el formulario hace POST a

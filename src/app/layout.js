@@ -2,6 +2,7 @@ import { Geist, Geist_Mono, Archivo, Inter } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import "./globals.css";
+import { SITIO_URL, EMPRESA } from "@/lib/sitio";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -33,37 +34,41 @@ export const viewport = {
   themeColor: '#1B3A6B',
 }
 
+// Valores por defecto del sitio público. Cada página pública define su propio
+// title, description y alternates.canonical (no se pone canonical aquí: lo
+// heredarían todas las páginas y le dirían a Google que todas son la home).
+// La imagen para compartir es app/opengraph-image.jpg.
 export const metadata = {
-  metadataBase: new URL("https://ingemedic.com.co"),
+  metadataBase: new URL(SITIO_URL),
   title: {
     default: "Ingemedic de Colombia",
     template: "%s | Ingemedic",
   },
-  description:
-    "Ingemedic de Colombia S.A.S. ofrece alquiler de equipos biomédicos y suministro de oxígeno medicinal en Valledupar y municipios del departamento del Cesar, Colombia.",
+  description: EMPRESA.descripcion,
+  applicationName: "Ingemedic",
   keywords: [
     "alquiler equipos biomédicos Valledupar",
     "oxígeno medicinal Valledupar",
-    "equipos médicos Cesar",
-    "alquiler camas hospitalarias Valledupar",
-    "oxígeno medicinal Cesar",
-    "equipos biomédicos Cesar Colombia",
-    "Ingemedic Colombia",
-    "homecare Valledupar",
+    "oxígeno domiciliario Valledupar",
+    "concentrador de oxígeno Valledupar",
+    "alquiler CPAP BiPAP Valledupar",
+    "equipos biomédicos Cesar",
+    "Ingemedic de Colombia",
   ],
   openGraph: {
-    title: "Ingemedic de Colombia S.A.S. — Alquiler de equipos biomédicos en Valledupar y Cesar",
-    description:
-      "Ingemedic de Colombia S.A.S. ofrece alquiler de equipos biomédicos y suministro de oxígeno medicinal en Valledupar y municipios del departamento del Cesar, Colombia.",
-    url: "https://ingemedic.com.co",
-    siteName: "Ingemedic",
+    siteName: "Ingemedic de Colombia",
     locale: "es_CO",
     type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
   },
   robots: {
     index: true,
     follow: true,
   },
+  // Para verificar Google Search Console por etiqueta: pegar aquí el código
+  // (verification: { google: '...' }). Si se verifica por DNS no hace falta.
 };
 
 export default function RootLayout({ children }) {

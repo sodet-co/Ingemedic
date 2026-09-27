@@ -19,7 +19,7 @@ export default function QuienesSomosPage() {
             INGEMEDIC DE COLOMBIA S.A.S.
           </div>
           <h1 className="text-3xl sm:text-5xl font-black mb-6 tracking-tight">
-            Más de 13 años cuidando la salud de la región del cesar
+            Más de 13 años cuidando la salud de la región del Cesar
           </h1>
           <p className="text-sm sm:text-base text-blue-100/90 leading-relaxed">
             Somos una empresa colombiana especializada en la producción de oxígeno medicinal con certificación INVIMA y la comercialización de equipos biomédicos.

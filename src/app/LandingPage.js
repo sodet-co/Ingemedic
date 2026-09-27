@@ -1,16 +1,18 @@
 'use client'
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import Header from '@/components/Header'
 import Footer from '@/components/Footer'
+import { FAQS } from '@/components/landing/faqs'
 import {
   Clock, ShieldCheck, Users2, ChevronRight, ChevronDown,
 } from 'lucide-react'
 
 const IMAGENES_HERO = [
-  '/images/planta-tanques-1.jpg',
-  '/images/planta-tanques-2.jpg',
-  '/images/ingemedic-concentrador-oxigeno.png',
+  { src: '/images/planta-tanques-1.jpg', alt: 'Planta de oxígeno medicinal de Ingemedic en Valledupar' },
+  { src: '/images/planta-tanques-2.jpg', alt: 'Tanques de almacenamiento de oxígeno medicinal' },
+  { src: '/images/ingemedic-concentrador-oxigeno.png', alt: 'Concentrador de oxígeno domiciliario' },
 ]
 
 const CIFRAS = [
@@ -56,33 +58,6 @@ const EQUIPOS = [
   { nombre: 'Aspirador ADS100', linea: 'Succión de secreciones', img: '/images/ingemedic-aspirador-secreciones.png' },
   { nombre: 'Soporte CPAP / BiPAP', linea: 'Presión positiva no invasiva', img: '/images/ingemedic-cpap.png' },
   { nombre: 'Concentrador portátil', linea: 'Oxigenoterapia compacta', img: '/images/ingemedic-conc-tiger.png' },
-]
-
-const FAQS = [
-  {
-    q: '¿Qué tipos de equipos puedo alquilar o comprar?',
-    a: 'Contamos con un portafolio de equipos médicos para hospitalización domiciliaria, incluyendo concentradores de oxígeno, entre otros dispositivos de apoyo terapéutico. Nuestro equipo te asesora para elegir el más adecuado según la condición del paciente.',
-  },
-  {
-    q: '¿Los equipos entregados están en buen estado y certificados?',
-    a: 'Sí. Todos los equipos son revisados, verificados y entregados en óptimas condiciones de funcionamiento antes de cada instalación, cumpliendo con los estándares de tecnovigilancia aplicables.',
-  },
-  {
-    q: '¿Incluye instalación en el domicilio?',
-    a: 'Sí. La entrega incluye instalación en el hogar del paciente y una capacitación al paciente y sus cuidadores sobre el uso seguro y correcto del equipo.',
-  },
-  {
-    q: '¿Qué sucede si el equipo presenta alguna falla?',
-    a: 'Contamos con soporte técnico disponible. En caso de falla, nuestro equipo atiende el reporte de forma oportuna para garantizar que el paciente no interrumpa su tratamiento.',
-  },
-  {
-    q: '¿Cuánto tiempo puedo tener el equipo en alquiler?',
-    a: 'El tiempo de alquiler se adapta a las necesidades del paciente y a la indicación médica. No manejamos tiempos mínimos rígidos; nos ajustamos a cada caso con flexibilidad y transparencia.',
-  },
-  {
-    q: '¿Cómo se garantiza la calidad del oxígeno durante el transporte?',
-    a: 'El transporte se realiza bajo protocolos estrictos de manipulación y seguridad, cumpliendo con las Buenas Prácticas de Manufactura y la normativa de transporte de gases medicinales vigente en Colombia.',
-  },
 ]
 
 function WhatsappIcon({ size = 18, className = '' }) {
@@ -147,9 +122,9 @@ export default function LandingPage() {
 
           <div className="relative aspect-[4/3.2] rounded-[10px] overflow-hidden border border-[#DDE5EE]">
             {IMAGENES_HERO.map((img, i) => (
-              <div key={img} className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${i === indiceImagenHero ? 'opacity-100' : 'opacity-0'}`}>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={img} alt="Ingemedic — planta y equipos" className="w-full h-full object-cover" />
+              <div key={img.src} className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${i === indiceImagenHero ? 'opacity-100' : 'opacity-0'}`}>
+                {/* La primera es lo primero que se ve (LCP): con prioridad. Las demás, diferidas */}
+                <Image src={img.src} alt={img.alt} fill priority={i === 0} sizes="(min-width: 1180px) 530px, (min-width: 768px) 45vw, 100vw" className="object-cover" />
               </div>
             ))}
           </div>
@@ -203,9 +178,8 @@ export default function LandingPage() {
             {SERVICIOS.map(s => (
               <Link href="/portafolio" key={s.titulo}
                 className="border border-[#DDE5EE] rounded-[10px] overflow-hidden bg-white flex flex-col sm:flex-row hover:shadow-md transition-shadow">
-                <div className="aspect-[16/10] sm:aspect-auto sm:w-[42%] flex-shrink-0">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={s.img} alt={s.titulo} className="w-full h-full object-cover" />
+                <div className="relative aspect-[16/10] sm:aspect-auto sm:w-[42%] flex-shrink-0">
+                  <Image src={s.img} alt={s.titulo} fill sizes="(min-width: 640px) 240px, 100vw" className="object-cover" />
                 </div>
                 <div className="p-6 flex flex-col gap-2.5 flex-1">
                   <h3 className="font-display text-[19px] font-semibold text-[#0E2A4D]">{s.titulo}</h3>
@@ -231,9 +205,8 @@ export default function LandingPage() {
               {EQUIPOS.map(eq => (
                 <Link href="/portafolio" key={eq.nombre}
                   className="border border-[#DDE5EE] rounded-[10px] bg-white p-[18px] text-center hover:shadow-md transition-shadow">
-                  <div className="aspect-square rounded-[8px] mb-3.5 bg-gradient-to-br from-[#eaf1f6] to-[#f7fafc] overflow-hidden">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={eq.img} alt={eq.nombre} className="w-full h-full object-contain p-3" />
+                  <div className="relative aspect-square rounded-[8px] mb-3.5 bg-gradient-to-br from-[#eaf1f6] to-[#f7fafc] overflow-hidden">
+                    <Image src={eq.img} alt={eq.nombre} fill sizes="(min-width: 1024px) 260px, 50vw" className="object-contain p-3" />
                   </div>
                   <div className="font-display text-[14px] font-semibold text-[#0E2A4D]">{eq.nombre}</div>
                   <div className="text-[12.5px] text-[#5D6F86] mt-0.5">{eq.linea}</div>

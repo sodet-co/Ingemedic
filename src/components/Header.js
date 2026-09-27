@@ -56,8 +56,7 @@ export default function Header() {
 
           <nav className="hidden lg:flex items-center gap-7 ml-2">
             {NAV_LINKS.map(link => {
-              const activo = pathname === link.href ||
-                (link.href === '/portafolio' && (pathname === '/servicios' || pathname === '/catalogo'))
+              const activo = pathname === link.href
               return (
                 <Link key={link.href} href={link.href}
                   className={`font-body text-[14.5px] font-medium pb-1.5 border-b-2 transition-colors ${
