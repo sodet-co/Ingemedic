@@ -84,15 +84,21 @@ celular (iOS hacía zoom), etiqueta de estado del equipo si no es "En préstamo"
 **Archivos:** `src/lib/mantenimientos.js` (nuevo), `src/lib/prestamos.js`,
 `src/lib/entregas.js`, `mantenimientos/page.js`, `MantenimientosClient.js`,
 `OrdenesClient.js`, `InventarioClient.js`, `cliente/PortalClienteClient.js`.
-**SQL:** entregado, sin correr: columna `mantenimientos.resultado` y UNIQUE en
-`codigo`. Sin la columna el cierre funciona igual (reintenta sin ella).
+**SQL:** corrido: columna `mantenimientos.resultado` (el UNIQUE de `codigo` ya
+existía). Además se apagó el cron diario (jobid 1) y se borró la función
+`finalizar_ordenes_vencidas`: pasaba a "Finalizada" toda orden con vigencia
+vencida (incluso Canceladas y Programadas), sin devolver ni liberar los
+equipos, y hacía desaparecer el aviso de vencido del Panel de Atención antes
+de que alguien lo viera. No había hecho daño: ninguna orden tenía vigencia.
+Los vencidos ahora solo se manejan desde el Panel de Atención.
 **Verificado con datos reales (desechables, restaurados):** equipo prestado →
 al cerrar vuelve a En préstamo; libre → Disponible; "devolver" un equipo con
 mantenimiento abierto lo deja En mantenimiento y al otro Disponible; alias del
 resumen funciona. Portal con capturas a 360/768/1280 sin scroll horizontal.
-**Pendiente:** revisar la función SQL `finalizar_ordenes_vencidas` (si pone
-equipos en Disponible, tiene el mismo hueco). Probar en pantalla con sesión
-del personal: abrir/cerrar un mantenimiento de un equipo prestado.
+**Pendiente:** probar en pantalla con sesión del personal: abrir/cerrar un
+mantenimiento de un equipo prestado. (De los 6 "Finalizada sin devolución"
+del pendiente #8: 4 son datos de prueba de JUAN PRUEBAS y 2 de FOMAG con
+RL1550, ya Disponible; ninguno lo causó el cron.)
 
 ## 2026-09-29 — Portal de clientes + rediseño del login
 **Qué se hizo:** el login tiene pestañas "Personal / Soy cliente" (recuerda la
