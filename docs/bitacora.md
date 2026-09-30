@@ -59,6 +59,15 @@ Lo que está sin resolver, ordenado por prioridad.
 
 # Entradas
 
+## 2026-09-29 — Exportar inventario: hoja adicional con el escalón de abajo
+**Qué se hizo:** el Excel trae la hoja del nivel en pantalla y además la del
+nivel inferior. Categorías: resumen + hoja nueva de todos los tipos + todas
+las unidades. Dentro de una categoría: tipos + hoja nueva con todas sus
+unidades (columna Tipo, autofiltro). Dentro de un tipo: sin cambios.
+**Archivos:** `src/app/api/exportar/inventario/route.js`.
+**Pendiente:** verificado con datos reales generando los Excel (15/15
+categorías cuadran tipos vs. unidades), pero no desde el botón con sesión.
+
 ## 2026-09-29 — Panel en portal.ingemedic.com.co con rutas limpias
 **Qué se hizo:** `src/app/admin/` pasó a `src/app/(portal)/`: el panel queda en
 `/login`, `/dashboard`, `/inventario`… sin `/admin`. El middleware ahora corre

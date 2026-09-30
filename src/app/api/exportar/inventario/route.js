@@ -67,6 +67,78 @@ function colorEstado(cell, estadoNombre) {
   if (estadoNombre === 'Baja')             cell.font = { ...cell.font, color: { argb: '64748B' }, bold: true }
 }
 
+// Valor de un campo de unidad: en `atributos` o en una columna propia del
+// equipo (ej. codigo); los numéricos van como número para que Excel los sume.
+function valorCampoUnidad(eq, campo) {
+  const val = eq.atributos?.[campo.clave] || eq[campo.clave] || ''
+  if (campo.tipo === 'numero' && !isNaN(val) && val !== '') return Number(val)
+  return val
+}
+
+function conteoEstados(eqs) {
+  return [
+    eqs.length,
+    eqs.filter(e => e.estado?.nombre === 'Disponible').length,
+    eqs.filter(e => e.estado?.nombre === 'En préstamo').length,
+    eqs.filter(e => e.estado?.nombre === 'En mantenimiento').length,
+  ]
+}
+
+// Hoja plana con las unidades de varios tipos: el escalón de abajo cuando se
+// exporta desde una categoría. Una fila por unidad, con los campos del tipo
+// (marca, modelo…) y los de la unidad, y autofiltro para filtrar por tipo.
+function agregarHojaUnidades(wb, { nombreHoja, titulo, equipos, tipos, camposTipo, camposUnidad }) {
+  const tipoPorId    = new Map(tipos.map(t => [t.id, t]))
+  const ordenTipo    = new Map(tipos.map((t, i) => [t.id, i]))
+  const clavesUnidad = new Set(camposUnidad.map(c => c.clave))
+  const soloTipo     = camposTipo.filter(c => !clavesUnidad.has(c.clave))
+
+  const headers = [
+    'Tipo', 'Estado',
+    ...soloTipo.map(c => c.nombre), ...camposUnidad.map(c => c.nombre),
+    'Paciente actual', 'Dirección paciente', 'Teléfono paciente', 'Fecha registro',
+  ]
+  const nCols = headers.length
+  const ws = wb.addWorksheet(nombreHoja)
+  ws.columns = [
+    { width: 28 }, { width: 16 },
+    ...soloTipo.map(() => ({ width: 20 })), ...camposUnidad.map(() => ({ width: 20 })),
+    { width: 22 }, { width: 26 }, { width: 16 }, { width: 16 },
+  ]
+  agregarTitulo(ws, titulo, nCols)
+  ws.addRow(headers)
+  estiloHeader(ws, 3, nCols)
+
+  // Agrupadas por tipo, en el mismo orden de la hoja de tipos
+  const filas = [...equipos].sort((a, b) =>
+    (ordenTipo.get(a.tipo_equipo_id) ?? 0) - (ordenTipo.get(b.tipo_equipo_id) ?? 0))
+
+  filas.forEach((eq, i) => {
+    const tipo = tipoPorId.get(eq.tipo_equipo_id)
+    ws.addRow([
+      tipo?.nombre || '—',
+      eq.estado?.nombre || '',
+      ...soloTipo.map(c => tipo?.atributos?.[c.clave] || ''),
+      ...camposUnidad.map(c => valorCampoUnidad(eq, c)),
+      eq.paciente_actual?.nombre    || '',
+      eq.paciente_actual?.direccion || '',
+      eq.paciente_actual?.telefono  || '',
+      eq.fecha_creacion ? formatear(eq.fecha_creacion) : '',
+    ])
+    const fila = i + 4
+    estiloFila(ws, fila, nCols, i % 2 === 1)
+    colorEstado(ws.getCell(fila, 2), eq.estado?.nombre || '')
+  })
+
+  ws.autoFilter = { from: { row: 3, column: 1 }, to: { row: 3, column: nCols } }
+  ws.views = [{ state: 'frozen', ySplit: 3 }]
+  const filaTotal = filas.length + 5
+  ws.mergeCells(filaTotal, 1, filaTotal, nCols)
+  const total = ws.getCell(filaTotal, 1)
+  total.value = `Total: ${filas.length} unidades · ${tipos.length} tipos de equipo`
+  total.font  = { bold: true, color: { argb: ROJO }, name: 'Arial', size: 10 }
+}
+
 export async function POST(request) {
   try {
     const { respuesta } = await verificarSesion({ modulos: MODULOS })
@@ -80,10 +152,14 @@ export async function POST(request) {
     wb.modified = new Date()
 
     // ══════════════════════════════════════════════════════════════
-    // COMPLETO: 2 hojas en un solo Excel
-    //   Hoja 1 — Inventario General: todas las categorías, todas las
-    //            unidades, campos dinámicos unificados, con autofiltro.
-    //   Hoja 2 — Resumen: totales por categoría.
+    // Regla de todos los niveles: la primera hoja es lo que se ve en
+    // pantalla y la siguiente, el escalón de abajo.
+    //
+    // COMPLETO (vista de categorías): 3 hojas en un solo Excel
+    //   Hoja 1 — Resumen: totales por categoría.
+    //   Hoja 2 — Tipos de equipo: todos, con su categoría y conteos.
+    //   Hoja 3 — Inventario General: todas las unidades, campos dinámicos
+    //            unificados, con autofiltro.
     // ══════════════════════════════════════════════════════════════
     if (nivel === 'completo') {
       const { data: cats }   = await supabase.from('categorias_equipo').select('id, nombre, descripcion, atributos_extra').eq('activo', true).order('nombre')
@@ -127,7 +203,43 @@ export async function POST(request) {
       })
       ws2.getRow(cats.length + 4).height = 20
 
-      // ── Hoja 2: Inventario General ──────────────────────────
+      // ── Hoja 2: Tipos de equipo ─────────────────────────────
+      const camposTipoUnicos = new Map()
+      cats.forEach(cat => (cat.atributos_extra?.campos_tipo || []).forEach(c => {
+        if (!camposTipoUnicos.has(c.clave)) camposTipoUnicos.set(c.clave, c.nombre)
+      }))
+      const clavesTipo = [...camposTipoUnicos.keys()]
+
+      const ws3 = wb.addWorksheet('Tipos de equipo')
+      const headers3 = ['Categoría', 'Tipo', 'Total', 'Disponibles', 'En préstamo', 'En mantenimiento',
+        ...clavesTipo.map(cl => camposTipoUnicos.get(cl))]
+      const nCols3 = headers3.length
+      ws3.columns = [
+        { width: 24 }, { width: 30 }, { width: 10 }, { width: 13 }, { width: 14 }, { width: 18 },
+        ...clavesTipo.map(() => ({ width: 20 })),
+      ]
+      agregarTitulo(ws3, 'Tipos de equipo — Ingemedic de Colombia S.A.S.', nCols3)
+      ws3.addRow(headers3)
+      estiloHeader(ws3, 3, nCols3)
+      let fila3 = 4
+      cats.forEach(cat => {
+        tipos
+          .filter(t => t.categoria_id === cat.id)
+          .sort((a, b) => (a.nombre || '').localeCompare(b.nombre || ''))
+          .forEach(tipo => {
+            ws3.addRow([
+              cat.nombre, tipo.nombre || '',
+              ...conteoEstados(equipos.filter(e => e.tipo_equipo_id === tipo.id)),
+              ...clavesTipo.map(cl => tipo.atributos?.[cl] || ''),
+            ])
+            estiloFila(ws3, fila3, nCols3, fila3 % 2 === 1)
+            fila3++
+          })
+      })
+      ws3.autoFilter = { from: { row: 3, column: 1 }, to: { row: 3, column: nCols3 } }
+      ws3.views = [{ state: 'frozen', ySplit: 3 }]
+
+      // ── Hoja 3: Inventario General ──────────────────────────
       const camposUnicos = new Map()
       cats.forEach(cat => {
         ;[...(cat.atributos_extra?.campos_tipo || []), ...(cat.atributos_extra?.campos_unidad || [])].forEach(c => {
@@ -238,8 +350,13 @@ export async function POST(request) {
     else if (nivel === 'tipos' && categoria_id) {
       const { data: cat }    = await supabase.from('categorias_equipo').select('*').eq('id', categoria_id).single()
       const { data: tipos }  = await supabase.from('tipos_equipo').select('*').eq('categoria_id', categoria_id).eq('activo', true).order('nombre')
-      const equipos = await traerTodosLosEquipos(supabase, q => q
-        .select('*, estado:estados_equipo(nombre)'))
+      // Solo las unidades de esta categoría (antes se traía todo el inventario
+      // para contar). Sin tipos, .in() con lista vacía fallaría: se omite.
+      const idsTipos = tipos.map(t => t.id)
+      const equipos = idsTipos.length === 0 ? [] : await traerTodosLosEquipos(supabase, q => q
+        .select('*, estado:estados_equipo(nombre), paciente_actual:pacientes(nombre, direccion, telefono)')
+        .in('tipo_equipo_id', idsTipos)
+        .order('fecha_creacion', { ascending: false }))
 
       const camposTipo = cat?.atributos_extra?.campos_tipo || []
       const ws = wb.addWorksheet(cat?.nombre?.slice(0, 31) || 'Tipos')
@@ -271,6 +388,16 @@ export async function POST(request) {
           ...camposTipo.map(c => tipo.atributos?.[c.clave] || ''),
         ])
         estiloFila(ws, i + 4, nCols, i % 2 === 1)
+      })
+
+      // Escalón de abajo: todas las unidades de la categoría
+      agregarHojaUnidades(wb, {
+        nombreHoja:   'Unidades',
+        titulo:       `${cat?.nombre || 'Categoría'} — Unidades`,
+        equipos,
+        tipos,
+        camposTipo,
+        camposUnidad: cat?.atributos_extra?.campos_unidad || [],
       })
     }
 
@@ -332,11 +459,7 @@ export async function POST(request) {
         const fecha = eq.fecha_creacion ? formatear(eq.fecha_creacion) : ''
         ws.addRow([
           eq.estado?.nombre || '',
-          ...camposUnidad.map(c => {
-            const val = eq.atributos?.[c.clave] || eq[c.clave] || ''
-            if (c.tipo === 'numero' && !isNaN(val) && val !== '') return Number(val)
-            return val
-          }),
+          ...camposUnidad.map(c => valorCampoUnidad(eq, c)),
           eq.paciente_actual?.nombre    || '',
           eq.paciente_actual?.direccion || '',
           eq.paciente_actual?.telefono  || '',
