@@ -59,6 +59,23 @@ Lo que está sin resolver, ordenado por prioridad.
 
 # Entradas
 
+## 2026-09-27 — Sitio público en Poppins (estilo SODET) y crédito a SODET
+**Qué se hizo:** todo el sitio público (landing, quienes-somos, portafolio,
+contacto, Header y Footer) pasa de Archivo + Inter / Geist a Poppins (300/400/500/600), con la jerarquía de pesos de sodet.vercel.app:
+títulos en 500 con tracking negativo, cuerpo en 400, textos introductorios en
+300 y botones/enlaces/etiquetas en 500. Nada por encima de 600 (solo
+el nombre del footer y detalles diminutos como los ✓ y el "24h"). Se agregó
+"Desarrollado por SODET" con enlace a sodet.vercel.app en el Footer público,
+el login y el sidebar del admin.
+**Por qué:** unificar el aspecto con el otro proyecto de SODET.
+**Archivos:** `src/app/layout.js`, `src/app/globals.css`, `src/app/LandingPage.js`,
+`src/components/Header.js`, `src/components/Footer.js`,
+`src/components/layout/Sidebar.js`, `src/app/admin/(auth)/login/page.js`,
+`src/app/quienes-somos/page.js`, `src/app/portafolio/page.js`, `src/app/contacto/page.js`.
+**Pendiente:** el crédito del sidebar no se vio
+con sesión real, y en móvil del admin el sidebar no aparece (solo se ve en el
+login). La copia `LandingPage.js` de la raíz es vieja y no se usa.
+
 ## 2026-09-26 — SEO del sitio público
 **Qué se hizo:**
 - **Dominio:** todo apunta a `https://www.ingemedic.com.co` (el real; sin

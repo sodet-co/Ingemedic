@@ -301,6 +301,13 @@ export default function Sidebar({ usuario, empresa, permisos = [], esSuperAdmin 
           <div className="text-[9.5px] text-slate-400 mt-1 px-2">
             Actualizado: {formatearFechaActualizacion(ULTIMA_ACTUALIZACION)}
           </div>
+          <div className="text-[9.5px] text-slate-400 mt-0.5 px-2">
+            Desarrollado por{' '}
+            <a href="https://sodet.vercel.app" target="_blank" rel="noopener noreferrer"
+              className="font-semibold text-slate-500 hover:text-[#D81B43] transition-colors">
+              SODET
+            </a>
+          </div>
         </div>
       </aside>
 

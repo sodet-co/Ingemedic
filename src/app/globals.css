@@ -20,8 +20,8 @@ html {
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
   /* Solo para el sitio público (Header, Footer, landing) — el admin sigue con font-sans (Geist). */
-  --font-display: var(--font-archivo);
-  --font-body: var(--font-inter);
+  --font-display: var(--font-poppins);
+  --font-body: var(--font-poppins);
 }
 
 /* Aquí había un bloque @media (prefers-color-scheme: dark) de la plantilla

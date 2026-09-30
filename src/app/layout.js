@@ -1,4 +1,4 @@
-import { Geist, Geist_Mono, Archivo, Inter } from "next/font/google";
+import { Geist, Geist_Mono, Poppins } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import "./globals.css";
@@ -16,16 +16,12 @@ const geistMono = Geist_Mono({
 
 // Solo para el sitio público (Header, Footer, landing) — el admin sigue con
 // Geist (font-sans) sin cambios. Ver globals.css: font-display/font-body.
-const archivo = Archivo({
-  variable: "--font-archivo",
+// Poppins, igual que sodet.vercel.app: títulos en 500, cuerpo en 400, textos
+// introductorios en 300. No se carga 700: el sitio no usa negrilla fuerte.
+const poppins = Poppins({
+  variable: "--font-poppins",
   subsets: ["latin"],
-  weight: ["500", "600", "700"],
-});
-
-const inter = Inter({
-  variable: "--font-inter",
-  subsets: ["latin"],
-  weight: ["400", "500", "600"],
+  weight: ["300", "400", "500", "600"],
 });
 
 // Solo tema claro — ver globals.css (evita el fondo negro en celulares en modo oscuro)
@@ -75,7 +71,7 @@ export default function RootLayout({ children }) {
   return (
     <html
       lang="es"
-      className={`${geistSans.variable} ${geistMono.variable} ${archivo.variable} ${inter.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} ${poppins.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
         {children}

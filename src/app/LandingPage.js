@@ -87,10 +87,10 @@ export default function LandingPage() {
       <div className="bg-white border-b border-[#DDE5EE]">
         <div className="max-w-[1180px] mx-auto px-5 md:px-7 grid grid-cols-1 md:grid-cols-[1.05fr_0.95fr] gap-10 md:gap-14 items-center pt-14 md:pt-16 pb-16 md:pb-24">
           <div>
-            <h1 className="font-display text-[34px] sm:text-[42px] lg:text-[50px] font-bold text-[#0E2A4D] uppercase leading-[1.12] tracking-tight">
+            <h1 className="font-display text-[34px] sm:text-[42px] lg:text-[50px] font-medium text-[#0E2A4D] uppercase leading-[1.12] tracking-[-0.025em]">
               Equipos biomédicos<br />y oxígeno domiciliario
             </h1>
-            <p className="mt-5 text-[16px] sm:text-[18px] text-[#5D6F86] leading-relaxed max-w-xl">
+            <p className="mt-5 text-[16px] sm:text-[18px] font-light text-[#5D6F86] leading-relaxed max-w-xl">
               Servicio técnico calificado y acompañamiento en la recuperación de tus pacientes en todo el Cesar.
             </p>
             <div className="flex flex-col sm:flex-row gap-3 mt-8">
@@ -98,23 +98,23 @@ export default function LandingPage() {
                 href="https://wa.me/573103861480?text=Hola,%20requiero%20información%20sobre%20el%20catálogo%20de%20productos"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center justify-center gap-2 text-[14.5px] font-semibold text-white bg-[#C8102E] hover:bg-[#a80d26] px-6 py-3.5 rounded-md transition-colors"
+                className="inline-flex items-center justify-center gap-2 text-[14.5px] font-medium text-white bg-[#C8102E] hover:bg-[#a80d26] px-6 py-3.5 rounded-md transition-colors"
               >
                 <WhatsappIcon size={17} /> Consultar catálogo
               </a>
               <Link href="/portafolio"
-                className="inline-flex items-center justify-center text-[14.5px] font-semibold text-[#0E2A4D] border border-[#0E2A4D] hover:bg-[#0E2A4D] hover:text-white px-6 py-3.5 rounded-md transition-colors">
+                className="inline-flex items-center justify-center text-[14.5px] font-medium text-[#0E2A4D] border border-[#0E2A4D] hover:bg-[#0E2A4D] hover:text-white px-6 py-3.5 rounded-md transition-colors">
                 Ver portafolio
               </Link>
             </div>
 
             <a href="#certificacion-invima"
               className="inline-flex items-center gap-3.5 mt-9 px-5 py-3.5 bg-[#E3F3F8] border border-[#C3E2ED] border-l-4 border-l-[#1E9FC4] rounded-lg hover:bg-[#DCEFF6] transition-colors">
-              <span className="w-11 h-11 flex-shrink-0 rounded-full bg-white border border-[#C3E2ED] grid place-items-center font-display text-[10px] font-bold text-[#1E9FC4]">
+              <span className="w-11 h-11 flex-shrink-0 rounded-full bg-white border border-[#C3E2ED] grid place-items-center font-display text-[10px] font-medium text-[#1E9FC4]">
                 INVIMA
               </span>
               <span>
-                <span className="block font-display text-[15px] font-semibold text-[#0E2A4D]">Certificados por INVIMA</span>
+                <span className="block font-display text-[15px] font-medium text-[#0E2A4D]">Certificados por INVIMA</span>
                 <span className="block text-[13px] text-[#5D6F86]">Resolución 2026013255 · vigente hasta abril de 2029</span>
               </span>
             </a>
@@ -136,7 +136,7 @@ export default function LandingPage() {
         <div className="bg-[#0E2A4D] rounded-[10px] grid grid-cols-2 md:grid-cols-4 shadow-[0_18px_40px_-22px_rgba(14,42,77,0.55)]">
           {CIFRAS.map((c, i) => (
             <div key={c.label} className={`px-6 py-7 md:px-8 ${i < CIFRAS.length - 1 ? 'border-b md:border-b-0 md:border-r border-white/15' : ''} ${i % 2 === 0 ? 'border-r md:border-r-0 border-white/15' : ''}`}>
-              <div className="font-display text-[26px] md:text-[34px] font-bold text-white leading-none">{c.valor}</div>
+              <div className="font-display text-[26px] md:text-[34px] font-medium tracking-[-0.02em] text-white leading-none">{c.valor}</div>
               <div className="mt-1.5 text-[12.5px] md:text-[13.5px] text-[#A9C2DC]">{c.label}</div>
             </div>
           ))}
@@ -148,8 +148,8 @@ export default function LandingPage() {
         <div className="max-w-[1180px] mx-auto px-5 md:px-7">
           <div className="max-w-xl mb-11">
             <div className="w-[52px] h-[3px] bg-[#1E9FC4] rounded-full mb-[18px]" />
-            <h2 className="font-display text-[28px] md:text-[34px] font-bold text-[#0E2A4D]">Por qué elegir Ingemedic</h2>
-            <p className="mt-3 text-[#5D6F86]">Respaldo técnico permanente para instituciones de salud y pacientes en casa.</p>
+            <h2 className="font-display text-[28px] md:text-[34px] font-medium tracking-[-0.02em] text-[#0E2A4D]">Por qué elegir Ingemedic</h2>
+            <p className="mt-3 font-light text-[17px] text-[#5D6F86]">Respaldo técnico permanente para instituciones de salud y pacientes en casa.</p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 bg-white border border-[#DDE5EE] rounded-[10px] overflow-hidden">
             {POR_QUE.map((p, i) => (
@@ -157,7 +157,7 @@ export default function LandingPage() {
                 <div className="w-11 h-11 rounded-[9px] bg-[#E3F3F8] grid place-items-center mb-[18px]">
                   <p.icon size={22} className="text-[#1E9FC4]" strokeWidth={2} />
                 </div>
-                <h3 className="font-display text-[19px] font-semibold text-[#0E2A4D] mb-2">{p.titulo}</h3>
+                <h3 className="font-display text-[19px] font-medium tracking-[-0.01em] text-[#0E2A4D] mb-2">{p.titulo}</h3>
                 <p className="text-[14.5px] text-[#5D6F86]">{p.desc}</p>
               </div>
             ))}
@@ -170,8 +170,8 @@ export default function LandingPage() {
         <div className="max-w-[1180px] mx-auto px-5 md:px-7">
           <div className="max-w-xl mb-11">
             <div className="w-[52px] h-[3px] bg-[#1E9FC4] rounded-full mb-[18px]" />
-            <h2 className="font-display text-[28px] md:text-[34px] font-bold text-[#0E2A4D]">Servicios destacados</h2>
-            <p className="mt-3 text-[#5D6F86]">Del suministro del equipo al soporte técnico durante toda su vida útil.</p>
+            <h2 className="font-display text-[28px] md:text-[34px] font-medium tracking-[-0.02em] text-[#0E2A4D]">Servicios destacados</h2>
+            <p className="mt-3 font-light text-[17px] text-[#5D6F86]">Del suministro del equipo al soporte técnico durante toda su vida útil.</p>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
@@ -182,9 +182,9 @@ export default function LandingPage() {
                   <Image src={s.img} alt={s.titulo} fill sizes="(min-width: 640px) 240px, 100vw" className="object-cover" />
                 </div>
                 <div className="p-6 flex flex-col gap-2.5 flex-1">
-                  <h3 className="font-display text-[19px] font-semibold text-[#0E2A4D]">{s.titulo}</h3>
+                  <h3 className="font-display text-[19px] font-medium tracking-[-0.01em] text-[#0E2A4D]">{s.titulo}</h3>
                   <p className="text-[14px] text-[#5D6F86] flex-1">{s.desc}</p>
-                  <span className="text-[13.5px] font-semibold text-[#1E9FC4] mt-1">Conoce más</span>
+                  <span className="text-[13.5px] font-medium text-[#1E9FC4] mt-1">Conoce más</span>
                 </div>
               </Link>
             ))}
@@ -193,11 +193,11 @@ export default function LandingPage() {
           <div className="mt-[52px] pt-11 border-t border-[#DDE5EE]" id="equipos">
             <div className="flex items-end justify-between gap-6 flex-wrap mb-6">
               <div>
-                <h3 className="font-display text-[22px] font-semibold text-[#0E2A4D]">Equipos disponibles</h3>
+                <h3 className="font-display text-[22px] font-medium tracking-[-0.01em] text-[#0E2A4D]">Equipos disponibles</h3>
                 <p className="mt-1.5 text-[15px] text-[#5D6F86]">Los que más solicitan nuestros clientes.</p>
               </div>
               <Link href="/portafolio"
-                className="inline-flex items-center text-[13.5px] font-semibold text-[#0E2A4D] border border-[#0E2A4D] hover:bg-[#0E2A4D] hover:text-white px-[18px] py-2.5 rounded-md transition-colors">
+                className="inline-flex items-center text-[13.5px] font-medium text-[#0E2A4D] border border-[#0E2A4D] hover:bg-[#0E2A4D] hover:text-white px-[18px] py-2.5 rounded-md transition-colors">
                 Ver catálogo completo
               </Link>
             </div>
@@ -208,7 +208,7 @@ export default function LandingPage() {
                   <div className="relative aspect-square rounded-[8px] mb-3.5 bg-gradient-to-br from-[#eaf1f6] to-[#f7fafc] overflow-hidden">
                     <Image src={eq.img} alt={eq.nombre} fill sizes="(min-width: 1024px) 260px, 50vw" className="object-contain p-3" />
                   </div>
-                  <div className="font-display text-[14px] font-semibold text-[#0E2A4D]">{eq.nombre}</div>
+                  <div className="font-display text-[14px] font-medium text-[#0E2A4D]">{eq.nombre}</div>
                   <div className="text-[12.5px] text-[#5D6F86] mt-0.5">{eq.linea}</div>
                 </Link>
               ))}
@@ -221,11 +221,11 @@ export default function LandingPage() {
       <div className="bg-[#C8102E]" id="contacto">
         <div className="max-w-[1180px] mx-auto px-5 md:px-7 py-11 flex items-center justify-between gap-9 flex-wrap">
           <div>
-            <h2 className="font-display text-[24px] md:text-[28px] font-bold text-white">¿Necesitas un equipo o servicio técnico?</h2>
+            <h2 className="font-display text-[24px] md:text-[28px] font-medium tracking-[-0.02em] text-white">¿Necesitas un equipo o servicio técnico?</h2>
             <p className="mt-2 text-[15px] text-white/90">Cuéntanos qué necesitas y te respondemos con una cotización.</p>
           </div>
           <Link href="/contacto"
-            className="inline-flex items-center justify-center text-[14.5px] font-semibold text-[#0E2A4D] bg-white hover:bg-slate-100 px-6 py-3.5 rounded-md transition-colors flex-shrink-0">
+            className="inline-flex items-center justify-center text-[14.5px] font-medium text-[#0E2A4D] bg-white hover:bg-slate-100 px-6 py-3.5 rounded-md transition-colors flex-shrink-0">
             Solicita tu cotización
           </Link>
         </div>
@@ -240,20 +240,20 @@ export default function LandingPage() {
           </div>
           <div>
             <div className="w-[52px] h-[3px] bg-[#1E9FC4] rounded-full mb-[18px]" />
-            <h2 className="font-display text-[28px] md:text-[34px] font-bold text-[#0E2A4D]">Certificación INVIMA</h2>
-            <p className="mt-3.5 text-[16px] text-[#5D6F86] leading-relaxed max-w-xl">
+            <h2 className="font-display text-[28px] md:text-[34px] font-medium tracking-[-0.02em] text-[#0E2A4D]">Certificación INVIMA</h2>
+            <p className="mt-3.5 text-[16px] font-light text-[#5D6F86] leading-relaxed max-w-xl">
               Ingemedic de Colombia S.A.S. está habilitada por el Instituto Nacional de Vigilancia de Medicamentos y Alimentos. Los datos de la resolución pueden consultarse directamente en el registro oficial.
             </p>
             <dl className="mt-6 border-t border-[#DDE5EE]">
               {[['Resolución', '2026013255'], ['Vigencia', 'Abril de 2029'], ['Razón social', 'Ingemedic de Colombia S.A.S.']].map(([dt, dd]) => (
                 <div key={dt} className="flex items-center justify-between gap-5 py-3.5 border-b border-[#DDE5EE] text-[14.5px]">
                   <dt className="text-[#5D6F86]">{dt}</dt>
-                  <dd className="font-semibold text-[#0E2A4D]">{dd}</dd>
+                  <dd className="font-medium text-[#0E2A4D]">{dd}</dd>
                 </div>
               ))}
             </dl>
             <a href="https://www.invima.gov.co/establecimiento/2345g-ingemedic-de-colombia-sas" target="_blank" rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 mt-7 text-[14.5px] font-semibold text-white bg-[#0E2A4D] hover:bg-[#091D36] px-6 py-3.5 rounded-md transition-colors">
+              className="inline-flex items-center gap-1.5 mt-7 text-[14.5px] font-medium text-white bg-[#0E2A4D] hover:bg-[#091D36] px-6 py-3.5 rounded-md transition-colors">
               Consultar ficha oficial <ChevronRight size={15} />
             </a>
           </div>
@@ -265,8 +265,8 @@ export default function LandingPage() {
         <div className="max-w-[1180px] mx-auto px-5 md:px-7">
           <div className="text-center max-w-2xl mx-auto mb-10 flex flex-col items-center">
             <div className="w-[52px] h-[3px] bg-[#1E9FC4] rounded-full mb-[18px]" />
-            <h2 className="font-display text-[28px] md:text-[34px] font-bold text-[#0E2A4D]">Preguntas frecuentes</h2>
-            <p className="mt-3 text-[#5D6F86]">Resolvemos las dudas más comunes sobre nuestros servicios y equipos médicos.</p>
+            <h2 className="font-display text-[28px] md:text-[34px] font-medium tracking-[-0.02em] text-[#0E2A4D]">Preguntas frecuentes</h2>
+            <p className="mt-3 font-light text-[17px] text-[#5D6F86]">Resolvemos las dudas más comunes sobre nuestros servicios y equipos médicos.</p>
           </div>
 
           <div className="space-y-3 max-w-3xl mx-auto">
@@ -276,7 +276,7 @@ export default function LandingPage() {
                 <div key={f.q} className="rounded-[10px] border border-[#DDE5EE] bg-white overflow-hidden">
                   <button onClick={() => setFaqAbierta(abierta ? -1 : i)}
                     className="w-full flex items-center justify-between gap-4 px-5 py-4 text-left hover:bg-slate-50/60 transition-colors">
-                    <span className="text-[14px] font-semibold text-[#0E2A4D]">{f.q}</span>
+                    <span className="text-[14px] font-medium text-[#0E2A4D]">{f.q}</span>
                     <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 transition-transform duration-300 ${abierta ? 'bg-[#1E9FC4] text-white rotate-180' : 'bg-[#E3F3F8] text-[#5D6F86]'}`}>
                       <ChevronDown size={14} />
                     </div>

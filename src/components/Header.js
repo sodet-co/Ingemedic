@@ -70,11 +70,11 @@ export default function Header() {
 
           <div className="hidden md:flex items-center gap-3 ml-auto">
             <Link href="/admin/login"
-              className="font-body inline-flex items-center text-[13.5px] font-semibold text-[#0E2A4D] border border-[#0E2A4D] hover:bg-[#0E2A4D] hover:text-white px-4 py-2.5 rounded-md transition-colors">
+              className="font-body inline-flex items-center text-[13.5px] font-medium text-[#0E2A4D] border border-[#0E2A4D] hover:bg-[#0E2A4D] hover:text-white px-4 py-2.5 rounded-md transition-colors">
               Acceso del personal
             </Link>
             <Link href="/contacto"
-              className="font-body inline-flex items-center text-[14.5px] font-semibold text-white bg-[#C8102E] hover:bg-[#a80d26] px-5 py-2.5 rounded-md transition-colors">
+              className="font-body inline-flex items-center text-[14.5px] font-medium text-white bg-[#C8102E] hover:bg-[#a80d26] px-5 py-2.5 rounded-md transition-colors">
               Solicitar cotización
             </Link>
           </div>
@@ -95,7 +95,7 @@ export default function Header() {
         <div className="lg:hidden fixed inset-x-0 top-[72px] bottom-0 overflow-y-auto border-t border-[#DDE5EE] px-5 py-5 space-y-3 bg-white shadow-xl z-40">
           {NAV_LINKS.map(link => (
             <Link key={link.href} href={link.href} onClick={() => setMenuAbierto(false)}
-              className={`font-body block text-[14.5px] font-semibold py-2 px-3 rounded-lg ${
+              className={`font-body block text-[14.5px] font-medium py-2 px-3 rounded-lg ${
                 pathname === link.href ? 'text-[#0E2A4D] bg-[#E3F3F8]' : 'text-[#5D6F86] hover:bg-slate-50'
               }`}>
               {link.name}
@@ -103,11 +103,11 @@ export default function Header() {
           ))}
           <div className="pt-2 flex flex-col gap-2.5">
             <Link href="/contacto" onClick={() => setMenuAbierto(false)}
-              className="font-body w-full inline-flex items-center justify-center text-[14.5px] font-semibold text-white bg-[#C8102E] px-5 py-3 rounded-md">
+              className="font-body w-full inline-flex items-center justify-center text-[14.5px] font-medium text-white bg-[#C8102E] px-5 py-3 rounded-md">
               Solicitar cotización
             </Link>
             <Link href="/admin/login" onClick={() => setMenuAbierto(false)}
-              className="font-body w-full inline-flex items-center justify-center text-[14px] font-semibold text-[#0E2A4D] border border-[#0E2A4D] px-5 py-3 rounded-md">
+              className="font-body w-full inline-flex items-center justify-center text-[14px] font-medium text-[#0E2A4D] border border-[#0E2A4D] px-5 py-3 rounded-md">
               Acceso del personal
             </Link>
           </div>

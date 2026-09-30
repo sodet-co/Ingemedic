@@ -135,20 +135,20 @@ export default function PortafolioPage() {
   }
 
   return (
-    <div className="min-h-screen bg-white text-slate-800 font-sans selection:bg-blue-600 selection:text-white">
+    <div className="min-h-screen bg-white text-slate-800 font-body selection:bg-blue-600 selection:text-white">
       <Header />
 
       {/* ── HERO UNIFICADO CON CARRUSEL 3D INTEGRADO ── */}
       <section className="relative overflow-hidden bg-gradient-to-b from-[#0B2656] via-[#0D2E68] to-[#071C40] text-white pt-14 pb-16 lg:pt-18 lg:pb-20">
         <div className="max-w-7xl mx-auto px-4 md:px-8 relative z-10">
           <div className="text-center max-w-3xl mx-auto mb-10">
-            <div className="inline-block px-4 py-1.5 rounded-full bg-blue-500/20 border border-blue-400/30 text-blue-200 text-xs font-bold uppercase tracking-wider mb-4 shadow-sm">
+            <div className="inline-block px-4 py-1.5 rounded-full bg-blue-500/20 border border-blue-400/30 text-blue-200 text-xs font-medium uppercase tracking-wider mb-4 shadow-sm">
               PORTAFOLIO DE EQUIPOS BIOMÉDICOS
             </div>
-            <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black text-white mb-4 tracking-tight">
+            <h1 className="text-3xl sm:text-4xl lg:text-5xl font-medium tracking-[-0.025em] text-white mb-4">
               Nuestro portafolio de equipos
             </h1>
-            <p className="text-sm sm:text-base text-blue-100/90 leading-relaxed max-w-xl mx-auto">
+            <p className="text-sm sm:text-base font-light text-blue-100/90 leading-relaxed max-w-xl mx-auto">
               Explora nuestra gama de concentradores de oxígeno, aspiradores de secreciones y soporte ventilatorio domiciliario.
             </p>
           </div>
@@ -239,10 +239,10 @@ export default function PortafolioPage() {
                         </div>
 
                         <div className="w-full sm:w-[52%] flex flex-col justify-center items-start text-left gap-2">
-                          <span className="bg-[#1D4ED8] text-white text-[11px] font-bold px-3.5 py-0.5 rounded-full uppercase tracking-wider shadow-md">
+                          <span className="bg-[#1D4ED8] text-white text-[11px] font-medium px-3.5 py-0.5 rounded-full uppercase tracking-wider shadow-md">
                             {item.badge}
                           </span>
-                          <h3 className="font-extrabold text-white text-xl lg:text-2xl leading-tight">
+                          <h3 className="font-medium tracking-[-0.01em] text-white text-xl lg:text-2xl leading-tight">
                             {item.nombre}
                           </h3>
                           <div className="w-8 h-[2px] bg-white/60 rounded-full my-0.5" />
@@ -276,7 +276,7 @@ export default function PortafolioPage() {
       {/* ── REJILLA DE TARJETAS DE PORTAFOLIO ── */}
       <section className="max-w-7xl mx-auto px-4 md:px-8 py-20 bg-slate-50 border-t border-slate-200">
         <div className="text-center max-w-2xl mx-auto mb-14">
-          <h2 className="text-2xl sm:text-4xl font-extrabold text-[#0B2656] uppercase tracking-tight">
+          <h2 className="text-2xl sm:text-4xl font-medium tracking-[-0.02em] text-[#0B2656] uppercase">
             Detalle del Portafolio
           </h2>
           <div className="w-14 h-1 rounded-full bg-blue-600 mx-auto my-3" />
@@ -299,11 +299,11 @@ export default function PortafolioPage() {
                   />
                 </div>
 
-                <span className="text-[11px] font-bold text-blue-600 uppercase tracking-widest block mb-1">
+                <span className="text-[11px] font-medium text-blue-600 uppercase tracking-widest block mb-1">
                   {item.subtitulo}
                 </span>
 
-                <h3 className="text-xl font-extrabold text-[#0B2656] mb-2 leading-snug">
+                <h3 className="text-xl font-medium tracking-[-0.01em] text-[#0B2656] mb-2 leading-snug">
                   {item.titulo}
                 </h3>
 
@@ -313,8 +313,8 @@ export default function PortafolioPage() {
 
                 <div className="space-y-2 mb-6 border-t border-slate-100 pt-4">
                   {item.caracteristicas.map((car, cIdx) => (
-                    <div key={cIdx} className="flex items-center gap-2.5 text-xs font-semibold text-slate-700">
-                      <div className="w-4 h-4 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center flex-shrink-0 font-bold text-[10px]">
+                    <div key={cIdx} className="flex items-center gap-2.5 text-xs font-medium text-slate-700">
+                      <div className="w-4 h-4 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center flex-shrink-0 font-semibold text-[10px]">
                         ✓
                       </div>
                       <span>{car}</span>
@@ -327,7 +327,7 @@ export default function PortafolioPage() {
                 href={`https://wa.me/573103861480?text=Hola,%20requiero%20información%20sobre%20${encodeURIComponent(item.titulo)}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="w-full h-12 rounded-xl bg-[#25D366] hover:bg-[#128C7E] text-white text-xs font-bold flex items-center justify-center gap-2 shadow-md hover:scale-[1.01] active:scale-95 transition-all cursor-pointer"
+                className="w-full h-12 rounded-xl bg-[#25D366] hover:bg-[#128C7E] text-white text-xs font-medium flex items-center justify-center gap-2 shadow-md hover:scale-[1.01] active:scale-95 transition-all cursor-pointer"
               >
                 <WhatsappIcon size={18} />
                 <span>Consultar disponibilidad</span>
@@ -340,13 +340,13 @@ export default function PortafolioPage() {
       {/* Banner de Asesoría Rápida */}
       <section className="bg-[#0B2656] text-white py-12">
         <div className="max-w-7xl mx-auto px-4 md:px-8 text-center flex flex-col items-center">
-          <h2 className="text-xl sm:text-3xl font-extrabold mb-3">¿Dudas sobre el equipo o servicio indicado?</h2>
+          <h2 className="text-xl sm:text-3xl font-medium tracking-[-0.02em] mb-3">¿Dudas sobre el equipo o servicio indicado?</h2>
           <p className="text-xs sm:text-sm text-blue-100/90 max-w-xl mb-6">Nuestro equipo técnico responde tus preguntas de forma inmediata y coordina la entrega en tu domicilio.</p>
           <a
             href="https://wa.me/573103861480?text=Hola,%20requiero%20asesoría%20sobre%20los%20equipos%20del%20portafolio"
             target="_blank"
             rel="noopener noreferrer"
-            className="h-12 px-8 rounded-full bg-[#25D366] hover:bg-[#128C7E] text-white text-xs font-bold flex items-center gap-2 shadow-xl hover:scale-105 transition-all"
+            className="h-12 px-8 rounded-full bg-[#25D366] hover:bg-[#128C7E] text-white text-xs font-medium flex items-center gap-2 shadow-xl hover:scale-105 transition-all"
           >
             <WhatsappIcon size={18} /> Hablar con un Asesor
           </a>

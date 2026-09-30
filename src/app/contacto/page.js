@@ -59,19 +59,19 @@ export default function ContactoPage() {
   )
 
   return (
-    <div className="min-h-screen bg-white text-slate-800 font-sans selection:bg-blue-600 selection:text-white">
+    <div className="min-h-screen bg-white text-slate-800 font-body selection:bg-blue-600 selection:text-white">
       <Header />
 
       {/* Hero Banner Contacto */}
       <section className="bg-gradient-to-br from-[#0B2656] via-[#0D2E68] to-[#071C40] text-white py-16 lg:py-24">
         <div className="max-w-7xl mx-auto px-4 md:px-8 text-center max-w-3xl">
-          <div className="inline-block px-4 py-1.5 rounded-full bg-blue-500/20 border border-blue-400/30 text-blue-200 text-xs font-bold uppercase tracking-wider mb-4">
+          <div className="inline-block px-4 py-1.5 rounded-full bg-blue-500/20 border border-blue-400/30 text-blue-200 text-xs font-medium uppercase tracking-wider mb-4">
             CANALES DE ATENCIÓN DIRECTA Y ASESORÍA
           </div>
-          <h1 className="text-3xl sm:text-5xl font-black mb-6 tracking-tight">
+          <h1 className="text-3xl sm:text-5xl font-medium tracking-[-0.025em] mb-6">
             Estamos listos para atender tu consulta
           </h1>
-          <p className="text-sm sm:text-base text-blue-100/90 leading-relaxed max-w-2xl mx-auto">
+          <p className="text-sm sm:text-base font-light text-blue-100/90 leading-relaxed max-w-2xl mx-auto">
             Contáctanos de inmediato para alquiler de equipos biomédicos, suministro de oxígeno medicinal o asesoría técnica para la oxigenoterapia en el hogar.
           </p>
         </div>
@@ -84,8 +84,8 @@ export default function ContactoPage() {
           {/* Columna Izquierda: Información de Contacto + Asesoría 24h */}
           <div className="lg:col-span-6 space-y-6">
             <div>
-              <span className="text-xs font-bold text-blue-600 uppercase tracking-widest block mb-1">Atención Inmediata</span>
-              <h2 className="text-3xl font-extrabold text-[#0B2656] tracking-tight">Información de Contacto</h2>
+              <span className="text-xs font-medium text-blue-600 uppercase tracking-widest block mb-1">Atención Inmediata</span>
+              <h2 className="text-3xl font-medium tracking-[-0.02em] text-[#0B2656]">Información de Contacto</h2>
               <div className="w-12 h-1 rounded-full bg-blue-600 mt-2.5 mb-6" />
             </div>
 
@@ -95,9 +95,9 @@ export default function ContactoPage() {
                   <Phone size={20} />
                 </div>
                 <div>
-                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-0.5">Teléfonos Directos</h4>
-                  <p className="text-sm font-bold text-slate-900 leading-snug">310 3636481</p>
-                  <p className="text-sm font-bold text-slate-900 leading-snug">310 3861480</p>
+                  <h4 className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-0.5">Teléfonos Directos</h4>
+                  <p className="text-sm font-medium text-slate-900 leading-snug">310 3636481</p>
+                  <p className="text-sm font-medium text-slate-900 leading-snug">310 3861480</p>
                 </div>
               </div>
 
@@ -106,8 +106,8 @@ export default function ContactoPage() {
                   <Mail size={20} />
                 </div>
                 <div>
-                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-0.5">Correo Electrónico</h4>
-                  <p className="text-xs font-bold text-slate-900 break-all">ingemedicsas@hotmail.com</p>
+                  <h4 className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-0.5">Correo Electrónico</h4>
+                  <p className="text-xs font-medium text-slate-900 break-all">ingemedicsas@hotmail.com</p>
                   <p className="text-[11px] text-slate-500 mt-1">Atención administrativa</p>
                 </div>
               </div>
@@ -117,8 +117,8 @@ export default function ContactoPage() {
                   <MapPin size={20} />
                 </div>
                 <div>
-                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-0.5">Sede Principal</h4>
-                  <p className="text-sm font-bold text-slate-900">Calle 14C # 20-14 Barrio la Popa</p>
+                  <h4 className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-0.5">Sede Principal</h4>
+                  <p className="text-sm font-medium text-slate-900">Calle 14C # 20-14 Barrio la Popa</p>
                   <p className="text-xs text-slate-600 font-medium">Valledupar - Cesar, Colombia</p>
                 </div>
               </div>
@@ -128,9 +128,9 @@ export default function ContactoPage() {
                   <Clock size={20} />
                 </div>
                 <div>
-                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-0.5">Horarios de Atención</h4>
-                  <p className="text-xs font-bold text-slate-900">Lunes a Viernes: 8:00 am - 12:00 pm / 2:00 pm - 6:00 pm</p>
-                  <p className="text-xs font-bold text-slate-900 mt-0.5">Sábados: 8:00 am - 12:00 pm</p>
+                  <h4 className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-0.5">Horarios de Atención</h4>
+                  <p className="text-xs font-medium text-slate-900">Lunes a Viernes: 8:00 am - 12:00 pm / 2:00 pm - 6:00 pm</p>
+                  <p className="text-xs font-medium text-slate-900 mt-0.5">Sábados: 8:00 am - 12:00 pm</p>
                 </div>
               </div>
             </div>
@@ -141,8 +141,8 @@ export default function ContactoPage() {
                 <Headphones size={30} />
               </div>
               <div>
-                <span className="text-[10px] font-bold text-blue-200 uppercase tracking-widest block mb-1">Soporte Continuo</span>
-                <h4 className="text-base font-extrabold text-white">Asesoría Personalizada 24h</h4>
+                <span className="text-[10px] font-medium text-blue-200 uppercase tracking-widest block mb-1">Soporte Continuo</span>
+                <h4 className="text-base font-medium text-white">Asesoría Personalizada 24h</h4>
                 <p className="text-xs text-blue-100/85 mt-1 leading-relaxed">
                   Te orientamos en la selección de concentradores, cilindros de oxígeno y repuestos médicos.
                 </p>
@@ -154,7 +154,7 @@ export default function ContactoPage() {
                 href="https://wa.me/573103861480?text=Hola,%20requiero%20información%20y%20asesoría%20técnica"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="w-full h-12 rounded-2xl bg-[#25D366] hover:bg-[#128C7E] text-white text-xs font-bold flex items-center justify-center gap-2.5 shadow-lg hover:scale-[1.01] active:scale-95 transition-all cursor-pointer"
+                className="w-full h-12 rounded-2xl bg-[#25D366] hover:bg-[#128C7E] text-white text-xs font-medium flex items-center justify-center gap-2.5 shadow-lg hover:scale-[1.01] active:scale-95 transition-all cursor-pointer"
               >
                 <WhatsappIcon size={18} /> Escribir a WhatsApp
               </a>
@@ -168,7 +168,7 @@ export default function ContactoPage() {
                 <MessageSquare size={20} />
               </div>
               <div>
-                <h3 className="text-2xl font-black text-[#0B2656]">Envíanos un Mensaje</h3>
+                <h3 className="text-2xl font-medium tracking-[-0.01em] text-[#0B2656]">Envíanos un Mensaje</h3>
               </div>
             </div>
             <p className="text-xs text-slate-500 mb-6">
@@ -176,14 +176,14 @@ export default function ContactoPage() {
             </p>
 
             {enviado && (
-              <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold mb-6 flex items-center gap-3 shadow-sm">
+              <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-medium mb-6 flex items-center gap-3 shadow-sm">
                 <CheckCircle2 size={20} className="text-emerald-600 flex-shrink-0" />
                 <span>¡Mensaje recibido con éxito! Te contactaremos al número indicado en breve.</span>
               </div>
             )}
 
             {error && (
-              <div role="alert" className="p-4 rounded-2xl bg-red-50 border border-red-200 text-red-800 text-xs font-bold mb-6 shadow-sm">
+              <div role="alert" className="p-4 rounded-2xl bg-red-50 border border-red-200 text-red-800 text-xs font-medium mb-6 shadow-sm">
                 {error}{' '}
                 <a href={waFallback} target="_blank" rel="noopener noreferrer" className="underline">
                   Envíalo por WhatsApp
@@ -203,7 +203,7 @@ export default function ContactoPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1.5">Nombre Completo *</label>
+                <label className="block text-xs font-medium text-slate-700 mb-1.5">Nombre Completo *</label>
                 <input
                   type="text"
                   required
@@ -216,7 +216,7 @@ export default function ContactoPage() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1.5">Teléfono / WhatsApp *</label>
+                  <label className="block text-xs font-medium text-slate-700 mb-1.5">Teléfono / WhatsApp *</label>
                   <input
                     type="tel"
                     required
@@ -228,7 +228,7 @@ export default function ContactoPage() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1.5">Correo Electrónico</label>
+                  <label className="block text-xs font-medium text-slate-700 mb-1.5">Correo Electrónico</label>
                   <input
                     type="email"
                     value={form.correo}
@@ -240,7 +240,7 @@ export default function ContactoPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1.5">Servicio o Equipo de Interés</label>
+                <label className="block text-xs font-medium text-slate-700 mb-1.5">Servicio o Equipo de Interés</label>
                 <select
                   value={form.servicio}
                   onChange={(e) => setForm({ ...form, servicio: e.target.value })}
@@ -256,7 +256,7 @@ export default function ContactoPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1.5">Mensaje o Detalle del Requerimiento *</label>
+                <label className="block text-xs font-medium text-slate-700 mb-1.5">Mensaje o Detalle del Requerimiento *</label>
                 <textarea
                   rows={4}
                   required
@@ -270,7 +270,7 @@ export default function ContactoPage() {
               <button
                 type="submit"
                 disabled={enviando}
-                className="w-full h-12 rounded-xl bg-[#0A2656] hover:bg-[#0A2656] text-white text-xs font-bold flex items-center justify-center gap-2 shadow-lg hover:scale-[1.01] active:scale-95 transition-all cursor-pointer disabled:opacity-70 disabled:cursor-wait disabled:hover:scale-100"
+                className="w-full h-12 rounded-xl bg-[#0A2656] hover:bg-[#0A2656] text-white text-xs font-medium flex items-center justify-center gap-2 shadow-lg hover:scale-[1.01] active:scale-95 transition-all cursor-pointer disabled:opacity-70 disabled:cursor-wait disabled:hover:scale-100"
               >
                 {enviando
                   ? <><Loader2 size={16} className="animate-spin" /> Enviando…</>

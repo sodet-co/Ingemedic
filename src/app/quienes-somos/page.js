@@ -9,19 +9,19 @@ import {
 
 export default function QuienesSomosPage() {
   return (
-    <div className="min-h-screen bg-white text-slate-800 font-sans selection:bg-blue-600 selection:text-white">
+    <div className="min-h-screen bg-white text-slate-800 font-body selection:bg-blue-600 selection:text-white">
       <Header />
 
       {/* Hero Banner Quiénes Somos */}
       <section className="bg-gradient-to-br from-[#0B2656] via-[#0D2E68] to-[#071C40] text-white py-16 lg:py-24">
         <div className="max-w-7xl mx-auto px-4 md:px-8 text-center max-w-3xl">
-          <div className="inline-block px-4 py-1.5 rounded-full bg-blue-500/20 border border-blue-400/30 text-blue-200 text-xs font-bold uppercase tracking-wider mb-4">
+          <div className="inline-block px-4 py-1.5 rounded-full bg-blue-500/20 border border-blue-400/30 text-blue-200 text-xs font-medium uppercase tracking-wider mb-4">
             INGEMEDIC DE COLOMBIA S.A.S.
           </div>
-          <h1 className="text-3xl sm:text-5xl font-black mb-6 tracking-tight">
+          <h1 className="text-3xl sm:text-5xl font-medium tracking-[-0.025em] mb-6">
             Más de 13 años cuidando la salud de la región del Cesar
           </h1>
-          <p className="text-sm sm:text-base text-blue-100/90 leading-relaxed">
+          <p className="text-sm sm:text-base font-light text-blue-100/90 leading-relaxed">
             Somos una empresa colombiana especializada en la producción de oxígeno medicinal con certificación INVIMA y la comercialización de equipos biomédicos.
           </p>
         </div>
@@ -31,13 +31,13 @@ export default function QuienesSomosPage() {
       <section className="max-w-7xl mx-auto px-4 md:px-8 py-20">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
           <div>
-            <span className="text-xs font-bold text-blue-600 uppercase tracking-widest">Nuestra Historia</span>
-            <h2 className="text-3xl font-extrabold text-[#0B2656] mt-2 mb-4">
+            <span className="text-xs font-medium text-blue-600 uppercase tracking-widest">Nuestra Historia</span>
+            <h2 className="text-3xl font-medium tracking-[-0.02em] text-[#0B2656] mt-2 mb-4">
               Compromiso, Calidad y Humanización en la Salud
             </h2>
             <div className="w-14 h-1 rounded-full bg-blue-600 mb-6" />
             <p className="text-sm text-slate-600 leading-relaxed mb-4 text-justify">
-              <strong>INGEMEDIC DE COLOMBIA S.A.S.</strong> nació con la misión de proporcionar soluciones integrales de oxigenoterapia y tecnología biomédica para pacientes en hospitalización domiciliaria.
+              <strong className="font-medium">INGEMEDIC DE COLOMBIA S.A.S.</strong> nació con la misión de proporcionar soluciones integrales de oxigenoterapia y tecnología biomédica para pacientes en hospitalización domiciliaria.
             </p>
             <p className="text-sm text-slate-600 leading-relaxed mb-6 text-justify">
               Con sede principal en Valledupar, cubrimos las necesidades respiratorias de más de 20,000 pacientes con un equipo técnico capacitado y una flota capacitada para el transporte seguro de gases medicinales.
@@ -45,11 +45,11 @@ export default function QuienesSomosPage() {
 
             <div className="grid grid-cols-2 gap-4 pt-4 border-t border-slate-200">
               <div className="flex flex-col">
-                <span className="text-3xl font-black text-[#0B2656]">+ 20.000</span>
+                <span className="text-3xl font-medium tracking-[-0.02em] text-[#0B2656]">+ 20.000</span>
                 <span className="text-xs text-slate-500 font-medium mt-0.5">Pacientes atendidos</span>
               </div>
               <div className="flex flex-col">
-                <span className="text-3xl font-black text-[#0B2656]">+ 13 Años</span>
+                <span className="text-3xl font-medium tracking-[-0.02em] text-[#0B2656]">+ 13 Años</span>
                 <span className="text-xs text-slate-500 font-medium mt-0.5">De experiencia en el sector</span>
               </div>
             </div>
@@ -73,7 +73,7 @@ export default function QuienesSomosPage() {
             <div className="w-16 h-16 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center mb-4">
               <Target size={28} />
             </div>
-            <h3 className="text-xl font-extrabold text-[#0B2656] mb-3 uppercase">MISIÓN</h3>
+            <h3 className="text-xl font-medium tracking-[-0.01em] text-[#0B2656] mb-3 uppercase">MISIÓN</h3>
             <p className="text-xs sm:text-sm text-slate-600 leading-relaxed text-justify">
               Somos una empresa especializada en el suministro y comercialización de oxígeno medicinal y en el alquiler, mantenimiento y calibración de equipos Biomédicos para la hospitalización domiciliaria, enfocada en mejorar la calidad de vida de las personas en el departamento del Cesar.
             </p>
@@ -83,7 +83,7 @@ export default function QuienesSomosPage() {
             <div className="w-16 h-16 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center mb-4">
               <Eye size={28} />
             </div>
-            <h3 className="text-xl font-extrabold text-[#0B2656] mb-3 uppercase">VISIÓN</h3>
+            <h3 className="text-xl font-medium tracking-[-0.01em] text-[#0B2656] mb-3 uppercase">VISIÓN</h3>
             <p className="text-xs sm:text-sm text-slate-600 leading-relaxed text-justify">
               Para el año 2027 Ingemedic planea ser la empresa líder en el departamento del Cesar en el suministro y comercialización de oxígeno medicinal y equipos biomédicos para la hospitalización domiciliaria.
             </p>
@@ -94,7 +94,7 @@ export default function QuienesSomosPage() {
       {/* ── SECCIÓN ¿POR QUÉ ELEGIRNOS? ── */}
       <section className="max-w-7xl mx-auto px-8 md:px-8 py-20">
         <div className="mb-10 text-left max-w-4xl">
-          <h2 className="text-3xl sm:text-4xl font-extrabold text-[#0B2656] uppercase tracking-tight mb-4">
+          <h2 className="text-3xl sm:text-4xl font-medium tracking-[-0.02em] text-[#0B2656] uppercase mb-4">
             ¿Por qué elegirnos?
           </h2>
           <p className="text-sm sm:text-base text-slate-600 leading-relaxed">
@@ -108,7 +108,7 @@ export default function QuienesSomosPage() {
             <div className="w-14 h-14 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center mb-6 shadow-inner">
               <ShieldCheck size={26} />
             </div>
-            <h3 className="text-lg font-bold text-[#0B2656] mb-3">
+            <h3 className="text-lg font-medium tracking-[-0.01em] text-[#0B2656] mb-3">
               Registro sanitario vigente ante el INVIMA
             </h3>
             <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
@@ -121,7 +121,7 @@ export default function QuienesSomosPage() {
             <div className="w-14 h-14 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center mb-6 shadow-inner">
               <Clock size={26} />
             </div>
-            <h3 className="text-lg font-bold text-[#0B2656] mb-3">
+            <h3 className="text-lg font-medium tracking-[-0.01em] text-[#0B2656] mb-3">
               Disponibilidad las 24 horas al día
             </h3>
             <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
@@ -134,7 +134,7 @@ export default function QuienesSomosPage() {
             <div className="w-14 h-14 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center mb-6 shadow-inner">
               <Users size={26} />
             </div>
-            <h3 className="text-lg font-bold text-[#0B2656] mb-3">
+            <h3 className="text-lg font-medium tracking-[-0.01em] text-[#0B2656] mb-3">
               Equipo técnico especializado
             </h3>
             <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
@@ -148,12 +148,12 @@ export default function QuienesSomosPage() {
       <section className="bg-[#F8FAFC] py-20 border-y border-slate-200/80 overflow-hidden">
         <div className="max-w-7xl mx-auto px-4 md:px-8">
           <div className="mb-14 text-left max-w-4xl">
-            <h2 className="text-3xl sm:text-4xl font-extrabold text-[#1D4ED8] tracking-tight mb-2 uppercase">
+            <h2 className="text-3xl sm:text-4xl font-medium tracking-[-0.02em] text-[#1D4ED8] mb-2 uppercase">
               ¿CÓMO FUNCIONA?
             </h2>
             <div className="w-20 h-1.5 rounded-full bg-[#1D4ED8] mb-5" />
             <p className="text-sm sm:text-base text-slate-600 leading-relaxed">
-              En <span className="font-semibold text-slate-800">Ingemedic de Colombia S.A.S.</span> acompañamos al paciente y su familia desde el primer contacto hasta la entrega y seguimiento del servicio. Nuestro proceso es <strong className="text-[#1D4ED8] font-extrabold">simple, ágil y seguro</strong>.
+              En <span className="font-medium text-slate-800">Ingemedic de Colombia S.A.S.</span> acompañamos al paciente y su familia desde el primer contacto hasta la entrega y seguimiento del servicio. Nuestro proceso es <strong className="text-[#1D4ED8] font-semibold">simple, ágil y seguro</strong>.
             </p>
           </div>
 
@@ -173,7 +173,7 @@ export default function QuienesSomosPage() {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-y-10 lg:gap-y-12 gap-x-12 lg:gap-x-16 items-start">
               {/* STEP 01 - Left */}
               <div className="relative group">
-                <div className="absolute -top-4 -right-3 lg:-right-5 w-12 h-12 rounded-full bg-[#1D4ED8] text-white font-black text-lg flex items-center justify-center shadow-lg border-2 border-white z-20 group-hover:scale-110 transition-transform">
+                <div className="absolute -top-4 -right-3 lg:-right-5 w-12 h-12 rounded-full bg-[#1D4ED8] text-white font-medium text-lg flex items-center justify-center shadow-lg border-2 border-white z-20 group-hover:scale-110 transition-transform">
                   01
                 </div>
                 <div className="bg-white rounded-[22px] border border-blue-200/90 p-6 sm:p-7 shadow-[0_4px_20px_rgba(29,78,216,0.06)] hover:shadow-xl hover:border-blue-400 transition-all duration-300 flex flex-col sm:flex-row items-start sm:items-center gap-5">
@@ -181,7 +181,7 @@ export default function QuienesSomosPage() {
                     <Headphones size={32} />
                   </div>
                   <div className="flex-1">
-                    <h3 className="text-lg font-bold text-[#0B2656] mb-2 leading-snug">
+                    <h3 className="text-lg font-medium tracking-[-0.01em] text-[#0B2656] mb-2 leading-snug">
                       Contacto Inicial y Asesoría Personalizada
                     </h3>
                     <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
@@ -193,7 +193,7 @@ export default function QuienesSomosPage() {
 
               {/* STEP 02 - Right */}
               <div className="relative group lg:mt-24">
-                <div className="absolute -top-4 -left-3 lg:-left-5 w-12 h-12 rounded-full bg-[#1D4ED8] text-white font-black text-lg flex items-center justify-center shadow-lg border-2 border-white z-20 group-hover:scale-110 transition-transform">
+                <div className="absolute -top-4 -left-3 lg:-left-5 w-12 h-12 rounded-full bg-[#1D4ED8] text-white font-medium text-lg flex items-center justify-center shadow-lg border-2 border-white z-20 group-hover:scale-110 transition-transform">
                   02
                 </div>
                 <div className="bg-white rounded-[22px] border border-blue-200/90 p-6 sm:p-7 shadow-[0_4px_20px_rgba(29,78,216,0.06)] hover:shadow-xl hover:border-blue-400 transition-all duration-300 flex flex-col sm:flex-row items-start sm:items-center gap-5">
@@ -201,7 +201,7 @@ export default function QuienesSomosPage() {
                     <ClipboardCheck size={32} />
                   </div>
                   <div className="flex-1">
-                    <h3 className="text-lg font-bold text-[#0B2656] mb-2 leading-snug">
+                    <h3 className="text-lg font-medium tracking-[-0.01em] text-[#0B2656] mb-2 leading-snug">
                       Evaluación y Verificación de Requisitos
                     </h3>
                     <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
@@ -213,7 +213,7 @@ export default function QuienesSomosPage() {
 
               {/* STEP 03 - Left */}
               <div className="relative group">
-                <div className="absolute -top-4 -right-3 lg:-right-5 w-12 h-12 rounded-full bg-[#1D4ED8] text-white font-black text-lg flex items-center justify-center shadow-lg border-2 border-white z-20 group-hover:scale-110 transition-transform">
+                <div className="absolute -top-4 -right-3 lg:-right-5 w-12 h-12 rounded-full bg-[#1D4ED8] text-white font-medium text-lg flex items-center justify-center shadow-lg border-2 border-white z-20 group-hover:scale-110 transition-transform">
                   03
                 </div>
                 <div className="bg-white rounded-[22px] border border-blue-200/90 p-6 sm:p-7 shadow-[0_4px_20px_rgba(29,78,216,0.06)] hover:shadow-xl hover:border-blue-400 transition-all duration-300 flex flex-col sm:flex-row items-start sm:items-center gap-5">
@@ -221,7 +221,7 @@ export default function QuienesSomosPage() {
                     <FileText size={32} />
                   </div>
                   <div className="flex-1">
-                    <h3 className="text-lg font-bold text-[#0B2656] mb-2 leading-snug">
+                    <h3 className="text-lg font-medium tracking-[-0.01em] text-[#0B2656] mb-2 leading-snug">
                       Cotización y Acuerdo del Servicio
                     </h3>
                     <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
@@ -233,7 +233,7 @@ export default function QuienesSomosPage() {
 
               {/* STEP 04 - Right */}
               <div className="relative group lg:mt-24">
-                <div className="absolute -top-4 -left-3 lg:-left-5 w-12 h-12 rounded-full bg-[#1D4ED8] text-white font-black text-lg flex items-center justify-center shadow-lg border-2 border-white z-20 group-hover:scale-110 transition-transform">
+                <div className="absolute -top-4 -left-3 lg:-left-5 w-12 h-12 rounded-full bg-[#1D4ED8] text-white font-medium text-lg flex items-center justify-center shadow-lg border-2 border-white z-20 group-hover:scale-110 transition-transform">
                   04
                 </div>
                 <div className="bg-white rounded-[22px] border border-blue-200/90 p-6 sm:p-7 shadow-[0_4px_20px_rgba(29,78,216,0.06)] hover:shadow-xl hover:border-blue-400 transition-all duration-300 flex flex-col sm:flex-row items-start sm:items-center gap-5">
@@ -241,7 +241,7 @@ export default function QuienesSomosPage() {
                     <Truck size={32} />
                   </div>
                   <div className="flex-1">
-                    <h3 className="text-lg font-bold text-[#0B2656] mb-2 leading-snug">
+                    <h3 className="text-lg font-medium tracking-[-0.01em] text-[#0B2656] mb-2 leading-snug">
                       Instalación y Entrega
                     </h3>
                     <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
@@ -253,7 +253,7 @@ export default function QuienesSomosPage() {
 
               {/* STEP 05 - Left */}
               <div className="relative group">
-                <div className="absolute -top-4 -right-3 lg:-right-5 w-12 h-12 rounded-full bg-[#1D4ED8] text-white font-black text-lg flex items-center justify-center shadow-lg border-2 border-white z-20 group-hover:scale-110 transition-transform">
+                <div className="absolute -top-4 -right-3 lg:-right-5 w-12 h-12 rounded-full bg-[#1D4ED8] text-white font-medium text-lg flex items-center justify-center shadow-lg border-2 border-white z-20 group-hover:scale-110 transition-transform">
                   05
                 </div>
                 <div className="bg-white rounded-[22px] border border-blue-200/90 p-6 sm:p-7 shadow-[0_4px_20px_rgba(29,78,216,0.06)] hover:shadow-xl hover:border-blue-400 transition-all duration-300 flex flex-col sm:flex-row items-start sm:items-center gap-5">
@@ -261,7 +261,7 @@ export default function QuienesSomosPage() {
                     <GraduationCap size={32} />
                   </div>
                   <div className="flex-1">
-                    <h3 className="text-lg font-bold text-[#0B2656] mb-2 leading-snug">
+                    <h3 className="text-lg font-medium tracking-[-0.01em] text-[#0B2656] mb-2 leading-snug">
                       Capacitación al Paciente y su Familia
                     </h3>
                     <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
@@ -273,16 +273,16 @@ export default function QuienesSomosPage() {
 
               {/* STEP 06 - Right */}
               <div className="relative group lg:mt-24">
-                <div className="absolute -top-4 -left-3 lg:-left-5 w-12 h-12 rounded-full bg-[#1D4ED8] text-white font-black text-lg flex items-center justify-center shadow-lg border-2 border-white z-20 group-hover:scale-110 transition-transform">
+                <div className="absolute -top-4 -left-3 lg:-left-5 w-12 h-12 rounded-full bg-[#1D4ED8] text-white font-medium text-lg flex items-center justify-center shadow-lg border-2 border-white z-20 group-hover:scale-110 transition-transform">
                   06
                 </div>
                 <div className="bg-white rounded-[22px] border border-blue-200/90 p-6 sm:p-7 shadow-[0_4px_20px_rgba(29,78,216,0.06)] hover:shadow-xl hover:border-blue-400 transition-all duration-300 flex flex-col sm:flex-row items-start sm:items-center gap-5">
                   <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-blue-50/80 border border-blue-100 flex items-center justify-center flex-shrink-0 text-[#1D4ED8] relative">
                     <Clock size={32} />
-                    <span className="absolute bottom-1 right-1 text-[9px] font-black bg-[#1D4ED8] text-white px-1 rounded">24h</span>
+                    <span className="absolute bottom-1 right-1 text-[9px] font-semibold bg-[#1D4ED8] text-white px-1 rounded">24h</span>
                   </div>
                   <div className="flex-1">
-                    <h3 className="text-lg font-bold text-[#0B2656] mb-2 leading-snug">
+                    <h3 className="text-lg font-medium tracking-[-0.01em] text-[#0B2656] mb-2 leading-snug">
                       Seguimiento y Soporte Continuo
                     </h3>
                     <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
@@ -300,10 +300,10 @@ export default function QuienesSomosPage() {
       <section className="max-w-7xl mx-auto px-4 md:px-8 py-20">
         <div className="bg-slate-950 text-white rounded-3xl p-8 lg:p-12 relative overflow-hidden grid grid-cols-1 lg:grid-cols-12 gap-8 items-center shadow-2xl">
           <div className="lg:col-span-7">
-            <div className="inline-block px-4 py-1 rounded-full bg-blue-500/20 text-blue-300 text-xs font-bold uppercase tracking-wider mb-4 border border-blue-400/30">
+            <div className="inline-block px-4 py-1 rounded-full bg-blue-500/20 text-blue-300 text-xs font-medium uppercase tracking-wider mb-4 border border-blue-400/30">
               GARANTÍA SANITARIA
             </div>
-            <h2 className="text-3xl font-black text-white mb-3">
+            <h2 className="text-3xl font-medium tracking-[-0.02em] text-white mb-3">
               Certificación Oficial <span className="text-blue-400">INVIMA</span>
             </h2>
             <p className="text-sm text-slate-300 leading-relaxed mb-6">
@@ -312,22 +312,22 @@ export default function QuienesSomosPage() {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 border-t border-white/15 pt-6">
               <div className="flex items-center gap-3">
                 <ShieldCheck size={24} className="text-blue-400 flex-shrink-0" />
-                <span className="text-xs font-semibold">Pureza certificada</span>
+                <span className="text-xs font-medium">Pureza certificada</span>
               </div>
               <div className="flex items-center gap-3">
                 <FlaskConical size={24} className="text-blue-400 flex-shrink-0" />
-                <span className="text-xs font-semibold">Control de calidad</span>
+                <span className="text-xs font-medium">Control de calidad</span>
               </div>
               <div className="flex items-center gap-3">
                 <FileText size={24} className="text-blue-400 flex-shrink-0" />
-                <span className="text-xs font-semibold">Normativa legal</span>
+                <span className="text-xs font-medium">Normativa legal</span>
               </div>
             </div>
           </div>
 
           <div className="lg:col-span-5 flex justify-center">
             <div className="bg-white/5 border border-white/15 rounded-2xl p-6 lg:p-8 max-w-[340px] backdrop-blur-sm">
-              <h3 className="text-lg font-bold text-white mb-2 leading-snug">
+              <h3 className="text-lg font-medium tracking-[-0.01em] text-white mb-2 leading-snug">
                 Certificados en Buenas Prácticas de Manufactura — INVIMA
               </h3>
               <p className="text-sm text-slate-300 mb-5">
@@ -337,7 +337,7 @@ export default function QuienesSomosPage() {
                 href="https://www.invima.gov.co/establecimiento/2345g-ingemedic-de-colombia-sas"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 px-6 py-2.5 rounded-full text-xs font-bold text-white bg-blue-600 hover:bg-blue-500 transition-all shadow-md"
+                className="inline-flex items-center gap-2 px-6 py-2.5 rounded-full text-xs font-medium text-white bg-blue-600 hover:bg-blue-500 transition-all shadow-md"
               >
                 Verificar certificación en INVIMA →
               </a>

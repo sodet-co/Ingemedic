@@ -18,7 +18,7 @@ export default function Footer() {
           {/* Identidad — texto, no la imagen del logo: trae varios colores propios
               y no existe una versión clara/blanca del archivo para este fondo oscuro. */}
           <div>
-            <div className="font-display text-[19px] font-semibold text-white mb-4 tracking-tight">
+            <div className="font-display text-[19px] font-semibold text-white mb-4 tracking-[-0.02em]">
               Ingemedic de Colombia
             </div>
             <p className="text-[14px] leading-relaxed max-w-[34ch]">
@@ -28,7 +28,7 @@ export default function Footer() {
 
           {/* Enlaces rápidos */}
           <div>
-            <h4 className="font-display text-[15px] font-semibold text-white mb-4">Enlaces rápidos</h4>
+            <h4 className="font-display text-[15px] font-medium text-white mb-4">Enlaces rápidos</h4>
             <ul className="space-y-2.5 text-[14px]">
               <li><Link href="/" className="hover:text-white transition-colors">Inicio</Link></li>
               <li><Link href="/quienes-somos" className="hover:text-white transition-colors">Nosotros</Link></li>
@@ -39,7 +39,7 @@ export default function Footer() {
 
           {/* Servicios */}
           <div>
-            <h4 className="font-display text-[15px] font-semibold text-white mb-4">Nuestros servicios</h4>
+            <h4 className="font-display text-[15px] font-medium text-white mb-4">Nuestros servicios</h4>
             <ul className="space-y-2.5 text-[14px]">
               <li><Link href="/portafolio" className="hover:text-white transition-colors">Alquiler de equipos</Link></li>
               <li><Link href="/portafolio" className="hover:text-white transition-colors">Oxígeno domiciliario</Link></li>
@@ -48,12 +48,12 @@ export default function Footer() {
 
           {/* Contacto */}
           <div>
-            <h4 className="font-display text-[15px] font-semibold text-white mb-4">Contáctanos</h4>
+            <h4 className="font-display text-[15px] font-medium text-white mb-4">Contáctanos</h4>
             <a
               href="https://wa.me/573103861480?text=Hola,%20requiero%20información%20y%20asesoría%20técnica"
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 bg-[#128C7E] hover:bg-[#0f7566] transition-colors text-white px-4.5 py-2.5 rounded-md text-[14px] font-semibold mb-4"
+              className="inline-flex items-center gap-2 bg-[#128C7E] hover:bg-[#0f7566] transition-colors text-white px-4.5 py-2.5 rounded-md text-[14px] font-medium mb-4"
             >
               <WhatsappIcon size={16} /> Escríbenos por WhatsApp
             </a>
@@ -78,6 +78,13 @@ export default function Footer() {
             (fixed, bottom-5 right-5) no tape el copyright al hacer scroll al fondo. */}
         <div className="border-t border-white/10 pt-5 pb-20 md:pb-5 text-[13px] text-center">
           © {new Date().getFullYear()} Ingemedic de Colombia S.A.S. · Todos los derechos reservados
+          <span className="block md:inline md:before:content-['·'] md:before:mx-2 mt-1.5 md:mt-0">
+            Desarrollado por{' '}
+            <a href="https://sodet.vercel.app" target="_blank" rel="noopener noreferrer"
+              className="font-medium text-white hover:text-[#1E9FC4] transition-colors">
+              SODET
+            </a>
+          </span>
         </div>
       </div>
     </footer>
