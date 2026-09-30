@@ -76,7 +76,7 @@ export default function Header() {
           <div className="hidden md:flex items-center gap-3 ml-auto">
             <Link href={URL_PORTAL}
               className="font-body inline-flex items-center text-[13.5px] font-medium text-[#0E2A4D] border border-[#0E2A4D] hover:bg-[#0E2A4D] hover:text-white px-4 py-2.5 rounded-md transition-colors">
-              Acceso del personal
+              Acceso al portal
             </Link>
             <Link href="/contacto"
               className="font-body inline-flex items-center text-[14.5px] font-medium text-white bg-[#C8102E] hover:bg-[#a80d26] px-5 py-2.5 rounded-md transition-colors">
