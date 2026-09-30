@@ -856,7 +856,7 @@ export default function InventarioClient({ categorias: catsIniciales, tipos: tip
               <div className="col-span-full text-center py-16 text-slate-400">
                 <Package className="w-16 h-16 mx-auto mb-3 opacity-20" />
                 <div className="font-semibold mb-1">Sin categorías configuradas</div>
-                <div className="text-[13px]">Ve a <a href="/admin/configuracion" className="text-[#D81B43] hover:underline">Configuración → Categorías</a></div>
+                <div className="text-[13px]">Ve a <a href="/configuracion" className="text-[#D81B43] hover:underline">Configuración → Categorías</a></div>
               </div>
             )}
             {categorias.length > 0 && categoriasFiltradas.length === 0 && (
@@ -1496,7 +1496,7 @@ export default function InventarioClient({ categorias: catsIniciales, tipos: tip
                 {camposTipo.length === 0 ? (
                   <div className="text-center py-8 text-slate-400">
                     <div className="text-[13px]">Esta categoría no tiene columnas del tipo configuradas.</div>
-                    <a href="/admin/configuracion" className="text-[#D81B43] text-[13px] hover:underline mt-1 block">Ir a Configuración →</a>
+                    <a href="/configuracion" className="text-[#D81B43] text-[13px] hover:underline mt-1 block">Ir a Configuración →</a>
                   </div>
                 ) : (
                   <>

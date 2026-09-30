@@ -64,6 +64,14 @@ Todas las pages llevan `export const dynamic = 'force-dynamic'` y
 Cliente Supabase: `@/lib/supabase` (browser) y `@/lib/supabase-server`
 (server, async, cookies).
 
+**Dos dominios, un solo proyecto.** El sitio público vive en
+`www.ingemedic.com.co`; el panel, en `portal.ingemedic.com.co` con rutas
+limpias (`/login`, `/dashboard`…). Los archivos del panel están en
+`src/app/(portal)/` (el grupo no aparece en la URL) y el middleware separa por
+dominio. En `localhost` se ve todo junto; `portal.localhost:3000` simula el
+portal. **Al agregar un módulo al panel, sumarlo a `RUTAS_PORTAL` en
+`src/lib/sitio.js`**, o el middleware lo tratará como página pública.
+
 ---
 
 ## Convenciones

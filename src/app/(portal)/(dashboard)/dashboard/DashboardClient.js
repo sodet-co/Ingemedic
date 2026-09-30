@@ -350,7 +350,7 @@ export default function DashboardClient({
                 <div className="px-5 py-5 text-center">
                   <div className="text-3xl font-extrabold text-[#D81B43] mb-1">{conNovedad}</div>
                   <div className="text-[12.5px] text-slate-500">equipo{conNovedad !== 1 ? 's' : ''} requieren atención</div>
-                  <button onClick={() => router.push('/admin/inventario')}
+                  <button onClick={() => router.push('/inventario')}
                     className="mt-3 text-[12px] text-[#D81B43] font-semibold hover:underline">
                     Ver en inventario →
                   </button>
@@ -375,7 +375,7 @@ export default function DashboardClient({
               {actividadReciente.map((o, i) => {
                 const s = ESTADO_OS_STYLES[o.estado?.nombre] || ESTADO_OS_STYLES['Borrador']
                 return (
-                  <div key={o.id} onClick={() => router.push('/admin/ordenes')}
+                  <div key={o.id} onClick={() => router.push('/ordenes')}
                     className="flex items-start gap-4 px-5 py-3.5 hover:bg-slate-50 cursor-pointer transition-colors">
                     <div className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 z-10 mt-0.5"
                       style={{ background: s.bg }}>

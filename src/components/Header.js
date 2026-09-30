@@ -3,11 +3,16 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { Menu, X } from 'lucide-react'
+import { PORTAL_URL } from '@/lib/sitio'
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
 const LOGO_URL = SUPABASE_URL
   ? `${SUPABASE_URL}/storage/v1/object/public/logos/logo-ingemedic.png`
   : '/images/logo.png'
+
+// El panel está en portal.ingemedic.com.co. En local no hay subdominio: el
+// login se sirve en el mismo localhost.
+const URL_PORTAL = process.env.NODE_ENV === 'development' ? '/login' : PORTAL_URL
 
 function WhatsappIcon({ size = 18, className = '' }) {
   return (
@@ -69,7 +74,7 @@ export default function Header() {
           </nav>
 
           <div className="hidden md:flex items-center gap-3 ml-auto">
-            <Link href="/admin/login"
+            <Link href={URL_PORTAL}
               className="font-body inline-flex items-center text-[13.5px] font-medium text-[#0E2A4D] border border-[#0E2A4D] hover:bg-[#0E2A4D] hover:text-white px-4 py-2.5 rounded-md transition-colors">
               Acceso del personal
             </Link>
@@ -106,7 +111,7 @@ export default function Header() {
               className="font-body w-full inline-flex items-center justify-center text-[14.5px] font-medium text-white bg-[#C8102E] px-5 py-3 rounded-md">
               Solicitar cotización
             </Link>
-            <Link href="/admin/login" onClick={() => setMenuAbierto(false)}
+            <Link href={URL_PORTAL} onClick={() => setMenuAbierto(false)}
               className="font-body w-full inline-flex items-center justify-center text-[14px] font-medium text-[#0E2A4D] border border-[#0E2A4D] px-5 py-3 rounded-md">
               Acceso del personal
             </Link>

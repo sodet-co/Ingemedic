@@ -11,7 +11,7 @@ export const PASOS_TOUR = [
   // ── BLOQUE 1: CONFIGURACIÓN ──────────────────────────────
   {
     id: 'bienvenida',
-    ruta: '/admin/configuracion',
+    ruta: '/configuracion',
     elemento: null,
     titulo: '👋 Bienvenido a Ingemedic',
     descripcion: 'Este tour te guiará por todas las funcionalidades del sistema. Puedes pausarlo en cualquier momento y retomarlo desde Configuración → Tour del sistema.',
@@ -19,7 +19,7 @@ export const PASOS_TOUR = [
   },
   {
     id: 'empresa',
-    ruta: '/admin/configuracion',
+    ruta: '/configuracion',
     elemento: '[data-tour="nav-empresa"]',
     titulo: '🏢 Paso 1: Datos de la empresa',
     descripcion: 'Completa los datos de Ingemedic de Colombia. Esta información aparecerá en todos los documentos y actas generadas.',
@@ -28,7 +28,7 @@ export const PASOS_TOUR = [
   },
   {
     id: 'categorias',
-    ruta: '/admin/configuracion',
+    ruta: '/configuracion',
     elemento: '[data-tour="nav-categorias"]',
     titulo: '📂 Paso 2: Categorías de equipo',
     descripcion: 'Las categorías agrupan los equipos por tipo (ej. Oxigenoterapia, Ventilación). Cada categoría define qué información se registra para sus equipos.',
@@ -37,7 +37,7 @@ export const PASOS_TOUR = [
   },
   {
     id: 'tipos',
-    ruta: '/admin/configuracion',
+    ruta: '/configuracion',
     elemento: '[data-tour="nav-tipos"]',
     titulo: '⚙️ Paso 3: Tipos de equipo',
     descripcion: 'Dentro de cada categoría crea los modelos de equipo (ej. Concentrador EverFlo). Cada tipo puede tener una imagen y datos específicos del modelo.',
@@ -46,7 +46,7 @@ export const PASOS_TOUR = [
   },
   {
     id: 'listas',
-    ruta: '/admin/configuracion',
+    ruta: '/configuracion',
     elemento: '[data-tour="nav-listas"]',
     titulo: '📋 Paso 4: Listas de mantenimiento',
     descripcion: 'Crea listas de actividades para los mantenimientos preventivos. Al abrir un mantenimiento podrás seleccionar una lista y el sistema generará el checklist automáticamente.',
@@ -55,7 +55,7 @@ export const PASOS_TOUR = [
   },
   {
     id: 'usuarios',
-    ruta: '/admin/configuracion',
+    ruta: '/configuracion',
     elemento: '[data-tour="nav-usuarios"]',
     titulo: '👥 Paso 5: Usuarios del sistema',
     descripcion: 'Registra a tu equipo de trabajo: administradores, repartidores y técnicos. Cada repartidor aparecerá disponible para asignar en las órdenes de servicio.',
@@ -66,7 +66,7 @@ export const PASOS_TOUR = [
   // ── BLOQUE 2: INVENTARIO ─────────────────────────────────
   {
     id: 'inventario-intro',
-    ruta: '/admin/inventario',
+    ruta: '/inventario',
     elemento: '[data-tour="inventario-categorias"]',
     titulo: '📦 Bloque 2: Inventario',
     descripcion: 'El inventario está organizado en 3 niveles: Categorías → Tipos → Unidades. Haz clic en una categoría para ver sus tipos de equipo.',
@@ -74,7 +74,7 @@ export const PASOS_TOUR = [
   },
   {
     id: 'nueva-unidad',
-    ruta: '/admin/inventario',
+    ruta: '/inventario',
     elemento: '[data-tour="btn-nueva-unidad"]',
     titulo: '➕ Registrar un equipo',
     descripcion: 'Desde la vista de unidades de un tipo, usa este botón para registrar cada equipo físico con su serial y código interno. El estado inicial es "Disponible".',
@@ -84,7 +84,7 @@ export const PASOS_TOUR = [
   // ── BLOQUE 3: ÓRDENES ────────────────────────────────────
   {
     id: 'ordenes-intro',
-    ruta: '/admin/ordenes',
+    ruta: '/ordenes',
     elemento: '[data-tour="btn-nueva-orden"]',
     titulo: '📋 Bloque 3: Órdenes de servicio',
     descripcion: 'Una orden de servicio registra un préstamo de equipo a un cliente. Usa este botón para crear una nueva orden con el wizard de 4 pasos.',
@@ -92,7 +92,7 @@ export const PASOS_TOUR = [
   },
   {
     id: 'ordenes-flujo',
-    ruta: '/admin/ordenes',
+    ruta: '/ordenes',
     elemento: '[data-tour="tabla-ordenes"]',
     titulo: '🔄 Flujo de la orden',
     descripcion: 'Una orden pasa por estos estados:\n• Borrador → sin repartidor o fecha\n• Programada → aparece en Entregas\n• En reparto → repartidor la inició\n• Entregada → cliente la recibió\n• Finalizada → equipo devuelto',
@@ -102,7 +102,7 @@ export const PASOS_TOUR = [
   // ── BLOQUE 4: ENTREGAS ───────────────────────────────────
   {
     id: 'entregas-intro',
-    ruta: '/admin/entregas',
+    ruta: '/entregas',
     elemento: '[data-tour="entregas-lista"]',
     titulo: '🚚 Bloque 4: Entregas',
     descripcion: 'Aquí aparecen las órdenes programadas listas para salir. El repartidor ve sus asignaciones, inicia la entrega y registra la firma del cliente al entregar.',
@@ -110,7 +110,7 @@ export const PASOS_TOUR = [
   },
   {
     id: 'entregas-iniciar',
-    ruta: '/admin/entregas',
+    ruta: '/entregas',
     elemento: '[data-tour="entregas-lista"]',
     titulo: '▶️ Iniciar una entrega',
     descripcion: 'Al hacer clic en "Ver y empezar" se abre un modal con los detalles completos: cliente, equipos y documentos a firmar. Al confirmar, la orden pasa a "En reparto".',
@@ -118,7 +118,7 @@ export const PASOS_TOUR = [
   },
   {
     id: 'entregas-completar',
-    ruta: '/admin/entregas',
+    ruta: '/entregas',
     elemento: '[data-tour="entregas-lista"]',
     titulo: '✅ Completar con firma',
     descripcion: 'Al entregar el equipo, el repartidor registra el nombre del receptor y captura la firma a mano alzada en la pantalla. Cada documento puede firmarse por separado.',
@@ -128,7 +128,7 @@ export const PASOS_TOUR = [
   // ── BLOQUE 5: MANTENIMIENTOS ─────────────────────────────
   {
     id: 'mantenimientos-intro',
-    ruta: '/admin/mantenimientos',
+    ruta: '/mantenimientos',
     elemento: '[data-tour="btn-nuevo-mantenimiento"]',
     titulo: '🔧 Bloque 5: Mantenimientos',
     descripcion: 'Registra mantenimientos preventivos y correctivos. Al abrir uno, el equipo pasa automáticamente a estado "En mantenimiento" y deja de estar disponible.',
@@ -136,7 +136,7 @@ export const PASOS_TOUR = [
   },
   {
     id: 'mantenimientos-checklist',
-    ruta: '/admin/mantenimientos',
+    ruta: '/mantenimientos',
     elemento: '[data-tour="tabla-mantenimientos"]',
     titulo: '☑️ Checklist de actividades',
     descripcion: 'Si asignaste una lista al crear el mantenimiento, se genera automáticamente el checklist. Marca cada actividad, agrega observaciones y adjunta fotos.',
@@ -144,7 +144,7 @@ export const PASOS_TOUR = [
   },
   {
     id: 'mantenimientos-acta',
-    ruta: '/admin/mantenimientos',
+    ruta: '/mantenimientos',
     elemento: '[data-tour="tabla-mantenimientos"]',
     titulo: '📄 Acta de mantenimiento',
     descripcion: 'Al cerrar el mantenimiento indica si el equipo vuelve a estar disponible o se da de baja. El sistema genera automáticamente el acta en PDF con logo, checklist e imágenes.',

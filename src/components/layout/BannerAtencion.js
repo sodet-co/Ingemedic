@@ -67,7 +67,7 @@ export default function BannerAtencion() {
       {/* Navegación completa (no router.push): si ya está en Préstamos, un
           push a la misma ruta con otro query no remonta el componente y el
           filtro (que se lee al montar) no se aplicaría. */}
-      <button onClick={() => { window.location.href = `/admin/ordenes?atencion=${reglaDestino}` }}
+      <button onClick={() => { window.location.href = `/ordenes?atencion=${reglaDestino}` }}
         className={`flex-shrink-0 text-[12px] font-bold px-3 py-1 rounded-full ${critico ? 'bg-[#D81B43] text-white hover:bg-[#B0172F]' : 'bg-[#B45309] text-white hover:bg-[#92400E]'}`}>
         Ver
       </button>

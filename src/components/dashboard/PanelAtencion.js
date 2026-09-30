@@ -204,7 +204,7 @@ export default function PanelAtencion({ reglas, abierto, onCerrar }) {
           // Navegación completa (no router.push): más robusto — nunca depende
           // de que el filtro (leído al montar en OrdenesClient) coincida con
           // una transición client-side en curso.
-          const verEnPrestamos = () => { window.location.href = `/admin/ordenes?atencion=${r.id}` }
+          const verEnPrestamos = () => { window.location.href = `/ordenes?atencion=${r.id}` }
 
           return (
             <div key={r.id} className="rounded-xl border shadow-sm overflow-hidden bg-white" style={{ borderColor: estilo.borde + '40' }}>

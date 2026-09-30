@@ -17,30 +17,30 @@ const NAV = [
   {
     label: 'Principal',
     items: [
-      { href: '/admin/dashboard', label: 'Dashboard', icon: 'grid' },
+      { href: '/dashboard', label: 'Dashboard', icon: 'grid' },
     ]
   },
   {
     label: 'Operaciones',
     items: [
-      { href: '/admin/entregas',       label: 'Entregas',            icon: 'truck',  tour: 'nav-entregas'       },
-      { href: '/admin/inventario',     label: 'Inventario',          icon: 'pulse',  tour: 'nav-inventario'     },
-      { href: '/admin/ordenes',        label: 'Préstamos',           icon: 'file',   tour: 'nav-ordenes'        },
-      { href: '/admin/clientes',       label: 'Clientes',            icon: 'users'                              },
-      { href: '/admin/mantenimientos', label: 'Mantenimientos',      icon: 'tool',   tour: 'nav-mantenimientos' },
-      { href: '/admin/servicios',      label: 'Servicios prestados', icon: 'pulse'                              },
+      { href: '/entregas',       label: 'Entregas',            icon: 'truck',  tour: 'nav-entregas'       },
+      { href: '/inventario',     label: 'Inventario',          icon: 'pulse',  tour: 'nav-inventario'     },
+      { href: '/ordenes',        label: 'Préstamos',           icon: 'file',   tour: 'nav-ordenes'        },
+      { href: '/clientes',       label: 'Clientes',            icon: 'users'                              },
+      { href: '/mantenimientos', label: 'Mantenimientos',      icon: 'tool',   tour: 'nav-mantenimientos' },
+      { href: '/servicios',      label: 'Servicios prestados', icon: 'pulse'                              },
     ]
   },
   {
     label: 'Sistema',
     items: [
-      { href: '/admin/bitacora',      label: 'Bitácora',      icon: 'book'     },
-      { href: '/admin/configuracion', label: 'Configuración', icon: 'settings' },
+      { href: '/bitacora',      label: 'Bitácora',      icon: 'book'     },
+      { href: '/configuracion', label: 'Configuración', icon: 'settings' },
     ]
   },
 ]
 
-const MOBILE_CRITICOS = ['/admin/dashboard', '/admin/entregas', '/admin/ordenes', '/admin/inventario']
+const MOBILE_CRITICOS = ['/dashboard', '/entregas', '/ordenes', '/inventario']
 const MOBILE_NAV_MODE_KEY = 'ingemedic_mobile_nav_mode'
 const FAB_POS_KEY = 'ingemedic_fab_pos'
 const FAB_SIZE = 56
@@ -142,7 +142,7 @@ export default function Sidebar({ usuario, empresa, permisos = [], esSuperAdmin 
     await supabase.auth.signOut()
     document.cookie = 'sesion_inicio=; path=/; max-age=0'
     // Recarga completa para limpiar cualquier caché de navegación de la sesión anterior
-    window.location.href = '/admin/login'
+    window.location.href = '/login'
   }
 
   // ── ARRASTRE con Pointer Events (unifica mouse y touch, sin warnings de listeners pasivos) ──
@@ -188,8 +188,8 @@ export default function Sidebar({ usuario, empresa, permisos = [], esSuperAdmin 
   const resto    = mobileItems.filter(i => !MOBILE_CRITICOS.includes(i.href))
 
   // Panel flotante: Dashboard + Operaciones en la vista principal, Bitácora + Configuración en "Más"
-  const itemsOperacion = mobileItems.filter(i => i.href !== '/admin/bitacora' && i.href !== '/admin/configuracion')
-  const itemsSistema   = mobileItems.filter(i => i.href === '/admin/bitacora' || i.href === '/admin/configuracion')
+  const itemsOperacion = mobileItems.filter(i => i.href !== '/bitacora' && i.href !== '/configuracion')
+  const itemsSistema   = mobileItems.filter(i => i.href === '/bitacora' || i.href === '/configuracion')
 
   const PAGE_SIZE = 4
   const paginasResto = []
@@ -251,7 +251,7 @@ export default function Sidebar({ usuario, empresa, permisos = [], esSuperAdmin 
               </div>
               {group.items.map(item => {
                 const active = pathname === item.href ||
-                  (item.href !== '/admin/dashboard' && pathname.startsWith(item.href))
+                  (item.href !== '/dashboard' && pathname.startsWith(item.href))
                 return (
                   <Link key={item.href} href={item.href}
                     data-tour={item.tour}
@@ -264,7 +264,7 @@ export default function Sidebar({ usuario, empresa, permisos = [], esSuperAdmin 
                       {ICONS[item.icon]}
                     </span>
                     {item.label}
-                    {item.href === '/admin/inventario' && cargasProcesando > 0 && (
+                    {item.href === '/inventario' && cargasProcesando > 0 && (
                       <span className="ml-auto w-2 h-2 rounded-full bg-[#B45309] animate-pulse flex-shrink-0" title="Carga masiva en proceso" />
                     )}
                   </Link>
@@ -347,7 +347,7 @@ export default function Sidebar({ usuario, empresa, permisos = [], esSuperAdmin 
             )}
             <div className="flex-1 flex items-center justify-around">
               {itemsPaginaActual.map(item => {
-                const active = pathname === item.href || (item.href !== '/admin/dashboard' && pathname.startsWith(item.href))
+                const active = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href))
                 return (
                   <Link key={item.href} href={item.href}
                     data-tour={item.tour}
@@ -404,7 +404,7 @@ export default function Sidebar({ usuario, empresa, permisos = [], esSuperAdmin 
               {panelPage === 'main' ? (
                 <div className="grid grid-cols-3 gap-1 p-3">
                   {itemsOperacion.map(item => {
-                    const active = pathname === item.href || (item.href !== '/admin/dashboard' && pathname.startsWith(item.href))
+                    const active = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href))
                     return (
                       <Link key={item.href} href={item.href}
                         onClick={() => { setPanelAbierto(false); setPanelPage('main') }}

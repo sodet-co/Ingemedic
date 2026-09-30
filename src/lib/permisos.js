@@ -11,15 +11,15 @@
 // desalinear con datos ya sembrados.
 
 export const MODULOS_RUTA = [
-  { modulo: 'dashboard',            ruta: '/admin/dashboard' },
-  { modulo: 'entregas',             ruta: '/admin/entregas' },
-  { modulo: 'inventario',           ruta: '/admin/inventario' },
-  { modulo: 'ordenes_servicio',     ruta: '/admin/ordenes' },
-  { modulo: 'clientes',             ruta: '/admin/clientes' },
-  { modulo: 'mantenimientos',       ruta: '/admin/mantenimientos' },
-  { modulo: 'servicios_prestados',  ruta: '/admin/servicios' },
-  { modulo: 'bitacora',             ruta: '/admin/bitacora' },
-  { modulo: 'configuracion',        ruta: '/admin/configuracion' },
+  { modulo: 'dashboard',            ruta: '/dashboard' },
+  { modulo: 'entregas',             ruta: '/entregas' },
+  { modulo: 'inventario',           ruta: '/inventario' },
+  { modulo: 'ordenes_servicio',     ruta: '/ordenes' },
+  { modulo: 'clientes',             ruta: '/clientes' },
+  { modulo: 'mantenimientos',       ruta: '/mantenimientos' },
+  { modulo: 'servicios_prestados',  ruta: '/servicios' },
+  { modulo: 'bitacora',             ruta: '/bitacora' },
+  { modulo: 'configuracion',        ruta: '/configuracion' },
 ]
 
 // Módulos "principales" (para el listado de checkboxes de Roles y Permisos),

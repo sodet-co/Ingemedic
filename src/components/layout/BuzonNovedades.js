@@ -189,7 +189,7 @@ export default function BuzonNovedades({ dark = false }) {
     // remonta, y el filtro (que se lee al montar) no se aplicaría. Mismo
     // patrón que ya usan login/page.js y Sidebar.js (logout) para lo mismo.
     // eslint-disable-next-line react-hooks/immutability
-    window.location.href = `/admin/ordenes?atencion=${alerta.reglaId}`
+    window.location.href = `/ordenes?atencion=${alerta.reglaId}`
   }
 
   useLayoutEffect(() => {

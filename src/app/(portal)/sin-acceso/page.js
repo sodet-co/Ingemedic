@@ -5,7 +5,7 @@ export default function SinAccesoPage() {
   async function cerrarSesion() {
     const supabase = createClient()
     await supabase.auth.signOut()
-    window.location.href = '/admin/login'
+    window.location.href = '/login'
   }
 
   return (

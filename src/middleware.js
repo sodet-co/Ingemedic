@@ -1,6 +1,7 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse } from 'next/server'
 import { esSuperAdmin, moduloDeRuta, puedeVerModulo, primerModuloPermitido, MODULOS_RUTA } from '@/lib/permisos'
+import { SITIO_URL, PORTAL_URL, esRutaPortal } from '@/lib/sitio'
 
 // Duración máxima de una sesión, sin importar actividad — la sesión de
 // Supabase se renueva sola indefinidamente (el cliente refresca el JWT).
@@ -12,6 +13,37 @@ const SESION_MAX_MS = 8 * 60 * 60 * 1000 // 8 horas
 const COOKIE_VIEJA  = 'sesion_inicio'
 
 export async function middleware(request) {
+  const { pathname, search } = request.nextUrl
+
+  // ── SEPARACIÓN POR DOMINIO ────────────────────────────────────────────
+  // portal.ingemedic.com.co → solo el panel · www.ingemedic.com.co → solo el
+  // sitio público · cualquier otro host (localhost, *.vercel.app) → todo,
+  // para poder desarrollar y revisar previews. portal.localhost:3000 sirve
+  // para probar el comportamiento del portal en local.
+  const host     = (request.headers.get('host') || '').toLowerCase()
+  const enPortal = host.startsWith('portal.')
+  const enSitio  = host === 'www.ingemedic.com.co' || host === 'ingemedic.com.co'
+  const rutaPanel = esRutaPortal(pathname)
+
+  // Enlaces y accesos directos viejos (/admin/...) → la misma ruta sin el
+  // prefijo; si venían del dominio público, en el portal.
+  if (pathname === '/admin' || pathname.startsWith('/admin/')) {
+    const ruta = pathname.slice('/admin'.length) || '/'
+    return NextResponse.redirect(new URL(ruta + search, enSitio ? PORTAL_URL : request.url))
+  }
+  if (enSitio && rutaPanel) {
+    return NextResponse.redirect(new URL(pathname + search, PORTAL_URL))
+  }
+  if (enPortal && !rutaPanel && pathname !== '/') {
+    return NextResponse.redirect(new URL(pathname + search, SITIO_URL))
+  }
+
+  // Páginas públicas: sin consultar Supabase (la landing es estática y no
+  // debe pagar una consulta de sesión por visita).
+  if (!rutaPanel && !enPortal) {
+    return NextResponse.next()
+  }
+
   let response = NextResponse.next({ request: { headers: request.headers } })
 
   const supabase = createServerClient(
@@ -30,20 +62,24 @@ export async function middleware(request) {
   )
 
   const { data: { user } } = await supabase.auth.getUser()
-  const { pathname } = request.nextUrl
 
-  const esRutaAdmin = pathname.startsWith('/admin')
-  const esLogin     = pathname === '/admin/login'
-  const esSinAcceso = pathname === '/admin/sin-acceso'
+  const esRutaAdmin = rutaPanel
+  const esLogin     = pathname === '/login'
+  const esSinAcceso = pathname === '/sin-acceso'
 
-  // Sin sesión, intentando entrar a /admin/* que no sea el login → redirigir al login
+  // Raíz del portal → login, o el dashboard si ya hay sesión
+  if (enPortal && pathname === '/') {
+    return NextResponse.redirect(new URL(user ? '/dashboard' : '/login', request.url))
+  }
+
+  // Sin sesión, intentando entrar a una ruta del panel que no sea el login → al login
   if (esRutaAdmin && !esLogin && !user) {
-    return NextResponse.redirect(new URL('/admin/login', request.url))
+    return NextResponse.redirect(new URL('/login', request.url))
   }
 
   // Con sesión, intentando ver el login → directo al dashboard
   if (esLogin && user) {
-    return NextResponse.redirect(new URL('/admin/dashboard', request.url))
+    return NextResponse.redirect(new URL('/dashboard', request.url))
   }
 
   // Cierra la sesión y manda al login con un aviso (?expirada=1 / ?inactivo=1).
@@ -51,7 +87,7 @@ export async function middleware(request) {
   // copiarlas al redirect, o el navegador se quedaría con la sesión vieja.
   async function cerrarSesion(motivo) {
     await supabase.auth.signOut()
-    const salida = NextResponse.redirect(new URL(`/admin/login?${motivo}=1`, request.url))
+    const salida = NextResponse.redirect(new URL(`/login?${motivo}=1`, request.url))
     response.cookies.getAll().forEach(c => salida.cookies.set(c))
     salida.cookies.delete(COOKIE_VIEJA)
     return salida
@@ -100,16 +136,17 @@ export async function middleware(request) {
         if (!puedeVerModulo(modulo, permisosDelRol)) {
           const moduloDestino = primerModuloPermitido(permisosDelRol)
           const rutaDestino   = moduloDestino ? MODULOS_RUTA.find(m => m.modulo === moduloDestino)?.ruta : null
-          return NextResponse.redirect(new URL(rutaDestino || '/admin/sin-acceso', request.url))
+          return NextResponse.redirect(new URL(rutaDestino || '/sin-acceso', request.url))
         }
       }
     }
   }
 
-  // Todo lo demás (landing pública "/", assets, API) pasa sin restricción
   return response
 }
 
+// Todo menos /api, los estáticos de Next y archivos con extensión (imágenes,
+// robots.txt, sitemap.xml, favicon…).
 export const config = {
-  matcher: ['/admin/:path*'],
+  matcher: ['/((?!api|_next/static|_next/image|.*\\..*).*)'],
 }

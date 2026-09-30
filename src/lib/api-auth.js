@@ -4,7 +4,7 @@ import { esSuperAdmin, puedeVerModulo } from '@/lib/permisos'
 
 // Verificación de sesión para las rutas /api/*.
 //
-// El middleware solo cubre /admin/* (matcher), así que las rutas de API no
+// El middleware no corre en /api/* (matcher), así que las rutas de API no
 // tienen ninguna protección por sí solas — y todas usan service_role, que se
 // salta RLS. Sin esto, cualquiera sin sesión podía descargar el Excel de
 // clientes/pacientes o crear un usuario SuperAdmin.

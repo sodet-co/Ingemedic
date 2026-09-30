@@ -75,7 +75,7 @@ export default function RepartidorPreferenciasClient({ usuario }) {
   async function cerrarSesion() {
     await registrarBitacora({ modulo: 'auth', accion: 'logout', entidad: 'sesión', entidad_id: usuario?.id })
     await supabase.auth.signOut()
-    window.location.href = '/admin/login'
+    window.location.href = '/login'
   }
 
   return (

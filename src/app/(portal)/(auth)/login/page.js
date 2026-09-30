@@ -123,7 +123,7 @@ export default function LoginPage() {
       // El límite de 8h lo calcula middleware.js con user.last_sign_in_at.
       // Recarga completa (no client-side navigation) para evitar que el Router Cache
       // de Next.js muestre datos de la sesión anterior al cambiar de usuario.
-      window.location.href = '/admin/dashboard'
+      window.location.href = '/dashboard'
     } catch (err) {
       console.error('Error en login:', err)
       fallar(MENSAJE_CONEXION)

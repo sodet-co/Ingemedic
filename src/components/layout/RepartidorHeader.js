@@ -8,8 +8,8 @@ export function iniciales(nombre) {
 }
 
 const TABS = [
-  { href: '/admin/entregas',              label: 'Entregas',  Icono: Truck },
-  { href: '/admin/repartidor-preferencias', label: 'Mi perfil', Icono: User },
+  { href: '/entregas',              label: 'Entregas',  Icono: Truck },
+  { href: '/repartidor-preferencias', label: 'Mi perfil', Icono: User },
 ]
 
 // Layout del rol Repartidor — mobile-first, sin el sidebar de admin.
@@ -24,7 +24,7 @@ export default function RepartidorHeader({ children, logoUrl, nombre }) {
       <header className="h-14 bg-white border-b border-slate-200 flex items-center justify-between px-4 flex-shrink-0">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={logoUrl} className="h-8 w-auto" alt="Ingemedic" />
-        <Link href="/admin/repartidor-preferencias" aria-label="Mi perfil"
+        <Link href="/repartidor-preferencias" aria-label="Mi perfil"
           className="w-9 h-9 rounded-full bg-[#1B3A6B] text-white text-[13px] font-bold flex items-center justify-center">
           {iniciales(nombre)}
         </Link>

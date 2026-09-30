@@ -59,6 +59,33 @@ Lo que está sin resolver, ordenado por prioridad.
 
 # Entradas
 
+## 2026-09-29 — Panel en portal.ingemedic.com.co con rutas limpias
+**Qué se hizo:** `src/app/admin/` pasó a `src/app/(portal)/`: el panel queda en
+`/login`, `/dashboard`, `/inventario`… sin `/admin`. El middleware ahora corre
+en todo (menos `/api`, estáticos y archivos con extensión) y separa por
+dominio: en `portal.` la raíz lleva al login (o al dashboard con sesión) y las
+páginas públicas redirigen a www; en www las rutas del panel redirigen al
+portal. `/admin/...` viejo redirige a la ruta nueva. Localhost y
+`*.vercel.app` muestran todo. Solo las rutas del panel consultan Supabase: la
+landing sigue estática. `/servicios` → `/portafolio` quedó solo para el
+dominio www (en el portal es el módulo Servicios prestados).
+**Por qué:** separar el sitio público del sistema interno sin partir el repo.
+**Archivos:** `src/middleware.js`, `src/lib/sitio.js` (`PORTAL_URL`,
+`RUTAS_PORTAL`), `next.config.mjs`, `src/lib/permisos.js`, `Header.js`,
+`Sidebar.js`, `RepartidorHeader.js`, `BannerAtencion.js`, `BuzonNovedades.js`,
+`PanelAtencion.js`, `useTour.js` y las páginas del panel con enlaces fijos.
+**Pendiente:**
+- Dominio y DNS: ya estaban (verificado 2026-09-29: `portal.` resuelve a
+  Vercel, mismo proyecto, Production, sin redirección a nivel de Vercel —
+  debe seguir así o anularía el middleware).
+- Supabase Auth → URL Configuration: agregar `https://portal.ingemedic.com.co`
+  a Redirect URLs.
+- Probado sin sesión (curl simulando cada dominio) y con `npm run build`. Falta
+  probar con sesión real: login → dashboard, navegar módulos, permisos por rol,
+  logout, cierre por 8 h.
+- Las sesiones abiertas en www no pasan al portal (cookies por dominio): todos
+  tendrán que iniciar sesión otra vez. Avisar al equipo y a los repartidores.
+
 ## 2026-09-27 — Sitio público en Poppins (estilo SODET) y crédito a SODET
 **Qué se hizo:** todo el sitio público (landing, quienes-somos, portafolio,
 contacto, Header y Footer) pasa de Archivo + Inter / Geist a Poppins (300/400/500/600), con la jerarquía de pesos de sodet.vercel.app:

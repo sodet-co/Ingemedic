@@ -6,6 +6,24 @@
 // El dominio real es con www: ingemedic.com.co redirige (308) a www.
 export const SITIO_URL = 'https://www.ingemedic.com.co'
 
+// El panel interno vive en su propio subdominio, con rutas limpias
+// (portal.ingemedic.com.co/login, /dashboard…). Los archivos están en
+// src/app/(portal): el grupo no aparece en la URL. El middleware separa por
+// dominio: el panel solo en el portal, el sitio público solo en www.
+export const PORTAL_URL = 'https://portal.ingemedic.com.co'
+
+// Primer segmento de cada ruta de src/app/(portal). Si se agrega un módulo
+// al panel, va aquí también, o el middleware lo tratará como página pública.
+export const RUTAS_PORTAL = [
+  'login', 'sin-acceso', 'dashboard', 'entregas', 'inventario', 'ordenes',
+  'clientes', 'mantenimientos', 'servicios', 'bitacora', 'configuracion',
+  'repartidor-preferencias',
+]
+
+export function esRutaPortal(pathname) {
+  return RUTAS_PORTAL.includes(pathname.split('/')[1])
+}
+
 export const EMPRESA = {
   nombre: 'Ingemedic de Colombia S.A.S.',
   nombreCorto: 'Ingemedic',
@@ -49,7 +67,7 @@ export function metadatosPagina({ titulo, tituloAbsoluto = false, descripcion, r
   }
 }
 
-// Páginas públicas indexables (sitemap). Las de /admin y /api no van.
+// Páginas públicas indexables (sitemap). Las del portal y /api no van.
 export const PAGINAS_PUBLICAS = [
   { ruta: '/', prioridad: 1, frecuencia: 'monthly' },
   { ruta: '/portafolio', prioridad: 0.9, frecuencia: 'monthly' },
