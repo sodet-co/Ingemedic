@@ -14,8 +14,11 @@ export default async function MantenimientosPage() {
     equipos,
     { data: listas },
   ] = await Promise.all([
+    // actividades_texto: la columna de texto `actividades` (resumen del cierre);
+    // sin el alias la pisa la relación `actividades` (checklist) y se pierde.
     supabase.from('mantenimientos').select(`
       *,
+      actividades_texto:actividades,
       equipo:equipos(
         id, codigo,
         tipo_equipo:tipos_equipo(id, nombre, atributos,
@@ -36,7 +39,9 @@ export default async function MantenimientosPage() {
       tipo_equipo:tipos_equipo(id, nombre, atributos,
         categoria:categorias_equipo(id, nombre)
       ),
-      estado:estados_equipo(id, nombre)
+      estado:estados_equipo(id, nombre),
+      cliente_actual:clientes(nombre),
+      paciente_actual:pacientes(nombre)
     `).order('codigo')),
     supabase.from('listas_mantenimiento').select(`
       id, nombre, descripcion,

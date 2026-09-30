@@ -14,6 +14,7 @@ import Paginador from '@/components/ui/Paginador'
 import { usePaginacion } from '@/hooks/usePaginacion'
 import { formatear, formatearSoloFecha, hoyBogota } from '@/lib/fechas'
 import BuzonNovedades from '@/components/layout/BuzonNovedades'
+import { prestamoActivo, estadoSegunPrestamo } from '@/lib/mantenimientos'
 
 const ESTADOS = {
   Abierto: '9c71ba4d-e82d-4714-b2fb-4cc242cd47be',
@@ -25,7 +26,25 @@ const ESTADO_EQUIPO = {
   Disponible: 'f33e7c6f-0f81-484e-9f0a-93fd28f9c414',
   EnMantenimiento: 'edf159bf-6402-4991-a673-ade689ded77e',
   Baja: '1be9843f-bcbf-46f2-bb6c-5a487225b8c3',
+  EnPrestamo: '56abea9f-8cad-413e-bc3c-31ba19fa00fe',
+  Reservado: '81f762da-6922-4a98-8593-cbaf029dbf6b',
 }
+
+// Estado al que vuelve el equipo al cerrar, según su préstamo (ver lib/mantenimientos.js)
+const RESULTADO = {
+  'Disponible':  { resultado: 'disponible', estadoId: ESTADO_EQUIPO.Disponible },
+  'En préstamo': { resultado: 'prestamo',   estadoId: ESTADO_EQUIPO.EnPrestamo },
+  'Reservado':   { resultado: 'reservado',  estadoId: ESTADO_EQUIPO.Reservado },
+}
+const ACTA_POR_RESULTADO = {
+  disponible: 'OPERATIVO — DISPONIBLE',
+  prestamo:   'OPERATIVO — CONTINÚA EN PRÉSTAMO',
+  reservado:  'OPERATIVO — RESERVADO PARA ENTREGA',
+  baja:       'DADO DE BAJA',
+}
+
+// PGRST204 / 42703: la columna `resultado` aún no existe (falta el SQL)
+const esColumnaFaltante = e => e?.code === 'PGRST204' || e?.code === '42703'
 
 const ESTADO_STYLES = {
   'Abierto': { bg: '#FFFBEB', color: '#B45309', dot: '#F59E0B' },
@@ -121,6 +140,22 @@ export default function MantenimientosClient({ mantenimientosIniciales, tipos, e
   const [cierreForm, setCierreForm] = useState({
     actividades: '', tecnico: '', fecha_cierre: '', resultado: 'disponible',
   })
+  // Préstamo activo del equipo que se está cerrando: decide si vuelve a
+  // "Disponible" o a su préstamo. { cargando, orden, error }
+  const [prestamoCierre, setPrestamoCierre] = useState({ cargando: false, orden: null, error: false })
+
+  async function abrirCierre(m) {
+    const mc = mantenimientos.find(x => x.id === m.id) || m
+    setModalCierre(mc)
+    setCierreForm({ actividades: mc.actividades_texto || '', tecnico: mc.tecnico || '', fecha_cierre: hoyBogota(), resultado: 'disponible' })
+    setPrestamoCierre({ cargando: true, orden: null, error: false })
+    try {
+      const orden = await prestamoActivo(supabase, mc.equipo_id)
+      setPrestamoCierre({ cargando: false, orden, error: false })
+    } catch {
+      setPrestamoCierre({ cargando: false, orden: null, error: true })
+    }
+  }
 
   function showToast(msg, tipo = 'success') {
     setToast({ msg, tipo })
@@ -172,8 +207,11 @@ export default function MantenimientosClient({ mantenimientosIniciales, tipos, e
       setSaving(false); return
     }
 
-    const { count } = await supabase.from('mantenimientos').select('*', { count: 'exact', head: true })
-    const codigo = `MAN-${new Date().getFullYear()}-${String((count || 0) + 1).padStart(3, '0')}`
+    // Consecutivo = el mayor del año + 1 (contar registros repetía códigos si se borraba uno)
+    const anio = new Date().getFullYear()
+    const { data: codigosAnio } = await supabase.from('mantenimientos').select('codigo').like('codigo', `MAN-${anio}-%`)
+    const ultimo = Math.max(0, ...(codigosAnio || []).map(c => parseInt(c.codigo?.split('-')[2], 10) || 0))
+    const codigo = `MAN-${anio}-${String(ultimo + 1).padStart(3, '0')}`
 
     const { data, error } = await supabase.from('mantenimientos').insert({
       codigo,
@@ -187,6 +225,7 @@ export default function MantenimientosClient({ mantenimientosIniciales, tipos, e
     })
       .select(`
       *,
+      actividades_texto:actividades,
       equipo:equipos(id, codigo,
         tipo_equipo:tipos_equipo(id, nombre, atributos, categoria:categorias_equipo(id, nombre)),
         estado:estados_equipo(id, nombre)
@@ -198,10 +237,19 @@ export default function MantenimientosClient({ mantenimientosIniciales, tipos, e
       .single()
 
     if (error) { showToast('Error: ' + error.message, 'error'); setSaving(false); return }
-    registrarBitacora({ modulo: 'mantenimientos', accion: 'crear', entidad: 'mantenimiento', entidad_id: data.id, detalle: { codigo } })
 
-    // Cambiar estado del equipo a "En mantenimiento"
-    await supabase.from('equipos').update({ estado_id: ESTADO_EQUIPO.EnMantenimiento }).eq('id', form.equipo_id)
+    // Equipo a "En mantenimiento". Si está prestado conserva su cliente y
+    // paciente: al cerrar vuelve a su préstamo. Si esto falla, se deshace el
+    // mantenimiento para que el estado no quede a medias.
+    const { data: eqAct, error: errEq } = await supabase.from('equipos')
+      .update({ estado_id: ESTADO_EQUIPO.EnMantenimiento }).eq('id', form.equipo_id).select('id')
+    if (errEq || !eqAct?.length) {
+      await supabase.from('mantenimientos').delete().eq('id', data.id)
+      showToast('No se pudo pasar el equipo a "En mantenimiento"' + (errEq ? ': ' + errEq.message : '') + '. No se abrió el mantenimiento.', 'error')
+      setSaving(false); return
+    }
+    data.equipo = { ...data.equipo, estado: { id: ESTADO_EQUIPO.EnMantenimiento, nombre: 'En mantenimiento' } }
+    registrarBitacora({ modulo: 'mantenimientos', accion: 'crear', entidad: 'mantenimiento', entidad_id: data.id, detalle: { codigo } })
 
     // Insertar actividades de la lista seleccionada
     if (form.lista_id) {
@@ -226,6 +274,7 @@ export default function MantenimientosClient({ mantenimientosIniciales, tipos, e
     cerrarModal()
     setDrawer(data)
     showToast('Mantenimiento abierto — equipo en mantenimiento')
+    router.refresh() // la lista de equipos del formulario trae el estado nuevo
   }
 
   // ── TOGGLE ACTIVIDAD ─────────────────────────────────────
@@ -321,23 +370,50 @@ export default function MantenimientosClient({ mantenimientosIniciales, tipos, e
     if (!modalCierre.actividades?.length && !cierreForm.actividades?.trim()) {
       showToast('Registra las actividades realizadas', 'error'); return
     }
+    if (prestamoCierre.cargando) return
+    if (prestamoCierre.error) {
+      showToast('No se pudo verificar si el equipo está prestado. Cierra y vuelve a intentar.', 'error'); return
+    }
+    if (cierreForm.resultado === 'baja' && prestamoCierre.orden) {
+      showToast('El equipo sigue prestado: registra primero la devolución y luego dalo de baja.', 'error'); return
+    }
     setSaving(true)
 
-    const estadoEquipoId = cierreForm.resultado === 'disponible' ? ESTADO_EQUIPO.Disponible : ESTADO_EQUIPO.Baja
+    // A qué estado vuelve el equipo: Baja si así lo decide el técnico; si no,
+    // el de su préstamo activo (En préstamo / Reservado) o Disponible.
+    const destino = cierreForm.resultado === 'baja'
+      ? { resultado: 'baja', estadoId: ESTADO_EQUIPO.Baja, nombre: 'Baja' }
+      : { ...RESULTADO[estadoSegunPrestamo(prestamoCierre.orden)], nombre: estadoSegunPrestamo(prestamoCierre.orden) }
 
-    const { error } = await supabase.from('mantenimientos').update({
+    // Primero el equipo: si falla, el mantenimiento sigue abierto y nada miente
+    const { data: eqAct, error: errEq } = await supabase.from('equipos')
+      .update({ estado_id: destino.estadoId }).eq('id', modalCierre.equipo_id).select('id')
+    if (errEq || !eqAct?.length) {
+      showToast('No se pudo cambiar el estado del equipo' + (errEq ? ': ' + errEq.message : '') + '. El mantenimiento sigue abierto.', 'error')
+      setSaving(false); return
+    }
+
+    const cambiosMant = {
       estado_id: ESTADOS.Cerrado,
       en_curso: false,
       actividades: cierreForm.actividades,
       tecnico: cierreForm.tecnico || modalCierre.tecnico || null,
       fecha_cierre: cierreForm.fecha_cierre || hoyBogota(),
       fecha_cierre_real: hoyBogota(),
-    }).eq('id', modalCierre.id)
-
-    if (error) { showToast('Error: ' + error.message, 'error'); setSaving(false); return }
-    registrarBitacora({ modulo: 'mantenimientos', accion: 'cerrar', entidad: 'mantenimiento', entidad_id: modalCierre.id, detalle: { codigo: modalCierre.codigo } })
-
-    await supabase.from('equipos').update({ estado_id: estadoEquipoId }).eq('id', modalCierre.equipo_id)
+      resultado: destino.resultado,
+    }
+    let { error } = await supabase.from('mantenimientos').update(cambiosMant).eq('id', modalCierre.id)
+    if (esColumnaFaltante(error)) {
+      // Sin el SQL de `resultado` todavía: se cierra igual, sin guardarlo
+      const { resultado: _omitido, ...sinResultado } = cambiosMant
+      ;({ error } = await supabase.from('mantenimientos').update(sinResultado).eq('id', modalCierre.id))
+    }
+    if (error) {
+      // El equipo vuelve a "En mantenimiento" para que coincida con el mantenimiento abierto
+      await supabase.from('equipos').update({ estado_id: ESTADO_EQUIPO.EnMantenimiento }).eq('id', modalCierre.equipo_id)
+      showToast('Error: ' + error.message, 'error'); setSaving(false); return
+    }
+    registrarBitacora({ modulo: 'mantenimientos', accion: 'cerrar', entidad: 'mantenimiento', entidad_id: modalCierre.id, detalle: { codigo: modalCierre.codigo, equipo_queda: destino.nombre } })
 
     const nuevoEstado = { id: ESTADOS.Cerrado, nombre: 'Cerrado' }
     const updCambios = {
@@ -345,12 +421,14 @@ export default function MantenimientosClient({ mantenimientosIniciales, tipos, e
       actividades_texto: cierreForm.actividades,
       tecnico: cierreForm.tecnico || modalCierre.tecnico,
       fecha_cierre: cierreForm.fecha_cierre || hoyBogota(),
+      resultado: destino.resultado,
+      equipo: { ...modalCierre.equipo, estado: { id: destino.estadoId, nombre: destino.nombre } },
     }
     skipSyncUntil.current = Date.now() + 2500
     setMantenimientos(prev => prev.map(m => m.id === modalCierre.id ? { ...m, ...updCambios } : m))
     if (drawer?.id === modalCierre.id) setDrawer(prev => ({ ...prev, ...updCambios }))
     setSaving(false); setModalCierre(null)
-    showToast('Mantenimiento cerrado ✓')
+    showToast(`Mantenimiento cerrado — equipo ${destino.nombre === 'Baja' ? 'dado de baja' : `en "${destino.nombre}"`}`)
     router.refresh()
   }
 
@@ -359,6 +437,7 @@ export default function MantenimientosClient({ mantenimientosIniciales, tipos, e
     // Traer datos frescos de BD incluyendo actividades y adjuntos
     const { data: mantFresh } = await supabase.from('mantenimientos').select(`
       *,
+      actividades_texto:actividades,
       equipo:equipos(id, codigo,
         tipo_equipo:tipos_equipo(id, nombre, atributos, categoria:categorias_equipo(id, nombre)),
         estado:estados_equipo(id, nombre)
@@ -522,11 +601,15 @@ export default function MantenimientosClient({ mantenimientosIniciales, tipos, e
     doc.setTextColor(30, 30, 30); doc.setFontSize(8.5); doc.setFont('helvetica', 'bold')
     doc.text('ESTADO DEL EQUIPO AL CIERRE', M + 2, y + 4)
     y += 9
+    // m.resultado se guarda al cerrar. Los cerrados antes de esa columna:
+    // se deduce de si el equipo está hoy de baja.
     const estadoTexto = m.estado?.nombre === 'Cerrado'
-      ? (m.resultado === 'baja' ? 'DADO DE BAJA' : 'OPERATIVO — DISPONIBLE')
+      ? (ACTA_POR_RESULTADO[m.resultado] || (m.equipo?.estado?.nombre === 'Baja' ? 'DADO DE BAJA' : 'OPERATIVO'))
       : 'EN PROCESO DE MANTENIMIENTO'
     doc.setFontSize(9); doc.setFont('helvetica', 'bold')
-    doc.setTextColor(m.estado?.nombre === 'Cerrado' ? 15 : 180, m.estado?.nombre === 'Cerrado' ? 123 : 100, 85)
+    if (m.estado?.nombre !== 'Cerrado') doc.setTextColor(180, 100, 85)
+    else if (estadoTexto === 'DADO DE BAJA') doc.setTextColor(216, 27, 67)
+    else doc.setTextColor(15, 123, 85)
     doc.text(estadoTexto, M + 2, y)
     y += 10
 
@@ -661,7 +744,7 @@ export default function MantenimientosClient({ mantenimientosIniciales, tipos, e
               </div>
               <div className="flex justify-end" onClick={e => e.stopPropagation()}>
                 {m.estado?.nombre === 'En proceso' && (
-                  <button onClick={() => { const mc = mantenimientos.find(x => x.id === m.id) || m; setModalCierre(mc); setCierreForm({ actividades: mc.actividades_texto || '', tecnico: mc.tecnico || '', fecha_cierre: hoyBogota(), resultado: 'disponible' }) }}
+                  <button onClick={() => abrirCierre(m)}
                     className="px-3 py-1.5 bg-[#D81B43] text-white text-[11px] font-bold rounded-[7px] hover:bg-[#B0172F]">
                     🛠 Cerrar
                   </button>
@@ -722,7 +805,7 @@ export default function MantenimientosClient({ mantenimientosIniciales, tipos, e
                     <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                       <div className="flex items-center gap-2">
                         {m.estado?.nombre === 'En proceso' && (
-                          <button onClick={() => { const mc = mantenimientos.find(x => x.id === m.id) || m; setModalCierre(mc); setCierreForm({ actividades: mc.actividades_texto || '', tecnico: mc.tecnico || '', fecha_cierre: hoyBogota(), resultado: 'disponible' }) }}
+                          <button onClick={() => abrirCierre(m)}
                             className="px-2.5 py-1 bg-[#D81B43] text-white text-[11px] font-bold rounded-[7px] hover:bg-[#B0172F]">
                             🛠 Cerrar
                           </button>
@@ -773,7 +856,7 @@ export default function MantenimientosClient({ mantenimientosIniciales, tipos, e
                 <div className="flex items-center justify-between mb-3">
                   <EstadoBadge nombre={drawer.estado?.nombre} />
                   {drawer.estado?.nombre === 'En proceso' && (
-                    <button onClick={() => { const mc = mantenimientos.find(x => x.id === drawer.id) || drawer; setModalCierre(mc); setCierreForm({ actividades: mc.actividades_texto || '', tecnico: mc.tecnico || '', fecha_cierre: hoyBogota(), resultado: 'disponible' }) }}
+                    <button onClick={() => abrirCierre(drawer)}
                       className="px-3 py-1.5 bg-[#D81B43] text-white text-[12px] font-semibold rounded-[7px] hover:bg-[#B0172F]">
                       🛠 Cerrar mantenimiento
                     </button>
@@ -910,6 +993,21 @@ export default function MantenimientosClient({ mantenimientosIniciales, tipos, e
                       </option>
                     ))}
                   </select>
+                  {(() => {
+                    const sel = equipos.find(eq => eq.id === form.equipo_id)
+                    if (!sel || !['En préstamo', 'Reservado'].includes(sel.estado?.nombre)) return null
+                    return (
+                      <div className="mt-2 flex items-start gap-2 text-[12.5px] text-[#1D4ED8] bg-[#EFF6FF] px-3 py-2.5 rounded-[9px] border border-[#1D4ED8]/15">
+                        <Package size={14} className="flex-shrink-0 mt-0.5" />
+                        <span>
+                          Este equipo está <strong>{sel.estado.nombre.toLowerCase()}</strong>
+                          {sel.cliente_actual?.nombre && <> a {sel.cliente_actual.nombre}</>}
+                          {sel.paciente_actual?.nombre && <> (paciente {sel.paciente_actual.nombre})</>}.
+                          {' '}Mientras dure el mantenimiento queda &quot;En mantenimiento&quot;; al cerrarlo vuelve a su préstamo.
+                        </span>
+                      </div>
+                    )
+                  })()}
                 </div>
 
                 {/* Técnico */}
@@ -1055,16 +1153,37 @@ export default function MantenimientosClient({ mantenimientosIniciales, tipos, e
                   <label className={labelCls}>Resultado del mantenimiento <span className="text-[#D81B43]">*</span></label>
                   <div className="grid grid-cols-2 gap-3">
                     {[
-                      { value: 'disponible', label: 'Vuelve a Disponible', icon: <CheckCircle2 size={15} />, color: '#0F7B55' },
-                      { value: 'baja', label: 'Dar de baja', icon: <X size={15} />, color: '#D81B43' },
+                      {
+                        value: 'disponible',
+                        label: prestamoCierre.cargando ? 'Verificando…' : `Vuelve a ${estadoSegunPrestamo(prestamoCierre.orden)}`,
+                        icon: <CheckCircle2 size={15} />, color: '#0F7B55',
+                      },
+                      // Un equipo prestado no se da de baja con el paciente: primero se devuelve
+                      { value: 'baja', label: 'Dar de baja', icon: <X size={15} />, color: '#D81B43', bloqueado: !!prestamoCierre.orden },
                     ].map(r => (
-                      <button key={r.value} onClick={() => setCierreForm(f => ({ ...f, resultado: r.value }))}
-                        className="flex items-center gap-2 px-4 py-3 rounded-[9px] border-2 text-[13px] font-semibold transition-all border-slate-200 text-slate-500 hover:border-slate-300"
+                      <button key={r.value} type="button" disabled={r.bloqueado}
+                        onClick={() => setCierreForm(f => ({ ...f, resultado: r.value }))}
+                        className="flex items-center gap-2 px-4 py-3 rounded-[9px] border-2 text-[13px] font-semibold transition-all border-slate-200 text-slate-500 hover:border-slate-300 disabled:opacity-40 disabled:cursor-not-allowed"
                         style={cierreForm.resultado === r.value ? { borderColor: r.color, background: `${r.color}10`, color: r.color } : {}}>
                         {r.icon} {r.label}
                       </button>
                     ))}
                   </div>
+                  {prestamoCierre.orden && (
+                    <div className="mt-2 flex items-start gap-2 text-[12.5px] text-[#1D4ED8] bg-[#EFF6FF] px-3 py-2.5 rounded-[9px] border border-[#1D4ED8]/15">
+                      <Package size={14} className="flex-shrink-0 mt-0.5" />
+                      <span>
+                        Está prestado en la orden <strong>{prestamoCierre.orden.codigo}</strong>
+                        {prestamoCierre.orden.cliente?.nombre && <> a <strong>{prestamoCierre.orden.cliente.nombre}</strong></>}
+                        {prestamoCierre.orden.paciente?.nombre && <> (paciente {prestamoCierre.orden.paciente.nombre})</>}.
+                        {' '}Al cerrar vuelve a <strong>{estadoSegunPrestamo(prestamoCierre.orden)}</strong> con ese mismo préstamo.
+                        Para darlo de baja, registra primero la devolución.
+                      </span>
+                    </div>
+                  )}
+                  {prestamoCierre.error && (
+                    <div className="mt-2 text-[12.5px] text-red-600">No se pudo verificar si el equipo está prestado. Cierra este formulario y vuelve a intentar.</div>
+                  )}
                 </div>
                 {cierreForm.resultado === 'baja' && (
                   <div className="flex items-start gap-2 text-[12.5px] text-[#D81B43] bg-[#FEF2F2] px-3 py-3 rounded-[9px] border border-[#D81B43]/20">
@@ -1075,7 +1194,7 @@ export default function MantenimientosClient({ mantenimientosIniciales, tipos, e
               </div>
               <div className="px-6 py-4 border-t border-slate-200 flex justify-end gap-2 flex-shrink-0 bg-white">
                 <button onClick={() => setModalCierre(null)} className="px-4 py-2.5 border border-slate-200 rounded-[9px] text-[13px] font-medium text-slate-600">Cancelar</button>
-                <button onClick={cerrarMantenimiento} disabled={saving}
+                <button onClick={cerrarMantenimiento} disabled={saving || prestamoCierre.cargando || prestamoCierre.error}
                   className="px-5 py-2.5 bg-[#D81B43] text-white rounded-[9px] text-[13px] font-semibold hover:bg-[#B0172F] disabled:opacity-50">
                   {saving ? 'Guardando...' : '✓ Cerrar mantenimiento'}
                 </button>

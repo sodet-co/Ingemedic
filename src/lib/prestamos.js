@@ -1,4 +1,5 @@
 import { paraGuardar } from '@/lib/fechas'
+import { liberarEquipos } from '@/lib/mantenimientos'
 
 // Devuelve un equipo prestado: marca la fecha de devolución en orden_equipos,
 // libera el equipo (vuelve a "Disponible", sin paciente/cliente asignado) y,
@@ -15,15 +16,11 @@ export async function devolverEquipo({ supabase, ordenEquipoId, equipoId, ordenI
     .eq('id', ordenEquipoId)
   if (error) return { error }
 
+  // Si el equipo está en mantenimiento, sigue "En mantenimiento" (ver lib/mantenimientos.js)
   const { data: estadoDisponible } = await supabase
     .from('estados_equipo').select('id').eq('nombre', 'Disponible').maybeSingle()
-  if (estadoDisponible) {
-    await supabase.from('equipos').update({
-      estado_id:          estadoDisponible.id,
-      paciente_actual_id: null,
-      cliente_actual_id:  null,
-    }).eq('id', equipoId)
-  }
+  const { error: errLiberar } = await liberarEquipos(supabase, [equipoId], estadoDisponible?.id)
+  if (errLiberar) return { error: errLiberar }
 
   const { data: todos } = await supabase.from('orden_equipos')
     .select('fecha_devolucion').eq('orden_id', ordenId)

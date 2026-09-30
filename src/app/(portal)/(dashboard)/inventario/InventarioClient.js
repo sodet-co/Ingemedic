@@ -51,6 +51,11 @@ function formatearValor(valor, tipo) {
   return valor
 }
 
+// Estados que ponen y quitan los módulos (Préstamos, Entregas, Mantenimientos).
+// Elegirlos a mano dejaba el estado mintiendo: "En mantenimiento" sin registro,
+// o "Disponible" con un préstamo o un mantenimiento abierto.
+const ESTADOS_AUTOMATICOS = ['En préstamo', 'Reservado', 'En mantenimiento']
+
 export default function InventarioClient({ categorias: catsIniciales, tipos: tiposIniciales, equipos, estados }) {
   const router = useRouter()
   const supabase = createClient()
@@ -1413,11 +1418,28 @@ export default function InventarioClient({ categorias: catsIniciales, tipos: tip
               <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
                 <div>
                   <label className={labelCls}>Estado</label>
-                  <select value={formEditar.estado_id}
-                    onChange={e => { setFormEditar(f => ({ ...f, estado_id: e.target.value })); setFormDirty(true) }}
-                    className={inputCls}>
-                    {estados.map(e => <option key={e.id} value={e.id}>{e.nombre}</option>)}
-                  </select>
+                  {(() => {
+                    const actual = estados.find(e => e.id === drawer?.estado_id)
+                    const bloqueado = ESTADOS_AUTOMATICOS.includes(actual?.nombre)
+                    return (
+                      <>
+                        <select value={formEditar.estado_id} disabled={bloqueado}
+                          onChange={e => { setFormEditar(f => ({ ...f, estado_id: e.target.value })); setFormDirty(true) }}
+                          className={`${inputCls} disabled:bg-slate-50 disabled:text-slate-500`}>
+                          {estados
+                            .filter(e => !ESTADOS_AUTOMATICOS.includes(e.nombre) || e.id === drawer?.estado_id)
+                            .map(e => <option key={e.id} value={e.id}>{e.nombre}</option>)}
+                        </select>
+                        <p className="text-[11.5px] text-slate-500 mt-1.5">
+                          {bloqueado
+                            ? actual?.nombre === 'En mantenimiento'
+                              ? 'Lo maneja Mantenimientos: cambia al cerrar el mantenimiento.'
+                              : 'Lo maneja Préstamos: cambia al devolver, finalizar o cancelar el préstamo.'
+                            : 'En préstamo, Reservado y En mantenimiento los ponen los módulos, no se eligen a mano.'}
+                        </p>
+                      </>
+                    )
+                  })()}
                 </div>
                 {camposUnidad.length > 0 && (
                   <div className="space-y-3">
@@ -1611,7 +1633,7 @@ export default function InventarioClient({ categorias: catsIniciales, tipos: tip
                     <div>
                       <label className={labelCls}>Estado</label>
                       <select value={formUnidad.estado_id} onChange={e => setFormUnidad(f => ({ ...f, estado_id: e.target.value }))} className={inputCls}>
-                        {estados.map(e => <option key={e.id} value={e.id}>{e.nombre}</option>)}
+                        {estados.filter(e => !ESTADOS_AUTOMATICOS.includes(e.nombre)).map(e => <option key={e.id} value={e.id}>{e.nombre}</option>)}
                       </select>
                     </div>
                   </div>

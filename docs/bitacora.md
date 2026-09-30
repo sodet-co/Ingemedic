@@ -59,6 +59,41 @@ Lo que está sin resolver, ordenado por prioridad.
 
 # Entradas
 
+## 2026-09-29 — Mantenimientos: el estado del equipo ya no miente
+**Qué se hizo:** revisión del módulo. Se puede abrir mantenimiento a un equipo
+prestado (decisión de Sofía, opción B): conserva cliente/paciente y al cerrar
+vuelve al estado de su préstamo (orden Programada/En reparto → Reservado;
+Entregada → En préstamo; sin préstamo → Disponible), no a "Disponible". No se
+puede dar de baja un equipo que sigue prestado. Devolver, finalizar o
+cancelar un préstamo y completar una entrega ya no sacan de "En mantenimiento"
+a un equipo con mantenimiento abierto. El wizard de préstamos vuelve a
+verificar que los equipos sigan "Disponible" antes de crear la orden. En
+Inventario → Editar/Nueva unidad ya no se eligen a mano En préstamo,
+Reservado ni En mantenimiento. Abrir/cerrar revisan el error al cambiar el
+estado del equipo y deshacen si falla. El código MAN sale del mayor del año,
+no del conteo. Se guarda `resultado` del cierre y el acta PDF lo usa (antes
+un equipo dado de baja salía "OPERATIVO — DISPONIBLE").
+**Bug no obvio:** `select('*, actividades:actividades_mantenimiento(...)')` —
+el alias de la relación pisaba la columna de texto `actividades` (resumen del
+cierre): al recargar desaparecía del panel y nunca salía en el acta. Ahora se
+trae también como `actividades_texto:actividades`.
+Portal de clientes responsive: pestañas repartidas en celular (la tercera
+quedaba cortada), tarjetas que se salían por nombres largos, mantenimientos
+en tarjetas hasta `lg` (la tabla era ilegible a 768), inputs de 16px en
+celular (iOS hacía zoom), etiqueta de estado del equipo si no es "En préstamo".
+**Archivos:** `src/lib/mantenimientos.js` (nuevo), `src/lib/prestamos.js`,
+`src/lib/entregas.js`, `mantenimientos/page.js`, `MantenimientosClient.js`,
+`OrdenesClient.js`, `InventarioClient.js`, `cliente/PortalClienteClient.js`.
+**SQL:** entregado, sin correr: columna `mantenimientos.resultado` y UNIQUE en
+`codigo`. Sin la columna el cierre funciona igual (reintenta sin ella).
+**Verificado con datos reales (desechables, restaurados):** equipo prestado →
+al cerrar vuelve a En préstamo; libre → Disponible; "devolver" un equipo con
+mantenimiento abierto lo deja En mantenimiento y al otro Disponible; alias del
+resumen funciona. Portal con capturas a 360/768/1280 sin scroll horizontal.
+**Pendiente:** revisar la función SQL `finalizar_ordenes_vencidas` (si pone
+equipos en Disponible, tiene el mismo hueco). Probar en pantalla con sesión
+del personal: abrir/cerrar un mantenimiento de un equipo prestado.
+
 ## 2026-09-29 — Portal de clientes + rediseño del login
 **Qué se hizo:** el login tiene pestañas "Personal / Soy cliente" (recuerda la
 última; `?cliente=1` la preselecciona), foco visible, `htmlFor`, ojo de 40×40

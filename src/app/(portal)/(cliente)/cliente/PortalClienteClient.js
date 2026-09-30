@@ -16,6 +16,11 @@ const ESTILO_MANT = {
   'Cerrado':    'bg-green-50 text-[#0F7B55]',
 }
 
+const ESTILO_ESTADO_EQUIPO = {
+  'En mantenimiento': 'bg-amber-50 text-amber-700',
+  'Reservado':        'bg-[#E8F7FB] text-[#0E6F85]',
+}
+
 const normalizar = s => (s || '').toString().normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
 
 export default function PortalClienteClient({ cliente, equipos, mantenimientos, categorias }) {
@@ -87,7 +92,7 @@ export default function PortalClienteClient({ cliente, equipos, mantenimientos, 
   const nit = cliente.nit_cc ? `${cliente.nit_cc}${cliente.digito_verificacion ? `-${cliente.digito_verificacion}` : ''}` : null
 
   return (
-    <div className="max-w-6xl mx-auto p-3 md:p-6 pb-10">
+    <div className="max-w-6xl mx-auto p-3 md:p-6 pb-[calc(2.5rem+env(safe-area-inset-bottom))]">
       {/* Saludo + resumen */}
       <section className="mb-4 md:mb-6">
         <h1 className="text-[22px] md:text-[26px] font-extrabold text-[#1B3A6B] leading-tight">{cliente.nombre}</h1>
@@ -95,14 +100,17 @@ export default function PortalClienteClient({ cliente, equipos, mantenimientos, 
 
         <div className="grid grid-cols-3 gap-2 md:gap-4 mt-4">
           {[
-            { label: 'Equipos asignados', valor: equipos.length, Icono: Package, color: '#D81B43' },
-            { label: 'Pacientes',          valor: pacientes.length, Icono: HeartPulse, color: '#2EB5D4' },
-            { label: 'Mantenimientos abiertos', valor: mantAbiertos, Icono: Wrench, color: '#1B3A6B' },
+            { label: 'Equipos asignados', corto: 'Equipos', valor: equipos.length, Icono: Package, color: '#D81B43' },
+            { label: 'Pacientes', corto: 'Pacientes', valor: pacientes.length, Icono: HeartPulse, color: '#2EB5D4' },
+            { label: 'Mantenimientos abiertos', corto: 'En mantenim.', valor: mantAbiertos, Icono: Wrench, color: '#1B3A6B' },
           ].map(k => (
-            <div key={k.label} className="bg-white rounded-[14px] border border-slate-200 p-3 md:p-5">
+            <div key={k.label} className="bg-white rounded-[14px] border border-slate-200 p-3 md:p-5 min-w-0">
               <k.Icono size={18} style={{ color: k.color }} aria-hidden />
               <div className="text-[24px] md:text-[30px] font-extrabold text-slate-800 leading-none mt-2 tabular-nums">{k.valor}</div>
-              <div className="text-[11.5px] md:text-[13px] text-slate-500 mt-1 leading-tight">{k.label}</div>
+              <div className="text-[12px] md:text-[13px] text-slate-500 mt-1 leading-tight">
+                <span className="sm:hidden">{k.corto}</span>
+                <span className="hidden sm:inline">{k.label}</span>
+              </div>
             </div>
           ))}
         </div>
@@ -110,15 +118,23 @@ export default function PortalClienteClient({ cliente, equipos, mantenimientos, 
 
       <section className="bg-white rounded-[16px] border border-slate-200 overflow-hidden">
         {/* Pestañas */}
-        <div role="tablist" className="flex border-b border-slate-200 overflow-x-auto">
+        {/* En celular las tres pestañas se reparten el ancho (antes la tercera
+            quedaba cortada); desde sm van en fila, alineadas a la izquierda. */}
+        <div role="tablist" className="grid grid-cols-3 sm:flex border-b border-slate-200">
           {TABS.map(({ id, label, Icono, total }) => (
             <button key={id} type="button" role="tab" aria-selected={tab === id}
               onClick={() => { setTab(id); setFiltroTipo('') }}
-              className={`flex items-center gap-1.5 px-4 md:px-5 h-12 text-[13.5px] font-semibold border-b-2 whitespace-nowrap transition-colors ${
+              className={`flex flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-1.5 px-1 sm:px-5 py-2 sm:py-0 sm:h-12 min-w-0 text-[12px] sm:text-[13.5px] font-semibold border-b-2 transition-colors ${
                 tab === id ? 'border-[#D81B43] text-[#D81B43]' : 'border-transparent text-slate-500 hover:text-slate-700'
               }`}>
-              <Icono size={15} /> {label}
-              <span className="text-[11.5px] opacity-70 tabular-nums">({total})</span>
+              <span className="flex items-center gap-1 sm:gap-1.5 min-w-0">
+                <Icono size={15} className="flex-shrink-0" aria-hidden />
+                <span className="truncate">{label}</span>
+              </span>
+              <span className="text-[11.5px] opacity-70 tabular-nums">
+                <span className="sm:hidden">{total}</span>
+                <span className="hidden sm:inline">({total})</span>
+              </span>
             </button>
           ))}
         </div>
@@ -132,11 +148,12 @@ export default function PortalClienteClient({ cliente, equipos, mantenimientos, 
               placeholder={tab === 'equipos' ? 'Buscar por código, serie, equipo o paciente…'
                 : tab === 'pacientes' ? 'Buscar por nombre, cédula o código de equipo…'
                 : 'Buscar por código, equipo o técnico…'}
-              className="w-full pl-9 pr-3 py-2.5 border border-slate-200 rounded-[9px] text-[14px] outline-none focus:border-[#2EB5D4] focus:ring-2 focus:ring-[#2EB5D4]/20" />
+              className="w-full pl-9 pr-3 py-2.5 border border-slate-200 rounded-[9px] text-[16px] sm:text-[14px] outline-none focus:border-[#2EB5D4] focus:ring-2 focus:ring-[#2EB5D4]/20" />
           </div>
+          {/* 16px en celular: con menos, iOS hace zoom al tocar el campo */}
           {tab === 'equipos' && tiposConConteo.length > 1 && (
             <select value={filtroTipo} onChange={e => setFiltroTipo(e.target.value)} aria-label="Filtrar por tipo de equipo"
-              className="border border-slate-200 rounded-[9px] text-[14px] px-3 py-2.5 text-slate-700 outline-none focus:border-[#2EB5D4] bg-white">
+              className="w-full sm:w-auto sm:max-w-[260px] border border-slate-200 rounded-[9px] text-[16px] sm:text-[14px] px-3 py-2.5 text-slate-700 outline-none focus:border-[#2EB5D4] bg-white">
               <option value="">Todos los equipos</option>
               {tiposConConteo.map(([n, c]) => <option key={n} value={n}>{n} ({c})</option>)}
             </select>
@@ -150,14 +167,24 @@ export default function PortalClienteClient({ cliente, equipos, mantenimientos, 
             <Vacio Icono={Package} texto={equipos.length ? 'Ningún equipo coincide con la búsqueda.' : 'No tienes equipos asignados en este momento.'} />
           ) : (
             <>
-              <ul className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2 md:gap-3 p-3 md:p-4">
+              {/* grid-cols-1 + min-w-0: sin esto, un nombre de paciente largo
+                  ensanchaba la tarjeta y se salía por la derecha en celular */}
+              <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 md:gap-3 p-3 md:p-4">
                 {pagEquipos.itemsPagina.map(e => (
-                  <li key={e.id} className="flex gap-3 p-3 rounded-[12px] border border-slate-200 bg-white">
+                  <li key={e.id} className="min-w-0 flex gap-3 p-3 rounded-[12px] border border-slate-200 bg-white">
                     <div className="w-14 h-14 rounded-[10px] bg-gradient-to-br from-rose-50 via-white to-slate-100 flex items-center justify-center flex-shrink-0 overflow-hidden">
                       <IconoTipo tipo={e.tipo_equipo} categorias={categorias} size={40} />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <div className="text-[14px] font-bold text-slate-800 leading-tight">{nombreTipo(e.tipo_equipo)}</div>
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="text-[14px] font-bold text-slate-800 leading-tight">{nombreTipo(e.tipo_equipo)}</div>
+                        {/* "En préstamo" es lo normal para el cliente: solo se marca lo distinto */}
+                        {e.estado?.nombre && e.estado.nombre !== 'En préstamo' && (
+                          <span className={`flex-shrink-0 px-2 py-0.5 rounded-full text-[11px] font-semibold whitespace-nowrap ${ESTILO_ESTADO_EQUIPO[e.estado.nombre] || 'bg-slate-100 text-slate-600'}`}>
+                            {e.estado.nombre}
+                          </span>
+                        )}
+                      </div>
                       {e.tipo_equipo?.nombre && e.tipo_equipo.nombre !== nombreTipo(e.tipo_equipo) && (
                         <div className="text-[12px] text-slate-500 truncate">{e.tipo_equipo.nombre}</div>
                       )}
@@ -215,8 +242,9 @@ export default function PortalClienteClient({ cliente, equipos, mantenimientos, 
             <Vacio Icono={Wrench} texto={mantenimientos.length ? 'Ningún mantenimiento coincide con la búsqueda.' : 'Tus equipos aún no tienen mantenimientos registrados.'} />
           ) : (
             <>
-              {/* Escritorio: tabla */}
-              <div className="hidden md:block overflow-x-auto">
+              {/* Escritorio ancho: tabla. En tablet (768) las 7 columnas partían
+                  cada texto en 4-5 líneas, así que ahí también van tarjetas. */}
+              <div className="hidden lg:block overflow-x-auto">
                 <table className="w-full text-[13px]">
                   <thead>
                     <tr className="text-left text-[11px] font-bold uppercase tracking-[0.07em] text-slate-500 bg-slate-50">
@@ -251,17 +279,18 @@ export default function PortalClienteClient({ cliente, equipos, mantenimientos, 
                   </tbody>
                 </table>
               </div>
-              {/* Móvil: tarjetas */}
-              <ul className="md:hidden divide-y divide-slate-100">
+              {/* Celular y tablet: tarjetas */}
+              <ul className="lg:hidden grid grid-cols-1 md:grid-cols-2 gap-2 md:gap-3 p-3 md:p-4">
                 {pagMant.itemsPagina.map(m => {
                   const eq = equipoPorId[m.equipo_id]
                   return (
-                    <li key={m.id} className="p-3">
+                    <li key={m.id} className="min-w-0 p-3 rounded-[12px] border border-slate-200">
                       <div className="flex items-center justify-between gap-2">
                         <span className="text-[13.5px] font-bold text-slate-800">{m.codigo || '—'}</span>
                         <EstadoMant nombre={m.estado?.nombre} />
                       </div>
                       <div className="text-[13px] text-slate-700 mt-1">{nombreTipo(eq?.tipo_equipo)} · {eq?.codigo}</div>
+                      {eq?.paciente_actual?.nombre && <div className="text-[12px] text-slate-500 mt-0.5 truncate">Paciente: {eq.paciente_actual.nombre}</div>}
                       <div className="text-[12px] text-slate-500 mt-0.5">
                         {m.tipo?.nombre || 'Mantenimiento'} · abierto {formatear(m.fecha_apertura)}
                         {(m.fecha_cierre_real || m.fecha_cierre) && <> · cierre {formatear(m.fecha_cierre_real || m.fecha_cierre)}</>}

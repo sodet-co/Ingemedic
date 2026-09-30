@@ -11,6 +11,7 @@ import LimpiarFiltros from '@/components/ui/LimpiarFiltros'
 import ModalDevolucion from '@/components/entregas/ModalDevolucion'
 import Paginador from '@/components/ui/Paginador'
 import { devolverEquipo as devolverEquipoLib } from '@/lib/prestamos'
+import { liberarEquipos } from '@/lib/mantenimientos'
 import { buscarCedulaDuplicada, mensajeCedulaDuplicada, esErrorCedulaDuplicada, MENSAJE_CEDULA_DUPLICADA } from '@/lib/pacientes'
 import BuzonNovedades from '@/components/layout/BuzonNovedades'
 import { useOrdenable } from '@/hooks/useOrdenable'
@@ -551,25 +552,20 @@ export default function OrdenesClient({
     if (error) { showToast('Error: ' + error.message, 'error'); return }
 
     // Al finalizar la orden, los equipos vuelven a "Disponible" y se desvinculan del paciente/cliente
+    // (los que están en mantenimiento siguen así — ver lib/mantenimientos.js)
+    let errorLiberar = null
     if (transicion.nombre === 'Finalizada') {
       const idsEquipos = (orden.equipos || []).map(oe => oe.equipo_id || oe.equipo?.id).filter(Boolean)
       const estadoDisponible = (estadosEquipo || []).find(e => e.nombre === 'Disponible')
-      if (idsEquipos.length > 0 && estadoDisponible) {
-        await supabase.from('equipos')
-          .update({
-            estado_id:          estadoDisponible.id,
-            paciente_actual_id: null,
-            cliente_actual_id:  null,
-          })
-          .in('id', idsEquipos)
-      }
+      ;({ error: errorLiberar } = await liberarEquipos(supabase, idsEquipos, estadoDisponible?.id))
     }
 
     const nuevoEstado = { id: transicion.id, nombre: transicion.nombre }
     setOrdenes(prev => prev.map(o => o.id === orden.id ? { ...o, estado: nuevoEstado } : o))
     setDrawer(prev => ({ ...prev, estado: nuevoEstado }))
     setModalConfirm(null)
-    showToast(transicion.nombre === 'Finalizada' ? 'Orden finalizada — equipos disponibles' : `Orden → ${transicion.nombre}`)
+    if (errorLiberar) showToast('La orden se finalizó, pero no se pudo liberar algún equipo: ' + errorLiberar.message, 'error')
+    else showToast(transicion.nombre === 'Finalizada' ? 'Orden finalizada — equipos liberados' : `Orden → ${transicion.nombre}`)
   }
 
   // ── GUARDAR FECHA ENTREGA ────────────────────────────────
@@ -758,6 +754,17 @@ export default function OrdenesClient({
       showToast('No se encontró el tipo de orden de préstamo/arrendamiento', 'error'); setSaving(false); return
     }
 
+    // La lista del wizard se cargó al abrir la página: si entretanto a un equipo
+    // le abrieron un mantenimiento o lo prestaron, no se presta.
+    const { data: estadosActuales, error: errEstados } = await supabase.from('equipos')
+      .select('codigo, estado:estados_equipo(nombre)').in('id', wForm.equipos_ids)
+    if (errEstados) { showToast('Error verificando los equipos: ' + errEstados.message, 'error'); setSaving(false); return }
+    const noDisponibles = (estadosActuales || []).filter(e => e.estado?.nombre !== 'Disponible')
+    if (noDisponibles.length > 0) {
+      showToast(`Ya no está disponible: ${noDisponibles.map(e => `${e.codigo} (${e.estado?.nombre})`).join(', ')}`, 'error')
+      setSaving(false); router.refresh(); return
+    }
+
     let pacienteId = wForm.tiene_paciente ? wForm.paciente_id : null
     if (wForm.tiene_paciente && pacienteId) {
       // Paciente existente — puede haber sido editado en el formulario, se actualiza
@@ -908,18 +915,13 @@ export default function OrdenesClient({
     }
 
     // Libera los equipos de esta orden que aún no se hayan devuelto
+    // (los que están en mantenimiento siguen así — ver lib/mantenimientos.js)
     const estadoDisponible = (estadosEquipo || []).find(e => e.nombre === 'Disponible')
     const idsALiberar = (drawer.equipos || [])
       .filter(oe => !oe.fecha_devolucion)
       .map(oe => oe.equipo_id || oe.equipo?.id)
       .filter(Boolean)
-    if (estadoDisponible && idsALiberar.length > 0) {
-      await supabase.from('equipos').update({
-        estado_id:          estadoDisponible.id,
-        paciente_actual_id: null,
-        cliente_actual_id:  null,
-      }).in('id', idsALiberar)
-    }
+    const { error: errLiberar } = await liberarEquipos(supabase, idsALiberar, estadoDisponible?.id)
 
     registrarBitacora({ modulo: 'ordenes', accion: 'cancelar', entidad: 'préstamo', entidad_id: drawer.id, detalle: { codigo: drawer.codigo } })
 
@@ -927,7 +929,8 @@ export default function OrdenesClient({
     setOrdenes(prev => prev.map(o => o.id === drawer.id ? { ...o, estado: nuevoEstado } : o))
     setDrawer(prev => ({ ...prev, estado: nuevoEstado }))
     setModalCancelar(false)
-    showToast('Préstamo cancelado — equipo liberado')
+    if (errLiberar) showToast('El préstamo se canceló, pero no se pudo liberar algún equipo: ' + errLiberar.message, 'error')
+    else showToast('Préstamo cancelado — equipo liberado')
     router.refresh()
   }
 

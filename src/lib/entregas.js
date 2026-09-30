@@ -1,3 +1,5 @@
+import { equiposConMantenimientoAbierto } from '@/lib/mantenimientos'
+
 // Lógica de negocio de entregas compartida entre la vista de admin (EntregasClient.js)
 // y la vista simplificada de repartidor (EntregasRepartidorClient.js) — un solo lugar
 // para "iniciar entrega" y "completar entrega" con firma, sin duplicar reglas.
@@ -85,10 +87,17 @@ export async function finalizarEntrega(supabase, { entrega, recibidoPor, firma, 
 
   // Equipo pasa de "Reservado" a "En préstamo" — paciente_actual_id/cliente_actual_id
   // ya quedaron asignados al crear la orden (quedó reservado desde ese momento).
+  // Los que tienen un mantenimiento abierto siguen "En mantenimiento": al
+  // cerrarlo vuelven a "En préstamo" (ver lib/mantenimientos.js).
   const idsEquipos = (entrega.orden?.equipos || []).map(oe => oe.equipo_id || oe.equipo?.id).filter(Boolean)
   const estadoPrestamo = (estadosEquipo || []).find(e => e.nombre === 'En préstamo')
   if (idsEquipos.length > 0 && estadoPrestamo) {
-    await supabase.from('equipos').update({ estado_id: estadoPrestamo.id }).in('id', idsEquipos)
+    let enMant = new Set()
+    try { enMant = await equiposConMantenimientoAbierto(supabase, idsEquipos) } catch { /* si falla la consulta, se sigue como antes */ }
+    const aPrestamo = idsEquipos.filter(id => !enMant.has(id))
+    if (aPrestamo.length > 0) {
+      await supabase.from('equipos').update({ estado_id: estadoPrestamo.id }).in('id', aPrestamo)
+    }
   }
 
   return {
