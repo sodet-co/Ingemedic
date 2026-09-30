@@ -102,7 +102,8 @@ desde Clientes, entrar como cliente y quitar el acceso funcionan.
 **Pendiente:** confirmar con sesión real del personal que Mantenimientos y
 Configuración → Listas cargan en producción (RLS recién encendido ahí).
 Revisar en Supabase Auth que el registro público (signups) esté apagado.
-Menor: `/sin-acceso` le abre al cliente el aviso pensado para roles del personal.
+(Arreglado después: el middleware ahora también revisa `/sin-acceso`, y un
+cliente que la abre va a `/cliente`. Verificado con cuenta desechable.)
 
 ## 2026-09-29 — Exportar inventario: hoja adicional con el escalón de abajo
 **Qué se hizo:** el Excel trae la hoja del nivel en pantalla y además la del

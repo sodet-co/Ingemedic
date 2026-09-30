@@ -65,7 +65,6 @@ export async function middleware(request) {
 
   const esRutaAdmin = rutaPanel
   const esLogin     = pathname === '/login'
-  const esSinAcceso = pathname === '/sin-acceso'
 
   // Raíz del portal → login, o el dashboard si ya hay sesión
   if (enPortal && pathname === '/') {
@@ -104,9 +103,9 @@ export async function middleware(request) {
   // ── CONTROL DE ACCESO POR ROL/MÓDULO ──────────────────────────────────
   // Reemplaza el caso hardcodeado de "Repartidor" — ahora es genérico para
   // cualquier rol, vía la tabla `permisos` (ver src/lib/permisos.js).
-  // Se salta en login y en la propia página de "sin acceso" para no generar
-  // un loop de redirecciones.
-  if (esRutaAdmin && !esLogin && !esSinAcceso && user) {
+  // Se salta en login. /sin-acceso sí pasa por aquí (para mandar al cliente a
+  // /cliente): no tiene módulo mapeado, así que no genera loop para el personal.
+  if (esRutaAdmin && !esLogin && user) {
     // Mismo id que auth.users; el email (sin importar mayúsculas) queda de
     // respaldo por usuarios viejos cuyo id no coincide — igual que api-auth.js.
     const COLUMNAS_USUARIO = 'rol_id, activo, roles (nombre)'
