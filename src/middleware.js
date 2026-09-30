@@ -107,16 +107,41 @@ export async function middleware(request) {
   // Se salta en login y en la propia página de "sin acceso" para no generar
   // un loop de redirecciones.
   if (esRutaAdmin && !esLogin && !esSinAcceso && user) {
-    const { data: usuario } = await supabase
-      .from('usuarios')
-      .select('rol_id, activo, roles (nombre)')
-      .eq('email', user.email)
-      .single()
+    // Mismo id que auth.users; el email (sin importar mayúsculas) queda de
+    // respaldo por usuarios viejos cuyo id no coincide — igual que api-auth.js.
+    const COLUMNAS_USUARIO = 'rol_id, activo, roles (nombre)'
+    let { data: usuario } = await supabase
+      .from('usuarios').select(COLUMNAS_USUARIO).eq('id', user.id).maybeSingle()
+    if (!usuario && user.email) {
+      ;({ data: usuario } = await supabase
+        .from('usuarios').select(COLUMNAS_USUARIO).ilike('email', user.email).maybeSingle())
+    }
+
+    const esRutaCliente = pathname === '/cliente' || pathname.startsWith('/cliente/')
+
+    // ── PORTAL DE CLIENTES ──
+    // Una sesión que no es del personal puede ser la cuenta de un cliente
+    // (clientes.auth_user_id, creada desde Clientes → Acceso al portal). El
+    // cliente solo ve /cliente; lo que lee lo limita RLS (mi_cliente_id()).
+    if (!usuario) {
+      const { data: cliente } = await supabase
+        .from('clientes').select('id, activo').eq('auth_user_id', user.id).maybeSingle()
+      // Ni personal ni cliente (o cliente desactivado): antes pasaba sin
+      // ninguna restricción de módulos. Ahora se cierra la sesión.
+      if (!cliente || cliente.activo === false) return cerrarSesion('inactivo')
+      if (!esRutaCliente) return NextResponse.redirect(new URL('/cliente', request.url))
+      return response
+    }
+
+    // El personal no tiene nada que hacer en el portal de clientes
+    if (esRutaCliente) {
+      return NextResponse.redirect(new URL('/dashboard', request.url))
+    }
 
     // Usuario desactivado en Configuración → fuera. Desde 2026-09-25 además
     // se bloquea en Supabase Auth (/api/usuarios), pero esto cubre sesiones
     // que ya estaban abiertas al momento de desactivarlo.
-    if (usuario?.activo === false) {
+    if (usuario.activo === false) {
       return cerrarSesion('inactivo')
     }
 

@@ -16,6 +16,7 @@ import Paginador from '@/components/ui/Paginador'
 import { Box } from '@/components/ui/Skeleton'
 import { IconoTipo } from '@/components/inventario/IconoTipo'
 import BuzonNovedades from '@/components/layout/BuzonNovedades'
+import AccesoPortal from '@/components/clientes/AccesoPortal'
 import { useOrdenable } from '@/hooks/useOrdenable'
 import { usePaginacion } from '@/hooks/usePaginacion'
 import { formatear, formatearSoloFecha, hoyBogota } from '@/lib/fechas'
@@ -1138,6 +1139,8 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
                     </div>
                   ))}
                 </div>
+
+                <AccesoPortal cliente={drawer} onToast={showToast} />
 
                 <div className="p-6">
                   {/* Tabs + exportar */}

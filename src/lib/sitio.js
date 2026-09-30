@@ -17,7 +17,7 @@ export const PORTAL_URL = 'https://portal.ingemedic.com.co'
 export const RUTAS_PORTAL = [
   'login', 'sin-acceso', 'dashboard', 'entregas', 'inventario', 'ordenes',
   'clientes', 'mantenimientos', 'servicios', 'bitacora', 'configuracion',
-  'repartidor-preferencias',
+  'repartidor-preferencias', 'cliente',
 ]
 
 export function esRutaPortal(pathname) {

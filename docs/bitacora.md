@@ -59,6 +59,51 @@ Lo que está sin resolver, ordenado por prioridad.
 
 # Entradas
 
+## 2026-09-29 — Portal de clientes + rediseño del login
+**Qué se hizo:** el login tiene pestañas "Personal / Soy cliente" (recuerda la
+última; `?cliente=1` la preselecciona), foco visible, `htmlFor`, ojo de 40×40
+con `aria-label`, error con `role="alert"` que se borra al escribir, spinner,
+aviso de Bloq Mayús, `min-h-[100dvh]`, logo dentro de la tarjeta, foto con
+mensaje y enlace a www. Nuevo `/cliente` (layout propio, sin sidebar): equipos
+que el cliente tiene hoy, pacientes asignados y mantenimientos de esos
+equipos. En Clientes → panel del cliente, sección "Acceso al portal": crear
+cuenta (correo + contraseña generada para entregar), cambiar contraseña,
+quitar acceso, vía `/api/clientes/acceso` (service_role, módulo clientes).
+Middleware: busca al personal por id y luego email sin mayúsculas; si no es
+personal, busca `clientes.auth_user_id` → solo `/cliente`; si no es ninguno,
+cierra la sesión (antes pasaba sin restricción).
+**Por qué así:** la cuenta del cliente es de Supabase Auth pero NO está en
+`usuarios`. RLS: políticas RESTRICTIVE `TO authenticated` en todas las tablas
+con RLS, que exigen `es_personal()` (o `mi_cliente_id()` para leer lo suyo en
+clientes/equipos/pacientes/mantenimientos). Se suman con AND a
+`autenticados_todo`, así que el personal no nota nada y anon no cambia.
+**Archivos:** `src/app/(portal)/(auth)/login/page.js`,
+`src/app/(portal)/(cliente)/**`, `src/components/layout/ClienteHeader.js`,
+`src/components/clientes/AccesoPortal.js`, `src/app/api/clientes/acceso/route.js`,
+`src/app/(portal)/(dashboard)/clientes/ClientesClient.js`, `src/middleware.js`,
+`src/lib/sitio.js` (`cliente` en RUTAS_PORTAL).
+**SQL:** corrido el 2026-09-29: columna `clientes.auth_user_id`, funciones
+`es_personal()` / `mi_cliente_id()`, políticas restrictivas. Segunda parte:
+6 tablas tenían RLS APAGADO (`mantenimientos`, `actividades_mantenimiento`,
+`adjuntos_actividad_mantenimiento`, `listas_mantenimiento`,
+`actividades_lista_mantenimiento`, `orden_plantillas`) — se abrían a
+cualquiera. Se les puso `autenticados_todo` + restricción y se encendió RLS.
+Ya no queda ninguna tabla de `public` con RLS apagado.
+**Verificado con cuenta desechable enlazada a CUIDARTE (borrada después):**
+ve 1 de 10 clientes, sus 117 equipos, 29 de 200 pacientes, 0 en usuarios,
+órdenes, entregas, bitácora, permisos, roles; con dos mantenimientos de
+prueba ve solo el de su equipo; update/insert bloqueados; anon no lee ni
+escribe mantenimientos/listas. Las 7 cuentas de Auth están en `usuarios`.
+La entrada/salida de clientes no va a bitácora (`usuario_id` es FK a usuarios).
+Flujo de la app con esa cuenta: `/cliente` muestra solo lo suyo; `/dashboard`,
+`/inventario`, `/clientes`, `/configuracion`, `/bitacora` → `/cliente`; APIs
+internas → 403. **Verificado por Sofía en local (2026-09-29):** dar acceso
+desde Clientes, entrar como cliente y quitar el acceso funcionan.
+**Pendiente:** confirmar con sesión real del personal que Mantenimientos y
+Configuración → Listas cargan en producción (RLS recién encendido ahí).
+Revisar en Supabase Auth que el registro público (signups) esté apagado.
+Menor: `/sin-acceso` le abre al cliente el aviso pensado para roles del personal.
+
 ## 2026-09-29 — Exportar inventario: hoja adicional con el escalón de abajo
 **Qué se hizo:** el Excel trae la hoja del nivel en pantalla y además la del
 nivel inferior. Categorías: resumen + hoja nueva de todos los tipos + todas
