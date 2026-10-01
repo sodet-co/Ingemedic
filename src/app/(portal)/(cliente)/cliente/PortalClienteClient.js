@@ -24,6 +24,31 @@ const ESTILO_MANT = {
   'En proceso': 'bg-[#E3F5FA] text-[#11809A]',
   'Cerrado':    'bg-[#E3F4EC] text-[#0F7B55]',
 }
+const ANCHO = 'max-w-[1840px] mx-auto px-6 xl:px-10'
+
+function Marca() {
+  return (
+    <div className="flex items-center gap-2.5 flex-shrink-0">
+      <div className="w-9 h-9 rounded-[10px] bg-white flex items-center justify-center" aria-hidden>
+        <Plus size={20} strokeWidth={3} className="text-[#D81B43]" />
+      </div>
+      <div className="flex flex-col gap-px">
+        <span className="text-[14px] font-extrabold text-white tracking-[0.06em]">INGEMEDIC</span>
+        <span className="text-[11px] font-medium text-[#B9C8E0]">Portal de clientes</span>
+      </div>
+    </div>
+  )
+}
+
+function Avatar({ nombre }) {
+  return (
+    <div aria-hidden
+      className="w-10 h-10 flex-shrink-0 rounded-full border-2 border-[#2EB5D4] bg-[#274B82] text-white text-[13px] font-bold flex items-center justify-center">
+      {iniciales(nombre)}
+    </div>
+  )
+}
+
 const abierto = m => m.estado?.nombre !== 'Cerrado'
 
 const ESTILO_ESTADO_EQUIPO = {
@@ -142,61 +167,76 @@ export default function PortalClienteClient({ cliente, equipos, mantenimientos, 
   const reportar = `mailto:${EMPRESA.email}?subject=${encodeURIComponent(`Portal de clientes — ${cliente.nombre}`)}`
 
   return (
-    <div className="pb-[calc(96px+env(safe-area-inset-bottom))] md:pb-10">
-      {/* ── BLOQUE AZUL ── */}
-      <header className="bg-[#1B3A6B] rounded-b-[28px] px-[18px] md:px-0 pt-4 pb-[26px] md:pb-8">
-        <div className="max-w-5xl mx-auto md:px-8 flex flex-col gap-[22px]">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-[10px] bg-white flex items-center justify-center" aria-hidden>
-                <Plus size={20} strokeWidth={3} className="text-[#D81B43]" />
-              </div>
-              <div className="flex flex-col gap-px">
-                <span className="text-[14px] font-extrabold text-white tracking-[0.06em]">INGEMEDIC</span>
-                <span className="text-[11px] font-medium text-[#B9C8E0]">Portal de clientes</span>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <div aria-hidden
-                className="w-10 h-10 rounded-full border-2 border-[#2EB5D4] bg-[#274B82] text-white text-[13px] font-bold flex items-center justify-center">
-                {iniciales(cliente.nombre)}
-              </div>
-              <button type="button" onClick={salir} disabled={saliendo} aria-label="Cerrar sesión"
-                className="w-10 h-10 rounded-xl border border-[#3A5A8C] flex items-center justify-center text-white hover:bg-white/10 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2EB5D4]">
-                {saliendo ? <Loader2 size={18} className="animate-spin" /> : <LogOut size={18} />}
-              </button>
-            </div>
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <span className="text-[13px] font-medium text-[#B9C8E0]">Hola, bienvenido</span>
-            <h1 className="m-0 text-[28px] md:text-[32px] leading-[1.1] font-extrabold text-white tracking-[-0.01em]">{cliente.nombre}</h1>
-            {nit && (
-              <div>
-                <span className="inline-block text-[12px] font-semibold text-[#DDE6F3] bg-[#274B82] px-2.5 py-1 rounded-full">NIT / CC {nit}</span>
-              </div>
-            )}
-          </div>
-
-          {/* Pestañas en pantallas medianas (en celular van abajo) */}
-          <nav aria-label="Secciones" className="hidden md:flex gap-2">
+    <div className="pb-[calc(96px+env(safe-area-inset-bottom))] md:pb-12">
+      {/* ── ESCRITORIO: header clásico ── */}
+      <header className="hidden md:block sticky top-0 z-30 bg-[#1B3A6B] shadow-[0_2px_12px_rgba(15,30,54,0.18)]">
+        <div className={`${ANCHO} h-16 flex items-center gap-8`}>
+          <Marca />
+          <nav aria-label="Secciones" className="flex items-stretch self-stretch gap-1">
             {TABS.map(({ id, label, Icono, total, badge }) => (
               <button key={id} type="button" onClick={() => cambiarTab(id)} aria-current={tab === id ? 'page' : undefined}
-                className={`h-11 px-4 rounded-full flex items-center gap-2 text-[14px] font-bold transition-colors ${
-                  tab === id ? 'bg-white text-[#1B3A6B]' : 'text-[#DDE6F3] hover:bg-white/10'
+                className={`px-4 flex items-center gap-2 text-[14px] font-bold border-b-[3px] pt-[3px] transition-colors focus-visible:outline-none focus-visible:bg-white/10 ${
+                  tab === id ? 'border-[#2EB5D4] text-white' : 'border-transparent text-[#B9C8E0] hover:text-white'
                 }`}>
                 <Icono size={18} /> {label}
                 {total > 0 && <span className={`min-w-[22px] h-[22px] px-1.5 rounded-full text-[11px] font-extrabold flex items-center justify-center ${badge}`}>{total}</span>}
               </button>
             ))}
           </nav>
+          <div className="ml-auto flex items-center gap-3 min-w-0">
+            <div className="hidden lg:block text-right leading-tight min-w-0">
+              <div className="text-[13px] font-bold text-white truncate max-w-[280px]">{cliente.nombre}</div>
+              <div className="text-[11px] font-medium text-[#B9C8E0]">{nit ? `NIT / CC ${nit}` : 'Portal de clientes'}</div>
+            </div>
+            <Avatar nombre={cliente.nombre} />
+            <button type="button" onClick={salir} disabled={saliendo}
+              className="h-10 px-3.5 rounded-xl border border-[#3A5A8C] flex items-center gap-2 text-[13px] font-bold text-white hover:bg-white/10 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2EB5D4]">
+              {saliendo ? <Loader2 size={16} className="animate-spin" /> : <LogOut size={16} />} Salir
+            </button>
+          </div>
         </div>
       </header>
 
-      <main className="max-w-5xl mx-auto">
+      {/* ── CELULAR: bloque azul ── */}
+      <header className="md:hidden bg-[#1B3A6B] rounded-b-[28px] px-[18px] pt-4 pb-[26px]">
+        <div className="flex flex-col gap-[22px]">
+          <div className="flex items-center justify-between">
+            <Marca />
+            <div className="flex items-center gap-2">
+              <Avatar nombre={cliente.nombre} />
+              <button type="button" onClick={salir} disabled={saliendo} aria-label="Cerrar sesión"
+                className="w-10 h-10 rounded-xl border border-[#3A5A8C] flex items-center justify-center text-white hover:bg-white/10 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2EB5D4]">
+                {saliendo ? <Loader2 size={18} className="animate-spin" /> : <LogOut size={18} />}
+              </button>
+            </div>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <span className="text-[13px] font-medium text-[#B9C8E0]">Hola, bienvenido</span>
+            <h1 className="m-0 text-[28px] leading-[1.1] font-extrabold text-white tracking-[-0.01em]">{cliente.nombre}</h1>
+            {nit && (
+              <div>
+                <span className="inline-block text-[12px] font-semibold text-[#DDE6F3] bg-[#274B82] px-2.5 py-1 rounded-full">NIT / CC {nit}</span>
+              </div>
+            )}
+          </div>
+        </div>
+      </header>
+
+      <main className="max-w-[1840px] mx-auto">
+        {/* Saludo en escritorio */}
+        <div className="hidden md:flex px-6 xl:px-10 pt-8 items-end justify-between gap-6">
+          <div className="min-w-0">
+            <span className="text-[13px] font-medium text-[#5B6B82]">Hola, bienvenido</span>
+            <h1 className="m-0 text-[30px] leading-[1.15] font-extrabold text-[#0F1E36] tracking-[-0.01em]">{cliente.nombre}</h1>
+          </div>
+          <p className="m-0 text-[14px] font-medium text-[#5B6B82] whitespace-nowrap">
+            {equipos.length} equipo{equipos.length !== 1 ? 's' : ''} · {pacientes.length} paciente{pacientes.length !== 1 ? 's' : ''} · {mantAbiertos} mantenimiento{mantAbiertos !== 1 ? 's' : ''} abierto{mantAbiertos !== 1 ? 's' : ''}
+          </p>
+        </div>
+
         {/* ── BUSCADOR Y FILTROS ── */}
-        <div className="px-3.5 md:px-8 pt-5 flex flex-col gap-3">
-          <div className="flex gap-2">
+        <div className="px-3.5 md:px-6 xl:px-10 pt-5 md:pt-6 flex flex-col gap-3 md:flex-row md:flex-wrap md:items-center">
+          <div className="flex gap-2 md:flex-1 md:min-w-[320px] md:max-w-[560px]">
             <label className="flex-1 min-w-0 h-12 flex items-center gap-2.5 px-3.5 bg-white border border-[#DCE3ED] rounded-[14px] focus-within:border-[#2EB5D4] focus-within:ring-2 focus-within:ring-[#2EB5D4]/20">
               <Search size={18} className="text-[#5B6B82] flex-shrink-0" aria-hidden />
               <input type="search" value={busqueda} onChange={e => setBusqueda(e.target.value)}
@@ -208,7 +248,7 @@ export default function PortalClienteClient({ cliente, equipos, mantenimientos, 
             </label>
             {tab === 'equipos' && tipos.length > 1 && (
               <button type="button" onClick={() => setVerFiltros(v => !v)} aria-label="Filtrar por tipo de equipo" aria-expanded={verFiltros}
-                className={`w-12 h-12 flex-shrink-0 rounded-[14px] border flex items-center justify-center transition-colors ${
+                className={`md:hidden w-12 h-12 flex-shrink-0 rounded-[14px] border flex items-center justify-center transition-colors ${
                   verFiltros || filtroTipo ? 'bg-[#1B3A6B] border-[#1B3A6B] text-white' : 'bg-white border-[#DCE3ED] text-[#1B3A6B]'
                 }`}>
                 <SlidersHorizontal size={18} />
@@ -216,8 +256,9 @@ export default function PortalClienteClient({ cliente, equipos, mantenimientos, 
             )}
           </div>
 
-          {verFiltros && tab === 'equipos' && (
-            <div className="relative">
+          {/* Tipo de equipo: en celular tras el botón de filtros, en escritorio siempre visible */}
+          {tab === 'equipos' && tipos.length > 1 && (
+            <div className={`relative md:w-[280px] ${verFiltros ? '' : 'hidden md:block'}`}>
               <select value={filtroTipo} onChange={e => setFiltroTipo(e.target.value)} aria-label="Tipo de equipo"
                 className="w-full h-12 appearance-none pl-3.5 pr-10 bg-white border border-[#DCE3ED] rounded-[14px] text-[16px] md:text-[14px] font-semibold text-[#334259] outline-none focus:border-[#2EB5D4]">
                 <option value="">Todos los tipos de equipo</option>
@@ -242,14 +283,14 @@ export default function PortalClienteClient({ cliente, equipos, mantenimientos, 
         </div>
 
         {/* ── LISTAS ── */}
-        <section className="px-3.5 md:px-8 pt-[22px] flex flex-col gap-2.5">
+        <section className="px-3.5 md:px-6 xl:px-10 pt-[22px] md:pt-6 flex flex-col gap-2.5 md:gap-3">
           {tab === 'equipos' && (
             <>
               <Encabezado titulo="Tus equipos" total={equiposFiltrados.length} />
               {equiposFiltrados.length === 0 ? (
                 <Vacio texto={equipos.length ? 'Ningún equipo coincide con la búsqueda.' : 'No tienes equipos asignados en este momento.'} />
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-2.5 md:gap-3">
                   {pagEquipos.itemsPagina.map(e => (
                     <button key={e.id} type="button" onClick={() => setDetalle(e)}
                       className="min-w-0 text-left bg-white border border-[#E3E9F1] rounded-[18px] p-3.5 flex gap-3 items-center hover:border-[#B8C4D4] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2EB5D4]">
@@ -289,7 +330,7 @@ export default function PortalClienteClient({ cliente, equipos, mantenimientos, 
               {pacientesFiltrados.length === 0 ? (
                 <Vacio texto={pacientes.length ? 'Ningún paciente coincide con la búsqueda.' : 'Ninguno de tus equipos tiene un paciente asignado.'} />
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-2.5 md:gap-3">
                   {pagPacientes.itemsPagina.map(p => (
                     <div key={p.id} className="min-w-0 bg-white border border-[#E3E9F1] rounded-[18px] p-3.5 flex gap-3">
                       <div className="w-[52px] h-[52px] flex-shrink-0 rounded-[14px] bg-[#E3F4EC] text-[#0F7B55] flex items-center justify-center text-[15px] font-extrabold">
@@ -325,7 +366,7 @@ export default function PortalClienteClient({ cliente, equipos, mantenimientos, 
               {mantFiltrados.length === 0 ? (
                 <Vacio texto={mantenimientos.length ? 'Ningún mantenimiento coincide con la búsqueda.' : 'Tus equipos aún no tienen mantenimientos registrados.'} />
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-2.5 md:gap-3">
                   {pagMant.itemsPagina.map(m => <TarjetaMant key={m.id} m={m} eq={equipoPorId[m.equipo_id]} onEquipo={setDetalle} />)}
                 </div>
               )}
@@ -335,7 +376,7 @@ export default function PortalClienteClient({ cliente, equipos, mantenimientos, 
         </section>
 
         {/* ── AYUDA ── */}
-        <div className="px-3.5 md:px-8 pt-[22px]">
+        <div className="px-3.5 md:px-6 xl:px-10 pt-[22px] md:pt-8">
           <div className="bg-white border border-[#E3E9F1] rounded-[18px] p-4 flex items-center gap-3">
             <div className="w-[42px] h-[42px] flex-shrink-0 rounded-xl bg-[#E3F5FA] flex items-center justify-center" aria-hidden>
               <MessageCircle size={20} className="text-[#11809A]" />
@@ -495,9 +536,9 @@ function DetalleEquipo({ equipo: e, categorias, mantenimientos, onCerrar }) {
   ].filter(([, v]) => v)
 
   return (
-    <div className="fixed inset-0 z-40 flex items-end md:items-center justify-center md:p-4" role="dialog" aria-modal="true" aria-label={`Equipo ${e.codigo || ''}`}>
+    <div className="fixed inset-0 z-40 flex items-end justify-center md:items-stretch md:justify-end" role="dialog" aria-modal="true" aria-label={`Equipo ${e.codigo || ''}`}>
       <div className="absolute inset-0 bg-[#0F1E36]/50" onClick={onCerrar} />
-      <div className="relative w-full md:max-w-lg max-h-[92vh] md:max-h-[85vh] bg-[#F4F6FA] rounded-t-[24px] md:rounded-[24px] flex flex-col overflow-hidden shadow-2xl">
+      <div className="relative w-full md:w-[480px] max-h-[92vh] md:max-h-none md:h-full bg-[#F4F6FA] rounded-t-[24px] md:rounded-none flex flex-col overflow-hidden shadow-2xl">
         <div className="bg-[#1B3A6B] px-[18px] pt-3 pb-5 flex flex-col gap-3">
           <div className="md:hidden mx-auto w-10 h-1 rounded-full bg-white/30" aria-hidden />
           <div className="flex items-start gap-3">
