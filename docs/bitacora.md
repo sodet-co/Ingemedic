@@ -59,6 +59,22 @@ Lo que está sin resolver, ordenado por prioridad.
 
 # Entradas
 
+## 2026-09-30 — Mantenimientos sin preventivo/correctivo
+**Qué se hizo:** se quitó el tipo de mantenimiento de toda la interfaz: botones
+del formulario, filtros, tarjeta "Correctivos", insignias y borde rojo en
+tabla/tarjetas, color del panel de detalle, acta PDF, portal de clientes y
+texto del tour. Los nuevos se guardan con `tipo_mantenimiento_id = null`.
+**Por qué:** en la práctica no había diferencia entre uno y otro.
+**Archivos:** `MantenimientosClient.js`, `mantenimientos/page.js`,
+`lib/mantenimientos.js`, `cliente/page.js`, `PortalClienteClient.js`,
+`hooks/useTour.js`.
+**SQL:** entregado, sin correr: `ALTER TABLE mantenimientos ALTER COLUMN
+tipo_mantenimiento_id DROP NOT NULL`. Sin él, crear un mantenimiento falla
+(el formulario avisa que falta el SQL). Correrlo ANTES de desplegar.
+**Pendiente:** los registros viejos conservan su tipo en la BD (no se borró
+la tabla `tipos_mantenimiento`). La variable `mant_tipo` de las plantillas de
+documentos (`/api/documentos`) queda vacía para los nuevos.
+
 ## 2026-09-30 — Mantenimientos: tabla con datos de la unidad y selección múltiple
 **Qué se hizo:** la tabla principal muestra lo mismo que Inventario → unidades:
 código de inventario, equipo + categoría, serie/modelo, paciente (con

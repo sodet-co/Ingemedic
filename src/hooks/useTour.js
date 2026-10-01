@@ -131,7 +131,7 @@ export const PASOS_TOUR = [
     ruta: '/mantenimientos',
     elemento: '[data-tour="btn-nuevo-mantenimiento"]',
     titulo: '🔧 Bloque 5: Mantenimientos',
-    descripcion: 'Registra mantenimientos preventivos y correctivos. Al abrir uno, el equipo pasa automáticamente a estado "En mantenimiento" y deja de estar disponible.',
+    descripcion: 'Registra los mantenimientos de los equipos. Al abrir uno, el equipo pasa automáticamente a estado "En mantenimiento" y deja de estar disponible.',
     posicion: 'bottom',
   },
   {

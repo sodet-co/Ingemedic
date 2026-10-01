@@ -64,16 +64,6 @@ function EstadoBadge({ nombre }) {
   )
 }
 
-function TipoBadge({ nombre }) {
-  return (
-    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-bold whitespace-nowrap ${nombre === 'Correctivo' ? 'bg-[#FEF2F2] text-[#D81B43]' : 'bg-[#E8F7FB] text-[#0E86A0]'
-      }`}>
-      {nombre === 'Correctivo' ? <AlertTriangle size={9} /> : <Wrench size={9} />}
-      {nombre}
-    </span>
-  )
-}
-
 function nombreEquipo(eq) {
   return eq?.tipo_equipo?.atributos?.nombre || eq?.tipo_equipo?.nombre || '—'
 }
@@ -84,7 +74,7 @@ const labelCls = 'block text-[11px] font-bold uppercase tracking-[0.07em] text-s
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
 const LOGO_URL = `${SUPABASE_URL}/storage/v1/object/public/logos/logo-ingemedic.png`
 
-export default function MantenimientosClient({ mantenimientosIniciales, tipos, equipos, listas, categorias = [], tiposEquipo = [] }) {
+export default function MantenimientosClient({ mantenimientosIniciales, equipos, listas, categorias = [], tiposEquipo = [] }) {
   const router = useRouter()
   const supabase = createClient()
 
@@ -125,7 +115,6 @@ export default function MantenimientosClient({ mantenimientosIniciales, tipos, e
   }, [])
   const [search, setSearch] = useState('')
   const [filtroEstado, setFiltroEstado] = useState('')
-  const [filtroTipo, setFiltroTipo] = useState('')
   const [drawer, setDrawer] = useState(null)
   const [modal, setModal] = useState(false)
   const [modalCierre, setModalCierre] = useState(null)
@@ -135,7 +124,7 @@ export default function MantenimientosClient({ mantenimientosIniciales, tipos, e
   const [toast, setToast] = useState(null)
   const [uploading, setUploading] = useState({})
   const [form, setForm] = useState({
-    equipos_ids: [], tipo_mantenimiento_id: '', tecnico: '',
+    equipos_ids: [], tecnico: '',
     observaciones_cliente: '', lista_id: '',
   })
   const [cierreForm, setCierreForm] = useState({
@@ -164,7 +153,7 @@ export default function MantenimientosClient({ mantenimientosIniciales, tipos, e
   }
 
   function abrirModal() {
-    setForm({ equipos_ids: [], tipo_mantenimiento_id: '', tecnico: '', observaciones_cliente: '', lista_id: '' })
+    setForm({ equipos_ids: [], tecnico: '', observaciones_cliente: '', lista_id: '' })
     setFormDirty(false)
     setModal(true)
   }
@@ -176,7 +165,6 @@ export default function MantenimientosClient({ mantenimientosIniciales, tipos, e
     abiertos: (mantenimientos || []).filter(m => m.estado?.nombre === 'Abierto').length,
     enProceso: (mantenimientos || []).filter(m => m.estado?.nombre === 'En proceso').length,
     cerrados: (mantenimientos || []).filter(m => m.estado?.nombre === 'Cerrado').length,
-    correctivos: (mantenimientos || []).filter(m => m.tipo?.nombre === 'Correctivo').length,
   }), [mantenimientos])
 
   const filtrados = useMemo(() => {
@@ -186,10 +174,9 @@ export default function MantenimientosClient({ mantenimientosIniciales, tipos, e
         m.equipo?.tipo_equipo?.categoria?.nombre, m.equipo?.paciente_actual?.nombre, m.equipo?.cliente_actual?.nombre]
         .some(v => v?.toString().toLowerCase().includes(search.toLowerCase()))
       const me = !filtroEstado || m.estado?.nombre === filtroEstado
-      const mt = !filtroTipo || m.tipo?.nombre === filtroTipo
-      return mq && me && mt
+      return mq && me
     })
-  }, [mantenimientos, search, filtroEstado, filtroTipo])
+  }, [mantenimientos, search, filtroEstado])
 
   const paginacionMantenimientos = usePaginacion(filtrados, 20)
   const mantenimientosPagina = paginacionMantenimientos.itemsPagina
@@ -214,7 +201,6 @@ export default function MantenimientosClient({ mantenimientosIniciales, tipos, e
   async function crearMantenimiento() {
     const ids = form.equipos_ids
     if (ids.length === 0) { showToast('Selecciona al menos un equipo', 'error'); return }
-    if (!form.tipo_mantenimiento_id) { showToast('Selecciona el tipo de mantenimiento', 'error'); return }
     setSaving(true)
 
     // Ninguno puede tener ya un mantenimiento abierto
@@ -235,7 +221,7 @@ export default function MantenimientosClient({ mantenimientosIniciales, tipos, e
     const filas = ids.map((equipo_id, i) => ({
       codigo: `MAN-${anio}-${String(ultimo + 1 + i).padStart(3, '0')}`,
       equipo_id,
-      tipo_mantenimiento_id: form.tipo_mantenimiento_id,
+      tipo_mantenimiento_id: null, // ya no se distingue preventivo/correctivo
       estado_id: ESTADOS.EnProceso, // directo a En proceso
       tecnico: form.tecnico || null,
       fecha_apertura: hoyBogota(),
@@ -243,7 +229,11 @@ export default function MantenimientosClient({ mantenimientosIniciales, tipos, e
       en_curso: true,
     }))
     const { data: creados, error } = await supabase.from('mantenimientos').insert(filas).select(SELECT_MANTENIMIENTO)
-    if (error) { showToast('Error: ' + error.message, 'error'); setSaving(false); return }
+    if (error) {
+      // 23502: la columna tipo_mantenimiento_id aún es obligatoria (falta el SQL)
+      showToast(error.code === '23502' ? 'Falta correr el SQL que quita el tipo de mantenimiento obligatorio.' : 'Error: ' + error.message, 'error')
+      setSaving(false); return
+    }
 
     // Equipos a "En mantenimiento". Si están prestados conservan cliente y
     // paciente: al cerrar vuelven a su préstamo.
@@ -460,7 +450,6 @@ export default function MantenimientosClient({ mantenimientosIniciales, tipos, e
         estado:estados_equipo(id, nombre)
       ),
       estado:estados_mantenimiento(id, nombre),
-      tipo:tipos_mantenimiento(id, nombre),
       actividades:actividades_mantenimiento(
         id, descripcion, completado, observaciones, fecha,
         adjuntos:adjuntos_actividad_mantenimiento(id, nombre, url, tipo)
@@ -499,7 +488,6 @@ export default function MantenimientosClient({ mantenimientosIniciales, tipos, e
     doc.setFontSize(8.5); doc.setFont('helvetica', 'normal')
     doc.text(`N\u00b0 ${m.codigo}`, logoEndX + 3, M + 16)
     doc.text(`Fecha: ${formatearSoloFecha(m.fecha_apertura || hoyBogota())}`, W - M - 2, M + 16, { align: 'right' })
-    doc.text(m.tipo?.nombre || '', logoEndX + 3, M + 23)
 
     let y = M + HEADER_H + 7
 
@@ -529,7 +517,6 @@ export default function MantenimientosClient({ mantenimientosIniciales, tipos, e
     // Datos cliente / orden (si aplica)
     y = seccion('DATOS DEL SERVICIO', [
       ['Código', m.codigo],
-      ['Tipo', m.tipo?.nombre],
       ['Técnico', m.tecnico],
       ['Apertura', m.fecha_apertura],
       ['Cierre', m.fecha_cierre || 'En proceso'],
@@ -671,13 +658,14 @@ export default function MantenimientosClient({ mantenimientosIniciales, tipos, e
           {/* Móvil: chips */}
           <div className="flex md:hidden gap-2 overflow-x-auto pb-1 -mx-1 px-1">
             {[
-              { label: 'Total', value: stats.total, color: '#1E293B', f: '', t: '' },
-              { label: 'Abiertos', value: stats.abiertos, color: '#B45309', f: 'Abierto', t: '' },
-              { label: 'En proceso', value: stats.enProceso, color: '#1D4ED8', f: 'En proceso', t: '' },
+              { label: 'Total', value: stats.total, color: '#1E293B', f: '' },
+              { label: 'Abiertos', value: stats.abiertos, color: '#B45309', f: 'Abierto' },
+              { label: 'En proceso', value: stats.enProceso, color: '#1D4ED8', f: 'En proceso' },
+              { label: 'Cerrados', value: stats.cerrados, color: '#0F7B55', f: 'Cerrado' },
             ].map(s => (
               <button key={s.label}
-                onClick={() => s.t ? setFiltroTipo(p => p === s.t ? '' : s.t) : setFiltroEstado(p => p === s.f ? '' : s.f)}
-                className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-full border text-[12px] font-medium whitespace-nowrap transition-all ${(filtroEstado === s.f && s.f) || (filtroTipo === s.t && s.t) ? 'border-[#D81B43] bg-[#D81B43]/5' : 'border-slate-200 bg-white'
+                onClick={() => setFiltroEstado(p => p === s.f ? '' : s.f)}
+                className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-full border text-[12px] font-medium whitespace-nowrap transition-all ${filtroEstado === s.f && s.f ? 'border-[#D81B43] bg-[#D81B43]/5' : 'border-slate-200 bg-white'
                   }`}>
                 <span className="font-extrabold tabular-nums" style={{ color: s.color }}>{s.value}</span>
                 <span className="text-slate-500">{s.label}</span>
@@ -686,17 +674,16 @@ export default function MantenimientosClient({ mantenimientosIniciales, tipos, e
           </div>
 
           {/* Desktop: cards (igual que antes) */}
-          <div className="hidden md:grid md:grid-cols-5 gap-3">
+          <div className="hidden md:grid md:grid-cols-4 gap-3">
             {[
-              { label: 'Total', value: stats.total, color: '#1E293B', f: '', t: '' },
-              { label: 'Abiertos', value: stats.abiertos, color: '#B45309', f: 'Abierto', t: '' },
-              { label: 'En proceso', value: stats.enProceso, color: '#1D4ED8', f: 'En proceso', t: '' },
-              { label: 'Cerrados', value: stats.cerrados, color: '#0F7B55', f: 'Cerrado', t: '' },
-              { label: 'Correctivos', value: stats.correctivos, color: '#D81B43', f: '', t: 'Correctivo' },
+              { label: 'Total', value: stats.total, color: '#1E293B', f: '' },
+              { label: 'Abiertos', value: stats.abiertos, color: '#B45309', f: 'Abierto' },
+              { label: 'En proceso', value: stats.enProceso, color: '#1D4ED8', f: 'En proceso' },
+              { label: 'Cerrados', value: stats.cerrados, color: '#0F7B55', f: 'Cerrado' },
             ].map(s => (
               <div key={s.label}
-                onClick={() => s.t ? setFiltroTipo(p => p === s.t ? '' : s.t) : setFiltroEstado(p => p === s.f ? '' : s.f)}
-                className={`bg-white rounded-xl border p-3 shadow-sm cursor-pointer transition-all hover:shadow-md ${(filtroEstado === s.f && s.f) || (filtroTipo === s.t && s.t) ? 'border-[#D81B43]' : 'border-slate-200'
+                onClick={() => setFiltroEstado(p => p === s.f ? '' : s.f)}
+                className={`bg-white rounded-xl border p-3 shadow-sm cursor-pointer transition-all hover:shadow-md ${filtroEstado === s.f && s.f ? 'border-[#D81B43]' : 'border-slate-200'
                   }`}>
                 <div className="text-xl font-extrabold tabular-nums" style={{ color: s.color }}>{s.value}</div>
                 <div className="text-[10.5px] text-slate-400 mt-0.5">{s.label}</div>
@@ -713,18 +700,8 @@ export default function MantenimientosClient({ mantenimientosIniciales, tipos, e
               placeholder="Buscar por código, inventario, serie, equipo, paciente o técnico..."
               className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-[9px] text-[13px] outline-none focus:border-[#D81B43] bg-white" />
           </div>
-          {/* En celular bajan a su propia fila, con scroll lateral */}
-          <div className="order-last md:order-none w-full md:w-auto flex gap-2 overflow-x-auto">
-            {tipos.map(t => (
-              <button key={t.id} onClick={() => setFiltroTipo(p => p === t.nombre ? '' : t.nombre)}
-                className={`px-3 py-1.5 rounded-full text-[12px] font-medium transition-all whitespace-nowrap flex-shrink-0 ${filtroTipo === t.nombre
-                  ? t.nombre === 'Correctivo' ? 'bg-[#D81B43] text-white' : 'bg-[#25A9E0] text-white'
-                  : 'bg-white border border-slate-200 text-slate-500 hover:border-slate-300'
-                  }`}>{t.nombre}</button>
-            ))}
-          </div>
-          <LimpiarFiltros activo={!!(search || filtroEstado || filtroTipo)}
-            onLimpiar={() => { setSearch(''); setFiltroEstado(''); setFiltroTipo('') }} />
+          <LimpiarFiltros activo={!!(search || filtroEstado)}
+            onLimpiar={() => { setSearch(''); setFiltroEstado('') }} />
           <div className="hidden sm:block text-[12px] text-slate-400 ml-auto flex-shrink-0">{filtrados.length} registro{filtrados.length !== 1 ? 's' : ''}</div>
           <button onClick={() => { abrirModal() }}
             className="hidden md:flex items-center gap-1.5 px-4 h-[38px] bg-[#D81B43] text-white text-[13px] font-semibold rounded-[9px] hover:bg-[#B0172F] transition-colors flex-shrink-0 whitespace-nowrap">
@@ -737,7 +714,7 @@ export default function MantenimientosClient({ mantenimientosIniciales, tipos, e
           {filtrados.length === 0 && (
             <div className="text-center py-16 text-slate-400">
               <Wrench className="w-12 h-12 mx-auto mb-3 opacity-20" />
-              <div className="font-semibold">{search || filtroEstado || filtroTipo ? 'Sin resultados' : 'Sin mantenimientos registrados'}</div>
+              <div className="font-semibold">{search || filtroEstado ? 'Sin resultados' : 'Sin mantenimientos registrados'}</div>
             </div>
           )}
           {mantenimientosPagina.map(m => {
@@ -745,13 +722,9 @@ export default function MantenimientosClient({ mantenimientosIniciales, tipos, e
             const persona = eq?.paciente_actual?.nombre || eq?.cliente_actual?.nombre
             return (
               <div key={m.id} onClick={() => setDrawer(m)}
-                className={`bg-white rounded-xl p-4 cursor-pointer shadow-sm ${m.tipo?.nombre === 'Correctivo' && m.estado?.nombre !== 'Cerrado'
-                  ? 'border-l-4 border-l-[#D81B43] border border-t-slate-200 border-r-slate-200 border-b-slate-200'
-                  : 'border border-slate-200'
-                  }`}>
+                className="bg-white rounded-xl p-4 cursor-pointer shadow-sm border border-slate-200">
                 <div className="flex items-center gap-2 mb-2.5 flex-wrap">
                   <span className="font-mono text-[11.5px] font-bold text-slate-400">{m.codigo}</span>
-                  <TipoBadge nombre={m.tipo?.nombre} />
                   <div className="ml-auto"><EstadoBadge nombre={m.estado?.nombre} /></div>
                 </div>
                 <div className="flex items-start gap-2.5 mb-2">
@@ -811,7 +784,7 @@ export default function MantenimientosClient({ mantenimientosIniciales, tipos, e
                 <tr className="border-b-2 border-slate-200">
                   {[
                     ['Código', ''], ['Cód. inventario', ''], ['Equipo', ''], ['Serie / Modelo', ''], ['Paciente / Cliente', ''],
-                    ['Tipo', ''], ['Técnico', 'hidden 2xl:table-cell'], ['Estado', ''], ['Equipo queda', 'hidden 2xl:table-cell'],
+                    ['Técnico', 'hidden xl:table-cell'], ['Estado', ''], ['Equipo queda', 'hidden 2xl:table-cell'],
                     ['Apertura / Cierre', ''], ['', ''],
                   ].map(([h, cls], i) => (
                     <th key={h || i} className={`px-3 py-3 text-left text-[10.5px] font-bold uppercase tracking-[0.07em] text-slate-400 bg-slate-50 whitespace-nowrap ${cls}`}>{h}</th>
@@ -820,17 +793,16 @@ export default function MantenimientosClient({ mantenimientosIniciales, tipos, e
               </thead>
               <tbody>
                 {filtrados.length === 0 && (
-                  <tr><td colSpan={11} className="text-center py-16 text-slate-400">
+                  <tr><td colSpan={10} className="text-center py-16 text-slate-400">
                     <Wrench className="w-12 h-12 mx-auto mb-3 opacity-20" />
-                    <div className="font-semibold">{search || filtroEstado || filtroTipo ? 'Sin resultados' : 'Sin mantenimientos registrados'}</div>
+                    <div className="font-semibold">{search || filtroEstado ? 'Sin resultados' : 'Sin mantenimientos registrados'}</div>
                   </td></tr>
                 )}
                 {mantenimientosPagina.map(m => {
                   const eq = m.equipo
                   return (
                     <tr key={m.id} onClick={() => setDrawer(m)}
-                      className={`border-b border-slate-100 hover:bg-slate-50 transition-colors cursor-pointer align-top ${m.tipo?.nombre === 'Correctivo' && m.estado?.nombre !== 'Cerrado' ? 'border-l-4 border-l-[#D81B43]' : ''
-                        }`}>
+                      className="border-b border-slate-100 hover:bg-slate-50 transition-colors cursor-pointer align-top">
                       <td className="px-3 py-3 font-mono text-[12px] font-bold text-slate-500 whitespace-nowrap">{m.codigo}</td>
                       <td className="px-3 py-3">
                         <span className="font-mono text-[12.5px] font-bold bg-slate-100 text-slate-700 px-2 py-0.5 rounded whitespace-nowrap">{eq?.codigo || '—'}</span>
@@ -855,8 +827,7 @@ export default function MantenimientosClient({ mantenimientosIniciales, tipos, e
                           <div className="text-[12.5px] text-slate-700 truncate">{eq.cliente_actual.nombre}</div>
                         ) : <span className="text-slate-300">—</span>}
                       </td>
-                      <td className="px-3 py-3"><TipoBadge nombre={m.tipo?.nombre} /></td>
-                      <td className="px-3 py-3 text-[12.5px] text-slate-500 hidden 2xl:table-cell max-w-[140px] truncate">{m.tecnico || '—'}</td>
+                      <td className="px-3 py-3 text-[12.5px] text-slate-500 hidden xl:table-cell max-w-[140px] truncate">{m.tecnico || '—'}</td>
                       <td className="px-3 py-3"><EstadoBadge nombre={m.estado?.nombre} /></td>
                       <td className="px-3 py-3 hidden 2xl:table-cell"><EstadoEquipoBadge nombre={eq?.estado?.nombre} /></td>
                       <td className="px-3 py-3 text-[12px] text-slate-500 whitespace-nowrap">
@@ -894,9 +865,9 @@ export default function MantenimientosClient({ mantenimientosIniciales, tipos, e
         <>
           <div className="fixed inset-0 bg-black/30 z-20 backdrop-blur-sm" onClick={() => setDrawer(null)} />
           <div className="fixed inset-x-0 bottom-0 h-[92vh] rounded-t-2xl md:rounded-none md:inset-x-auto md:top-0 md:right-0 md:bottom-0 md:h-full md:w-[520px] bg-white z-30 flex flex-col shadow-2xl">
-            <div className={`px-6 py-4 border-b flex items-start justify-between flex-shrink-0 ${drawer.tipo?.nombre === 'Correctivo' ? 'bg-[#D81B43]' : 'bg-[#1D4ED8]'}`}>
+            <div className={`px-6 py-4 border-b flex items-start justify-between flex-shrink-0 bg-[#1B3A6B]`}>
               <div>
-                <div className="text-[11px] text-white/60">{drawer.tipo?.nombre} · {drawer.codigo}</div>
+                <div className="text-[11px] text-white/60">{drawer.codigo} · {drawer.equipo?.codigo}</div>
                 <div className="text-[15px] font-bold text-white">{nombreEquipo(drawer.equipo)}</div>
               </div>
               <div className="flex items-center gap-2">
@@ -948,7 +919,6 @@ export default function MantenimientosClient({ mantenimientosIniciales, tipos, e
                 <div className="text-[9.5px] font-bold uppercase tracking-[0.12em] text-slate-400 mb-3">Detalles</div>
                 <div className="grid grid-cols-2 gap-3">
                   {[
-                    { label: 'Tipo', value: drawer.tipo?.nombre },
                     { label: 'Técnico', value: drawer.tecnico || '—' },
                     { label: 'Apertura', value: drawer.fecha_apertura || '—' },
                     { label: 'Cierre', value: drawer.fecha_cierre || '—' },
@@ -1087,21 +1057,6 @@ export default function MantenimientosClient({ mantenimientosIniciales, tipos, e
                     <div onChange={() => setFormDirty(true)}>
                       <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wide mb-3.5">Datos del mantenimiento</div>
                       <div className="space-y-4">
-                        <div>
-                          <label className={labelCls}>Tipo <span className="text-[#D81B43]">*</span></label>
-                          <div className="grid grid-cols-2 gap-2">
-                            {tipos.map(t => (
-                              <button key={t.id} type="button" onClick={() => { setForm(f => ({ ...f, tipo_mantenimiento_id: t.id })); setFormDirty(true) }}
-                                className={`flex items-center justify-center gap-2 px-3 py-2.5 rounded-[9px] border-2 text-[13px] font-semibold transition-all ${form.tipo_mantenimiento_id === t.id
-                                  ? t.nombre === 'Correctivo' ? 'border-[#D81B43] bg-[#D81B43]/5 text-[#D81B43]' : 'border-[#25A9E0] bg-[#E8F7FB] text-[#0E86A0]'
-                                  : 'border-slate-200 text-slate-500 hover:border-slate-300'
-                                  }`}>
-                                {t.nombre === 'Correctivo' ? <AlertTriangle size={14} /> : <Wrench size={14} />}
-                                {t.nombre}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
                         <div>
                           <label htmlFor="mant-tecnico" className={labelCls}>Técnico responsable</label>
                           <input id="mant-tecnico" value={form.tecnico} onChange={e => setForm(f => ({ ...f, tecnico: e.target.value }))}

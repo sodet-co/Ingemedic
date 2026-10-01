@@ -26,7 +26,6 @@ export const SELECT_MANTENIMIENTO = `
   actividades_texto:actividades,
   equipo:equipos(${SELECT_EQUIPO_MANT}),
   estado:estados_mantenimiento(id, nombre),
-  tipo:tipos_mantenimiento(id, nombre),
   actividades:actividades_mantenimiento(
     id, descripcion, completado, observaciones, fecha, archivo_url,
     adjuntos:adjuntos_actividad_mantenimiento(id, nombre, url, tipo)

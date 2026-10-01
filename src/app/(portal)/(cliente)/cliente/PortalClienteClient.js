@@ -111,7 +111,7 @@ export default function PortalClienteClient({ cliente, equipos, mantenimientos, 
     if (chip === 'cerrados' && abierto(m)) return false
     if (!q) return true
     const eq = equipoPorId[m.equipo_id]
-    return [m.codigo, m.tipo?.nombre, m.estado?.nombre, m.tecnico, eq?.codigo, nombreTipo(eq?.tipo_equipo), eq?.paciente_actual?.nombre]
+    return [m.codigo, m.estado?.nombre, m.tecnico, eq?.codigo, nombreTipo(eq?.tipo_equipo), eq?.paciente_actual?.nombre]
       .some(v => normalizar(v).includes(q))
   }), [mantOrdenados, equipoPorId, chip, q])
 
@@ -474,7 +474,7 @@ function TarjetaMant({ m, eq, onEquipo }) {
         </button>
       ) : <span className="text-[15px] font-bold text-[#0F1E36]">Equipo</span>}
       <span className="text-[12px] font-medium text-[#5B6B82]">
-        {m.tipo?.nombre || 'Mantenimiento'} · abierto {formatear(m.fecha_apertura)}
+        Abierto {formatear(m.fecha_apertura)}
         {cierre && <> · cerrado {formatear(cierre)}</>}
       </span>
       {m.tecnico && <span className="text-[12px] font-medium text-[#5B6B82]">Técnico: {m.tecnico}</span>}
@@ -595,7 +595,7 @@ function DetalleEquipo({ equipo: e, categorias, mantenimientos, onCerrar }) {
                 <EstadoMant nombre={m.estado?.nombre} />
               </div>
               <span className="text-[12px] font-medium text-[#5B6B82]">
-                {m.tipo?.nombre || 'Mantenimiento'} · abierto {formatear(m.fecha_apertura)}
+                Abierto {formatear(m.fecha_apertura)}
                 {(m.fecha_cierre_real || m.fecha_cierre) && <> · cerrado {formatear(m.fecha_cierre_real || m.fecha_cierre)}</>}
               </span>
               {m.observaciones_cliente && <p className="m-0 text-[13px] text-[#334259]">{m.observaciones_cliente}</p>}

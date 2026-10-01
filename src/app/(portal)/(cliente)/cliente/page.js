@@ -41,7 +41,7 @@ export default async function PortalClientePage() {
   for (let i = 0; i < ids.length; i += 150) lotes.push(ids.slice(i, i + 150))
   const resultados = await Promise.all(lotes.map(lote => supabase
     .from('mantenimientos')
-    .select('id, codigo, equipo_id, fecha_apertura, fecha_cierre, fecha_cierre_real, en_curso, tecnico, observaciones_cliente, tipo:tipos_mantenimiento(nombre), estado:estados_mantenimiento(nombre)')
+    .select('id, codigo, equipo_id, fecha_apertura, fecha_cierre, fecha_cierre_real, en_curso, tecnico, observaciones_cliente, estado:estados_mantenimiento(nombre)')
     .in('equipo_id', lote)))
   const mantenimientos = resultados.flatMap(r => r.data || [])
 

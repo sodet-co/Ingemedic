@@ -11,14 +11,12 @@ export default async function MantenimientosPage() {
 
   const [
     { data: mantenimientos },
-    { data: tipos },
     equipos,
     { data: listas },
     { data: categorias },
     { data: tiposEquipo },
   ] = await Promise.all([
     supabase.from('mantenimientos').select(SELECT_MANTENIMIENTO).order('fecha_creacion', { ascending: false }),
-    supabase.from('tipos_mantenimiento').select('*').eq('activo', true).order('nombre'),
     traerTodosLosEquipos(supabase, q => q.select(SELECT_EQUIPO_MANT).order('codigo')),
     supabase.from('listas_mantenimiento').select(`
       id, nombre, descripcion,
@@ -31,7 +29,6 @@ export default async function MantenimientosPage() {
   return (
     <MantenimientosClient
       mantenimientosIniciales={mantenimientos || []}
-      tipos={tipos || []}
       equipos={equipos || []}
       listas={listas || []}
       categorias={categorias || []}
