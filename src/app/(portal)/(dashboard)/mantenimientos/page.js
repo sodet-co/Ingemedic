@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase-server'
 import { traerTodosLosEquipos } from '@/lib/equipos'
+import { SELECT_EQUIPO_MANT, SELECT_MANTENIMIENTO } from '@/lib/mantenimientos'
 import MantenimientosClient from './MantenimientosClient'
 
 export const dynamic = 'force-dynamic'
@@ -13,40 +14,18 @@ export default async function MantenimientosPage() {
     { data: tipos },
     equipos,
     { data: listas },
+    { data: categorias },
+    { data: tiposEquipo },
   ] = await Promise.all([
-    // actividades_texto: la columna de texto `actividades` (resumen del cierre);
-    // sin el alias la pisa la relación `actividades` (checklist) y se pierde.
-    supabase.from('mantenimientos').select(`
-      *,
-      actividades_texto:actividades,
-      equipo:equipos(
-        id, codigo,
-        tipo_equipo:tipos_equipo(id, nombre, atributos,
-          categoria:categorias_equipo(id, nombre)
-        ),
-        estado:estados_equipo(id, nombre)
-      ),
-      estado:estados_mantenimiento(id, nombre),
-      tipo:tipos_mantenimiento(id, nombre),
-      actividades:actividades_mantenimiento(
-        id, descripcion, completado, observaciones, fecha, archivo_url,
-        adjuntos:adjuntos_actividad_mantenimiento(id, nombre, url, tipo)
-      )
-    `).order('fecha_creacion', { ascending: false }),
+    supabase.from('mantenimientos').select(SELECT_MANTENIMIENTO).order('fecha_creacion', { ascending: false }),
     supabase.from('tipos_mantenimiento').select('*').eq('activo', true).order('nombre'),
-    traerTodosLosEquipos(supabase, q => q.select(`
-      id, codigo,
-      tipo_equipo:tipos_equipo(id, nombre, atributos,
-        categoria:categorias_equipo(id, nombre)
-      ),
-      estado:estados_equipo(id, nombre),
-      cliente_actual:clientes(nombre),
-      paciente_actual:pacientes(nombre)
-    `).order('codigo')),
+    traerTodosLosEquipos(supabase, q => q.select(SELECT_EQUIPO_MANT).order('codigo')),
     supabase.from('listas_mantenimiento').select(`
       id, nombre, descripcion,
       actividades:actividades_lista_mantenimiento(id, nombre, orden)
     `).eq('activo', true).order('nombre'),
+    supabase.from('categorias_equipo').select('id, nombre, imagen_url, atributos_extra').eq('activo', true).order('nombre'),
+    supabase.from('tipos_equipo').select('id, nombre, atributos, categoria_id, imagen_url').eq('activo', true).order('nombre'),
   ])
 
   return (
@@ -55,6 +34,8 @@ export default async function MantenimientosPage() {
       tipos={tipos || []}
       equipos={equipos || []}
       listas={listas || []}
+      categorias={categorias || []}
+      tiposEquipo={tiposEquipo || []}
     />
   )
 }

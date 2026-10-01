@@ -6,6 +6,33 @@
 //  - Se puede abrir mantenimiento a un equipo prestado: conserva su cliente y
 //    paciente, y al cerrarse vuelve al estado de su préstamo, no a "Disponible".
 
+// Datos de la unidad que muestran la tabla de Mantenimientos y el selector de
+// equipos (los mismos de Inventario → unidades: código, serie, modelo, estado,
+// paciente, dirección). Compartido entre page.js y MantenimientosClient.
+export const SELECT_EQUIPO_MANT = `
+  id, codigo, atributos, tipo_equipo_id,
+  tipo_equipo:tipos_equipo(id, nombre, atributos, imagen_url, categoria_id,
+    categoria:categorias_equipo(id, nombre)
+  ),
+  estado:estados_equipo(id, nombre),
+  cliente_actual:clientes(nombre),
+  paciente_actual:pacientes(nombre, direccion, ciudad)
+`
+
+// actividades_texto: la columna de texto `actividades` (resumen del cierre);
+// sin el alias la pisa la relación `actividades` (checklist) y se pierde.
+export const SELECT_MANTENIMIENTO = `
+  *,
+  actividades_texto:actividades,
+  equipo:equipos(${SELECT_EQUIPO_MANT}),
+  estado:estados_mantenimiento(id, nombre),
+  tipo:tipos_mantenimiento(id, nombre),
+  actividades:actividades_mantenimiento(
+    id, descripcion, completado, observaciones, fecha, archivo_url,
+    adjuntos:adjuntos_actividad_mantenimiento(id, nombre, url, tipo)
+  )
+`
+
 const ORDEN_RESERVADA = ['Programada', 'En reparto'] // equipo apartado, aún no entregado
 const ORDEN_INACTIVA  = ['Finalizada', 'Cancelada']
 

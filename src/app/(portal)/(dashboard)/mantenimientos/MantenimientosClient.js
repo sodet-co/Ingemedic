@@ -14,7 +14,8 @@ import Paginador from '@/components/ui/Paginador'
 import { usePaginacion } from '@/hooks/usePaginacion'
 import { formatear, formatearSoloFecha, hoyBogota } from '@/lib/fechas'
 import BuzonNovedades from '@/components/layout/BuzonNovedades'
-import { prestamoActivo, estadoSegunPrestamo } from '@/lib/mantenimientos'
+import { prestamoActivo, estadoSegunPrestamo, SELECT_MANTENIMIENTO } from '@/lib/mantenimientos'
+import SelectorEquipos, { EstadoEquipoBadge } from '@/components/mantenimientos/SelectorEquipos'
 
 const ESTADOS = {
   Abierto: '9c71ba4d-e82d-4714-b2fb-4cc242cd47be',
@@ -55,7 +56,7 @@ const ESTADO_STYLES = {
 function EstadoBadge({ nombre }) {
   const s = ESTADO_STYLES[nombre] || ESTADO_STYLES['Abierto']
   return (
-    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold"
+    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold whitespace-nowrap"
       style={{ background: s.bg, color: s.color }}>
       <span className="w-1.5 h-1.5 rounded-full" style={{ background: s.dot }} />
       {nombre}
@@ -65,7 +66,7 @@ function EstadoBadge({ nombre }) {
 
 function TipoBadge({ nombre }) {
   return (
-    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-bold ${nombre === 'Correctivo' ? 'bg-[#FEF2F2] text-[#D81B43]' : 'bg-[#E8F7FB] text-[#0E86A0]'
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-bold whitespace-nowrap ${nombre === 'Correctivo' ? 'bg-[#FEF2F2] text-[#D81B43]' : 'bg-[#E8F7FB] text-[#0E86A0]'
       }`}>
       {nombre === 'Correctivo' ? <AlertTriangle size={9} /> : <Wrench size={9} />}
       {nombre}
@@ -83,7 +84,7 @@ const labelCls = 'block text-[11px] font-bold uppercase tracking-[0.07em] text-s
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
 const LOGO_URL = `${SUPABASE_URL}/storage/v1/object/public/logos/logo-ingemedic.png`
 
-export default function MantenimientosClient({ mantenimientosIniciales, tipos, equipos, listas }) {
+export default function MantenimientosClient({ mantenimientosIniciales, tipos, equipos, listas, categorias = [], tiposEquipo = [] }) {
   const router = useRouter()
   const supabase = createClient()
 
@@ -134,7 +135,7 @@ export default function MantenimientosClient({ mantenimientosIniciales, tipos, e
   const [toast, setToast] = useState(null)
   const [uploading, setUploading] = useState({})
   const [form, setForm] = useState({
-    equipo_id: '', tipo_mantenimiento_id: '', tecnico: '',
+    equipos_ids: [], tipo_mantenimiento_id: '', tecnico: '',
     observaciones_cliente: '', lista_id: '',
   })
   const [cierreForm, setCierreForm] = useState({
@@ -163,7 +164,7 @@ export default function MantenimientosClient({ mantenimientosIniciales, tipos, e
   }
 
   function abrirModal() {
-    setForm({ equipo_id: '', tipo_mantenimiento_id: '', tecnico: '', observaciones_cliente: '', lista_id: '' })
+    setForm({ equipos_ids: [], tipo_mantenimiento_id: '', tecnico: '', observaciones_cliente: '', lista_id: '' })
     setFormDirty(false)
     setModal(true)
   }
@@ -180,8 +181,10 @@ export default function MantenimientosClient({ mantenimientosIniciales, tipos, e
 
   const filtrados = useMemo(() => {
     return (mantenimientos || []).filter(m => {
-      const mq = !search || [m.codigo, nombreEquipo(m.equipo), m.tecnico]
-        .some(v => v?.toLowerCase().includes(search.toLowerCase()))
+      const mq = !search || [m.codigo, nombreEquipo(m.equipo), m.tecnico, m.equipo?.codigo,
+        m.equipo?.atributos?.serie, m.equipo?.atributos?.modelo, m.equipo?.tipo_equipo?.nombre,
+        m.equipo?.tipo_equipo?.categoria?.nombre, m.equipo?.paciente_actual?.nombre, m.equipo?.cliente_actual?.nombre]
+        .some(v => v?.toString().toLowerCase().includes(search.toLowerCase()))
       const me = !filtroEstado || m.estado?.nombre === filtroEstado
       const mt = !filtroTipo || m.tipo?.nombre === filtroTipo
       return mq && me && mt
@@ -191,19 +194,36 @@ export default function MantenimientosClient({ mantenimientosIniciales, tipos, e
   const paginacionMantenimientos = usePaginacion(filtrados, 20)
   const mantenimientosPagina = paginacionMantenimientos.itemsPagina
 
-  // ── CREAR MANTENIMIENTO ──────────────────────────────────
+  // ── CREAR MANTENIMIENTO(S) ───────────────────────────────
+  // Uno por equipo seleccionado, con los mismos datos (tipo, técnico, lista,
+  // observaciones). Si falla el cambio de estado de los equipos se deshace
+  // todo, para que ningún estado quede a medias.
+  function toggleEquipo(id) {
+    setFormDirty(true)
+    setForm(f => ({ ...f, equipos_ids: f.equipos_ids.includes(id) ? f.equipos_ids.filter(x => x !== id) : [...f.equipos_ids, id] }))
+  }
+  function toggleVarios(ids, marcar) {
+    setFormDirty(true)
+    setForm(f => {
+      const set = new Set(f.equipos_ids)
+      ids.forEach(id => marcar ? set.add(id) : set.delete(id))
+      return { ...f, equipos_ids: [...set] }
+    })
+  }
+
   async function crearMantenimiento() {
-    if (!form.equipo_id) { showToast('Selecciona un equipo', 'error'); return }
-    if (!form.tipo_mantenimiento_id) { showToast('Selecciona el tipo', 'error'); return }
+    const ids = form.equipos_ids
+    if (ids.length === 0) { showToast('Selecciona al menos un equipo', 'error'); return }
+    if (!form.tipo_mantenimiento_id) { showToast('Selecciona el tipo de mantenimiento', 'error'); return }
     setSaving(true)
 
-    // Verificar que no haya mantenimiento activo para ese equipo
-    const { data: activo } = await supabase.from('mantenimientos')
-      .select('id').eq('equipo_id', form.equipo_id)
+    // Ninguno puede tener ya un mantenimiento abierto
+    const { data: activos, error: errActivos } = await supabase.from('mantenimientos')
+      .select('equipo:equipos(codigo)').in('equipo_id', ids)
       .in('estado_id', [ESTADOS.Abierto, ESTADOS.EnProceso])
-      .maybeSingle()
-    if (activo) {
-      showToast('Este equipo ya tiene un mantenimiento activo', 'error')
+    if (errActivos) { showToast('Error: ' + errActivos.message, 'error'); setSaving(false); return }
+    if (activos?.length) {
+      showToast(`Ya tienen un mantenimiento abierto: ${activos.map(a => a.equipo?.codigo).join(', ')}`, 'error')
       setSaving(false); return
     }
 
@@ -211,69 +231,66 @@ export default function MantenimientosClient({ mantenimientosIniciales, tipos, e
     const anio = new Date().getFullYear()
     const { data: codigosAnio } = await supabase.from('mantenimientos').select('codigo').like('codigo', `MAN-${anio}-%`)
     const ultimo = Math.max(0, ...(codigosAnio || []).map(c => parseInt(c.codigo?.split('-')[2], 10) || 0))
-    const codigo = `MAN-${anio}-${String(ultimo + 1).padStart(3, '0')}`
 
-    const { data, error } = await supabase.from('mantenimientos').insert({
-      codigo,
-      equipo_id: form.equipo_id,
+    const filas = ids.map((equipo_id, i) => ({
+      codigo: `MAN-${anio}-${String(ultimo + 1 + i).padStart(3, '0')}`,
+      equipo_id,
       tipo_mantenimiento_id: form.tipo_mantenimiento_id,
       estado_id: ESTADOS.EnProceso, // directo a En proceso
       tecnico: form.tecnico || null,
       fecha_apertura: hoyBogota(),
       observaciones_cliente: form.observaciones_cliente || null,
       en_curso: true,
-    })
-      .select(`
-      *,
-      actividades_texto:actividades,
-      equipo:equipos(id, codigo,
-        tipo_equipo:tipos_equipo(id, nombre, atributos, categoria:categorias_equipo(id, nombre)),
-        estado:estados_equipo(id, nombre)
-      ),
-      estado:estados_mantenimiento(id, nombre),
-      tipo:tipos_mantenimiento(id, nombre),
-      actividades:actividades_mantenimiento(id, descripcion, completado, observaciones, fecha, archivo_url, adjuntos:adjuntos_actividad_mantenimiento(id, nombre, url, tipo))
-    `)
-      .single()
-
+    }))
+    const { data: creados, error } = await supabase.from('mantenimientos').insert(filas).select(SELECT_MANTENIMIENTO)
     if (error) { showToast('Error: ' + error.message, 'error'); setSaving(false); return }
 
-    // Equipo a "En mantenimiento". Si está prestado conserva su cliente y
-    // paciente: al cerrar vuelve a su préstamo. Si esto falla, se deshace el
-    // mantenimiento para que el estado no quede a medias.
+    // Equipos a "En mantenimiento". Si están prestados conservan cliente y
+    // paciente: al cerrar vuelven a su préstamo.
     const { data: eqAct, error: errEq } = await supabase.from('equipos')
-      .update({ estado_id: ESTADO_EQUIPO.EnMantenimiento }).eq('id', form.equipo_id).select('id')
-    if (errEq || !eqAct?.length) {
-      await supabase.from('mantenimientos').delete().eq('id', data.id)
-      showToast('No se pudo pasar el equipo a "En mantenimiento"' + (errEq ? ': ' + errEq.message : '') + '. No se abrió el mantenimiento.', 'error')
+      .update({ estado_id: ESTADO_EQUIPO.EnMantenimiento }).in('id', ids).select('id')
+    if (errEq || (eqAct?.length || 0) !== ids.length) {
+      // Deshacer: los equipos que sí cambiaron vuelven a su estado anterior
+      for (const e of eqAct || []) {
+        const antes = equipos.find(x => x.id === e.id)?.estado?.id
+        if (antes) await supabase.from('equipos').update({ estado_id: antes }).eq('id', e.id)
+      }
+      await supabase.from('mantenimientos').delete().in('id', creados.map(c => c.id))
+      showToast('No se pudo pasar los equipos a "En mantenimiento"' + (errEq ? ': ' + errEq.message : '') + '. No se abrió ningún mantenimiento.', 'error')
       setSaving(false); return
     }
-    data.equipo = { ...data.equipo, estado: { id: ESTADO_EQUIPO.EnMantenimiento, nombre: 'En mantenimiento' } }
-    registrarBitacora({ modulo: 'mantenimientos', accion: 'crear', entidad: 'mantenimiento', entidad_id: data.id, detalle: { codigo } })
+    for (const c of creados) {
+      c.equipo = { ...c.equipo, estado: { id: ESTADO_EQUIPO.EnMantenimiento, nombre: 'En mantenimiento' } }
+      registrarBitacora({ modulo: 'mantenimientos', accion: 'crear', entidad: 'mantenimiento', entidad_id: c.id, detalle: { codigo: c.codigo, equipo: c.equipo?.codigo } })
+    }
 
-    // Insertar actividades de la lista seleccionada
+    // Actividades de la lista seleccionada, para cada mantenimiento
     if (form.lista_id) {
       const lista = listas.find(l => l.id === form.lista_id)
-      const acts = lista?.actividades?.sort((a, b) => a.orden - b.orden) || []
+      const acts = [...(lista?.actividades || [])].sort((a, b) => a.orden - b.orden)
       if (acts.length > 0) {
         const { data: actsCreadas } = await supabase.from('actividades_mantenimiento').insert(
-          acts.map(a => ({
-            mantenimiento_id: data.id,
+          creados.flatMap(c => acts.map(a => ({
+            mantenimiento_id: c.id,
             checklist_item_id: null,
             descripcion: a.nombre,
             completado: false,
-          }))
-        ).select('id, descripcion, completado, observaciones, fecha, archivo_url')
-        data.actividades = actsCreadas || []
+          })))
+        ).select('id, mantenimiento_id, descripcion, completado, observaciones, fecha, archivo_url')
+        for (const c of creados) c.actividades = (actsCreadas || []).filter(a => a.mantenimiento_id === c.id)
       }
     }
 
+    // Mismo orden que la tabla (más recientes arriba)
+    const nuevos = [...creados].sort((a, b) => b.codigo.localeCompare(a.codigo))
     skipSyncUntil.current = Date.now() + 2500
-    setMantenimientos(prev => [data, ...prev])
+    setMantenimientos(prev => [...nuevos, ...prev])
     setSaving(false)
     cerrarModal()
-    setDrawer(data)
-    showToast('Mantenimiento abierto — equipo en mantenimiento')
+    if (nuevos.length === 1) setDrawer(nuevos[0])
+    showToast(nuevos.length === 1
+      ? 'Mantenimiento abierto — equipo en mantenimiento'
+      : `${nuevos.length} mantenimientos abiertos — equipos en mantenimiento`)
     router.refresh() // la lista de equipos del formulario trae el estado nuevo
   }
 
@@ -693,7 +710,7 @@ export default function MantenimientosClient({ mantenimientosIniciales, tipos, e
           <div className="relative flex-1 md:flex-none md:w-[340px]">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input value={search} onChange={e => setSearch(e.target.value)}
-              placeholder="Buscar por código, equipo o técnico..."
+              placeholder="Buscar por código, inventario, serie, equipo, paciente o técnico..."
               className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-[9px] text-[13px] outline-none focus:border-[#D81B43] bg-white" />
           </div>
           {/* En celular bajan a su propia fila, con scroll lateral */}
@@ -723,103 +740,148 @@ export default function MantenimientosClient({ mantenimientosIniciales, tipos, e
               <div className="font-semibold">{search || filtroEstado || filtroTipo ? 'Sin resultados' : 'Sin mantenimientos registrados'}</div>
             </div>
           )}
-          {mantenimientosPagina.map(m => (
-            <div key={m.id} onClick={() => setDrawer(m)}
-              className={`bg-white rounded-xl p-4 cursor-pointer shadow-sm ${m.tipo?.nombre === 'Correctivo' && m.estado?.nombre !== 'Cerrado'
-                ? 'border-l-4 border-l-[#D81B43] border border-t-slate-200 border-r-slate-200 border-b-slate-200'
-                : 'border border-slate-200'
-                }`}>
-              <div className="flex items-center gap-2 mb-2 flex-wrap">
-                <span className="font-mono text-[12px] font-bold bg-slate-100 text-slate-700 px-2 py-0.5 rounded">{m.codigo}</span>
-                <TipoBadge nombre={m.tipo?.nombre} />
-                <div className="ml-auto"><EstadoBadge nombre={m.estado?.nombre} /></div>
-              </div>
-              <div className="mb-2">
-                <div className="text-[13px] font-semibold text-slate-700">{nombreEquipo(m.equipo)}</div>
-              </div>
-              <div className="flex items-center gap-3 text-[11px] text-slate-400 mb-3 flex-wrap">
-                {m.tecnico && <span>Técnico: {m.tecnico}</span>}
-                <span>Apertura: {m.fecha_apertura || '—'}</span>
-                {m.fecha_cierre && <span>Cierre: {m.fecha_cierre}</span>}
-              </div>
-              <div className="flex justify-end" onClick={e => e.stopPropagation()}>
-                {m.estado?.nombre === 'En proceso' && (
-                  <button onClick={() => abrirCierre(m)}
-                    className="px-3 py-1.5 bg-[#D81B43] text-white text-[11px] font-bold rounded-[7px] hover:bg-[#B0172F]">
-                    🛠 Cerrar
-                  </button>
+          {mantenimientosPagina.map(m => {
+            const eq = m.equipo
+            const persona = eq?.paciente_actual?.nombre || eq?.cliente_actual?.nombre
+            return (
+              <div key={m.id} onClick={() => setDrawer(m)}
+                className={`bg-white rounded-xl p-4 cursor-pointer shadow-sm ${m.tipo?.nombre === 'Correctivo' && m.estado?.nombre !== 'Cerrado'
+                  ? 'border-l-4 border-l-[#D81B43] border border-t-slate-200 border-r-slate-200 border-b-slate-200'
+                  : 'border border-slate-200'
+                  }`}>
+                <div className="flex items-center gap-2 mb-2.5 flex-wrap">
+                  <span className="font-mono text-[11.5px] font-bold text-slate-400">{m.codigo}</span>
+                  <TipoBadge nombre={m.tipo?.nombre} />
+                  <div className="ml-auto"><EstadoBadge nombre={m.estado?.nombre} /></div>
+                </div>
+                <div className="flex items-start gap-2.5 mb-2">
+                  <span className="font-mono text-[12.5px] font-bold bg-slate-100 text-slate-700 px-2 py-0.5 rounded flex-shrink-0">{eq?.codigo || '—'}</span>
+                  <div className="min-w-0">
+                    <div className="text-[13.5px] font-semibold text-slate-800 leading-tight">{nombreEquipo(eq)}</div>
+                    <div className="text-[11.5px] text-slate-500 mt-0.5">
+                      {[eq?.atributos?.serie && `Serie ${eq.atributos.serie}`, eq?.atributos?.modelo && `Modelo ${eq.atributos.modelo}`, eq?.tipo_equipo?.categoria?.nombre].filter(Boolean).join(' · ') || '—'}
+                    </div>
+                  </div>
+                </div>
+                {persona && (
+                  <div className="text-[12px] text-slate-600 mb-1 truncate">
+                    <span className="text-slate-400">{eq?.paciente_actual ? 'Paciente:' : 'Cliente:'}</span> {persona}
+                    {eq?.paciente_actual?.direccion && <span className="text-slate-400"> · {eq.paciente_actual.direccion}</span>}
+                  </div>
                 )}
-                {m.estado?.nombre === 'Cerrado' && (
-                  <button onClick={() => generarActaPDF(m)}
-                    className="flex items-center gap-1 px-2.5 py-1 border border-slate-200 text-slate-600 text-[11px] font-medium rounded-[7px] hover:border-[#D81B43] hover:text-[#D81B43]">
-                    <Download size={11} /> PDF
-                  </button>
-                )}
-                {m.estado?.nombre === 'Abierto' && (
-                  <button onClick={() => setDrawer(m)}
-                    className="flex items-center gap-1 px-2.5 py-1 border border-slate-200 text-slate-600 text-[11px] font-medium rounded-[7px] hover:border-slate-300">
-                    <Eye size={11} /> Ver
-                  </button>
-                )}
+                <div className="flex items-center gap-3 text-[11px] text-slate-400 mb-3 flex-wrap">
+                  {m.tecnico && <span>Técnico: {m.tecnico}</span>}
+                  <span>Apertura: {formatearSoloFecha(m.fecha_apertura)}</span>
+                  {m.fecha_cierre && <span>Cierre: {formatearSoloFecha(m.fecha_cierre)}</span>}
+                </div>
+                <div className="flex items-center justify-between gap-2" onClick={e => e.stopPropagation()}>
+                  <EstadoEquipoBadge nombre={eq?.estado?.nombre} />
+                  {m.estado?.nombre === 'En proceso' && (
+                    <button onClick={() => abrirCierre(m)}
+                      className="px-3 py-1.5 bg-[#D81B43] text-white text-[11px] font-bold rounded-[7px] hover:bg-[#B0172F]">
+                      🛠 Cerrar
+                    </button>
+                  )}
+                  {m.estado?.nombre === 'Cerrado' && (
+                    <button onClick={() => generarActaPDF(m)}
+                      className="flex items-center gap-1 px-2.5 py-1 border border-slate-200 text-slate-600 text-[11px] font-medium rounded-[7px] hover:border-[#D81B43] hover:text-[#D81B43]">
+                      <Download size={11} /> PDF
+                    </button>
+                  )}
+                  {m.estado?.nombre === 'Abierto' && (
+                    <button onClick={() => setDrawer(m)}
+                      className="flex items-center gap-1 px-2.5 py-1 border border-slate-200 text-slate-600 text-[11px] font-medium rounded-[7px] hover:border-slate-300">
+                      <Eye size={11} /> Ver
+                    </button>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
+            )
+          })}
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden mt-2">
             <Paginador {...paginacionMantenimientos} />
           </div>
         </div>
 
-        {/* Tabla (solo escritorio) */}
+        {/* Tabla (solo escritorio) — mismas columnas de la unidad que en Inventario */}
         <div className="hidden md:flex flex-1 bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex-col">
           <div className="overflow-auto flex-1">
-            <table className="w-full border-collapse min-w-[800px]">
+            <table className="w-full border-collapse min-w-[960px]">
               <thead className="sticky top-0 z-10">
                 <tr className="border-b-2 border-slate-200">
-                  {['Código', 'Equipo', 'Tipo', 'Técnico', 'Estado', 'Apertura', 'Cierre', 'Acciones'].map(h => (
-                    <th key={h} className="px-4 py-3 text-left text-[10.5px] font-bold uppercase tracking-[0.07em] text-slate-400 bg-slate-50 whitespace-nowrap">{h}</th>
+                  {[
+                    ['Código', ''], ['Cód. inventario', ''], ['Equipo', ''], ['Serie / Modelo', ''], ['Paciente / Cliente', ''],
+                    ['Tipo', ''], ['Técnico', 'hidden 2xl:table-cell'], ['Estado', ''], ['Equipo queda', 'hidden 2xl:table-cell'],
+                    ['Apertura / Cierre', ''], ['', ''],
+                  ].map(([h, cls], i) => (
+                    <th key={h || i} className={`px-3 py-3 text-left text-[10.5px] font-bold uppercase tracking-[0.07em] text-slate-400 bg-slate-50 whitespace-nowrap ${cls}`}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {filtrados.length === 0 && (
-                  <tr><td colSpan={8} className="text-center py-16 text-slate-400">
+                  <tr><td colSpan={11} className="text-center py-16 text-slate-400">
                     <Wrench className="w-12 h-12 mx-auto mb-3 opacity-20" />
                     <div className="font-semibold">{search || filtroEstado || filtroTipo ? 'Sin resultados' : 'Sin mantenimientos registrados'}</div>
                   </td></tr>
                 )}
-                {mantenimientosPagina.map(m => (
-                  <tr key={m.id} onClick={() => setDrawer(m)}
-                    className={`border-b border-slate-100 hover:bg-slate-50 transition-colors cursor-pointer ${m.tipo?.nombre === 'Correctivo' && m.estado?.nombre !== 'Cerrado' ? 'border-l-4 border-l-[#D81B43]' : ''
-                      }`}>
-                    <td className="px-4 py-3">
-                      <span className="font-mono text-[12.5px] font-bold bg-slate-100 text-slate-700 px-2 py-0.5 rounded">{m.codigo}</span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="text-[13px] font-semibold text-slate-700 truncate max-w-[160px]">{nombreEquipo(m.equipo)}</div>
-                    </td>
-                    <td className="px-4 py-3"><TipoBadge nombre={m.tipo?.nombre} /></td>
-                    <td className="px-4 py-3 text-[12.5px] text-slate-500">{m.tecnico || '—'}</td>
-                    <td className="px-4 py-3"><EstadoBadge nombre={m.estado?.nombre} /></td>
-                    <td className="px-4 py-3 text-[12px] font-mono text-slate-400">{m.fecha_apertura || '—'}</td>
-                    <td className="px-4 py-3 text-[12px] font-mono text-slate-400">{m.fecha_cierre || '—'}</td>
-                    <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
-                      <div className="flex items-center gap-2">
-                        {m.estado?.nombre === 'En proceso' && (
-                          <button onClick={() => abrirCierre(m)}
-                            className="px-2.5 py-1 bg-[#D81B43] text-white text-[11px] font-bold rounded-[7px] hover:bg-[#B0172F]">
-                            🛠 Cerrar
-                          </button>
-                        )}
-                        {m.estado?.nombre === 'Cerrado' && (
-                          <button onClick={() => generarActaPDF(m)}
-                            className="flex items-center gap-1 px-2.5 py-1 border border-slate-200 text-slate-600 text-[11px] font-medium rounded-[7px] hover:border-[#D81B43] hover:text-[#D81B43]">
-                            <Download size={11} /> PDF
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                {mantenimientosPagina.map(m => {
+                  const eq = m.equipo
+                  return (
+                    <tr key={m.id} onClick={() => setDrawer(m)}
+                      className={`border-b border-slate-100 hover:bg-slate-50 transition-colors cursor-pointer align-top ${m.tipo?.nombre === 'Correctivo' && m.estado?.nombre !== 'Cerrado' ? 'border-l-4 border-l-[#D81B43]' : ''
+                        }`}>
+                      <td className="px-3 py-3 font-mono text-[12px] font-bold text-slate-500 whitespace-nowrap">{m.codigo}</td>
+                      <td className="px-3 py-3">
+                        <span className="font-mono text-[12.5px] font-bold bg-slate-100 text-slate-700 px-2 py-0.5 rounded whitespace-nowrap">{eq?.codigo || '—'}</span>
+                      </td>
+                      <td className="px-3 py-3 max-w-[200px]">
+                        <div className="text-[13px] font-semibold text-slate-700 truncate">{nombreEquipo(eq)}</div>
+                        <div className="text-[11.5px] text-slate-400 truncate">
+                          {[eq?.tipo_equipo?.nombre !== nombreEquipo(eq) && eq?.tipo_equipo?.nombre, eq?.tipo_equipo?.categoria?.nombre].filter(Boolean).join(' · ')}
+                        </div>
+                      </td>
+                      <td className="px-3 py-3 text-[12.5px] text-slate-600 whitespace-nowrap">
+                        <div>{eq?.atributos?.serie || '—'}</div>
+                        {eq?.atributos?.modelo && <div className="text-[11.5px] text-slate-400">{eq.atributos.modelo}</div>}
+                      </td>
+                      <td className="px-3 py-3 max-w-[220px]">
+                        {eq?.paciente_actual?.nombre ? (
+                          <>
+                            <div className="text-[12.5px] text-slate-700 truncate">{eq.paciente_actual.nombre}</div>
+                            <div className="text-[11.5px] text-slate-400 truncate">{[eq.paciente_actual.direccion, eq.cliente_actual?.nombre].filter(Boolean).join(' · ')}</div>
+                          </>
+                        ) : eq?.cliente_actual?.nombre ? (
+                          <div className="text-[12.5px] text-slate-700 truncate">{eq.cliente_actual.nombre}</div>
+                        ) : <span className="text-slate-300">—</span>}
+                      </td>
+                      <td className="px-3 py-3"><TipoBadge nombre={m.tipo?.nombre} /></td>
+                      <td className="px-3 py-3 text-[12.5px] text-slate-500 hidden 2xl:table-cell max-w-[140px] truncate">{m.tecnico || '—'}</td>
+                      <td className="px-3 py-3"><EstadoBadge nombre={m.estado?.nombre} /></td>
+                      <td className="px-3 py-3 hidden 2xl:table-cell"><EstadoEquipoBadge nombre={eq?.estado?.nombre} /></td>
+                      <td className="px-3 py-3 text-[12px] text-slate-500 whitespace-nowrap">
+                        <div>{formatearSoloFecha(m.fecha_apertura)}</div>
+                        <div className="text-slate-400">{m.fecha_cierre ? formatearSoloFecha(m.fecha_cierre) : 'En curso'}</div>
+                      </td>
+                      <td className="px-3 py-3" onClick={e => e.stopPropagation()}>
+                        <div className="flex items-center gap-2 justify-end">
+                          {m.estado?.nombre === 'En proceso' && (
+                            <button onClick={() => abrirCierre(m)}
+                              className="px-2.5 py-1 bg-[#D81B43] text-white text-[11px] font-bold rounded-[7px] hover:bg-[#B0172F] whitespace-nowrap">
+                              🛠 Cerrar
+                            </button>
+                          )}
+                          {m.estado?.nombre === 'Cerrado' && (
+                            <button onClick={() => generarActaPDF(m)}
+                              className="flex items-center gap-1 px-2.5 py-1 border border-slate-200 text-slate-600 text-[11px] font-medium rounded-[7px] hover:border-[#D81B43] hover:text-[#D81B43]">
+                              <Download size={11} /> PDF
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>
@@ -952,114 +1014,146 @@ export default function MantenimientosClient({ mantenimientosIniciales, tipos, e
       )}
 
       {/* ── MODAL NUEVO MANTENIMIENTO ── */}
-      {modal && (
+      {modal && (() => {
+        const seleccionados = form.equipos_ids.map(id => equipos.find(e => e.id === id)).filter(Boolean)
+        const prestados = seleccionados.filter(e => ['En préstamo', 'Reservado'].includes(e.estado?.nombre)).length
+        const listaSel = listas.find(l => l.id === form.lista_id)
+        return (
         <>
-          <div className="fixed inset-0 bg-black/40 z-40 backdrop-blur-sm" onClick={() => intentarCerrarModal()} />
-          <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center p-0 md:p-4">
-            <div className="bg-white rounded-t-2xl md:rounded-2xl w-full md:max-w-[560px] max-h-[92vh] md:max-h-[calc(100vh-2rem)] flex flex-col shadow-2xl overflow-hidden"
+          <div className="fixed inset-0 bg-black/30 z-40 backdrop-blur-sm" onClick={() => intentarCerrarModal()} />
+          <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center p-0 md:p-4 pointer-events-none">
+            <div className="pointer-events-auto bg-white rounded-t-2xl md:rounded-2xl w-full max-w-[1120px] h-[92vh] md:h-auto md:max-h-[90vh] flex flex-col shadow-2xl overflow-hidden"
               onClick={e => e.stopPropagation()}>
-              <div className="px-6 py-4 border-b flex items-center justify-between flex-shrink-0 bg-[#D81B43]">
-                <div className="text-[15px] font-bold text-white">Nuevo mantenimiento</div>
-                <button onClick={() => intentarCerrarModal()} className="text-white/60 hover:text-white w-8 h-8 flex items-center justify-center rounded-lg bg-white/10 hover:bg-white/20">
-                  <X size={16} />
-                </button>
+              <div className="px-5 md:px-6 py-4 border-b flex items-center justify-between flex-shrink-0">
+                <div>
+                  <h3 className="text-[15px] font-bold text-slate-800">Nuevo mantenimiento</h3>
+                  <div className="text-[12px] text-slate-400 mt-0.5">Selecciona uno o varios equipos — se abre un mantenimiento por equipo</div>
+                </div>
+                <button onClick={() => intentarCerrarModal()} aria-label="Cerrar"
+                  className="text-slate-400 hover:text-slate-600 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100"><X size={16} /></button>
               </div>
-              <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4" onChange={() => setFormDirty(true)}>
-                {/* Tipo */}
-                <div>
-                  <label className={labelCls}>Tipo de mantenimiento <span className="text-[#D81B43]">*</span></label>
-                  <div className="grid grid-cols-2 gap-3">
-                    {tipos.map(t => (
-                      <button key={t.id} onClick={() => setForm(f => ({ ...f, tipo_mantenimiento_id: t.id }))}
-                        className={`flex items-center gap-2 px-4 py-3 rounded-[9px] border-2 text-[13px] font-semibold transition-all ${form.tipo_mantenimiento_id === t.id
-                          ? t.nombre === 'Correctivo' ? 'border-[#D81B43] bg-[#D81B43]/5 text-[#D81B43]' : 'border-[#25A9E0] bg-[#E8F7FB] text-[#0E86A0]'
-                          : 'border-slate-200 text-slate-500 hover:border-slate-300'
-                          }`}>
-                        {t.nombre === 'Correctivo' ? <AlertTriangle size={15} /> : <Wrench size={15} />}
-                        {t.nombre}
-                      </button>
-                    ))}
+
+              <div className="flex-1 overflow-y-auto p-5 md:p-8">
+                <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px] gap-6 lg:gap-8">
+                  {/* Equipos */}
+                  <div className="min-w-0">
+                    <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wide mb-3.5">Equipos</div>
+                    <SelectorEquipos equipos={equipos} categorias={categorias} tiposEquipo={tiposEquipo}
+                      seleccionados={form.equipos_ids} onToggle={toggleEquipo} onToggleVarios={toggleVarios} />
                   </div>
-                </div>
 
-                {/* Equipo */}
-                <div>
-                  <label className={labelCls}>Equipo <span className="text-[#D81B43]">*</span></label>
-                  <select value={form.equipo_id} onChange={e => setForm(f => ({ ...f, equipo_id: e.target.value }))} className={inputCls}>
-                    <option value="">Seleccionar equipo...</option>
-                    {equipos.map(eq => (
-                      <option key={eq.id} value={eq.id}>
-                        {nombreEquipo(eq)} — {eq.codigo} ({eq.estado?.nombre})
-                      </option>
-                    ))}
-                  </select>
-                  {(() => {
-                    const sel = equipos.find(eq => eq.id === form.equipo_id)
-                    if (!sel || !['En préstamo', 'Reservado'].includes(sel.estado?.nombre)) return null
-                    return (
-                      <div className="mt-2 flex items-start gap-2 text-[12.5px] text-[#1D4ED8] bg-[#EFF6FF] px-3 py-2.5 rounded-[9px] border border-[#1D4ED8]/15">
-                        <Package size={14} className="flex-shrink-0 mt-0.5" />
-                        <span>
-                          Este equipo está <strong>{sel.estado.nombre.toLowerCase()}</strong>
-                          {sel.cliente_actual?.nombre && <> a {sel.cliente_actual.nombre}</>}
-                          {sel.paciente_actual?.nombre && <> (paciente {sel.paciente_actual.nombre})</>}.
-                          {' '}Mientras dure el mantenimiento queda &quot;En mantenimiento&quot;; al cerrarlo vuelve a su préstamo.
-                        </span>
+                  <div className="min-w-0 lg:border-l lg:border-slate-100 lg:pl-8 flex flex-col gap-6">
+                    {/* Seleccionados */}
+                    <div>
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wide">Seleccionados ({seleccionados.length})</div>
+                        {seleccionados.length > 0 && (
+                          <button type="button" onClick={() => { setForm(f => ({ ...f, equipos_ids: [] })); setFormDirty(true) }}
+                            className="text-[11.5px] font-semibold text-slate-400 hover:text-[#D81B43]">Quitar todos</button>
+                        )}
                       </div>
-                    )
-                  })()}
-                </div>
-
-                {/* Técnico */}
-                <div>
-                  <label className={labelCls}>Técnico responsable</label>
-                  <input value={form.tecnico} onChange={e => setForm(f => ({ ...f, tecnico: e.target.value }))}
-                    placeholder="Nombre del técnico" className={inputCls} />
-                </div>
-
-                {/* Lista de actividades */}
-                {listas.length > 0 && (
-                  <div>
-                    <label className={labelCls}>Lista de actividades predefinida</label>
-                    <select value={form.lista_id} onChange={e => setForm(f => ({ ...f, lista_id: e.target.value }))} className={inputCls}>
-                      <option value="">Sin lista — ingresar manualmente al cerrar</option>
-                      {listas.map(l => <option key={l.id} value={l.id}>{l.nombre} ({l.actividades?.length || 0} actividades)</option>)}
-                    </select>
-                    {form.lista_id && (
-                      <div className="mt-2 space-y-1 max-h-32 overflow-y-auto">
-                        {listas.find(l => l.id === form.lista_id)?.actividades
-                          ?.sort((a, b) => a.orden - b.orden)
-                          .map(a => (
-                            <div key={a.id} className="flex items-center gap-2 text-[12px] text-slate-500 py-0.5">
-                              <div className="w-1.5 h-1.5 rounded-full bg-slate-300 flex-shrink-0" />
-                              {a.nombre}
+                      {seleccionados.length === 0 ? (
+                        <div className="text-[12.5px] text-slate-400 text-center py-6 px-3 border border-dashed border-slate-200 rounded-[9px]">
+                          Marca equipos en el inventario o búscalos por código, serie o paciente
+                        </div>
+                      ) : (
+                        <div className="space-y-1.5 max-h-[220px] overflow-y-auto pr-1">
+                          {seleccionados.map(eq => (
+                            <div key={eq.id} className="flex items-center gap-2.5 p-2 rounded-[8px] border border-[#D81B43]/25 bg-[#D81B43]/5">
+                              <span className="font-mono text-[11.5px] font-bold bg-white text-slate-700 px-1.5 py-0.5 rounded flex-shrink-0">{eq.codigo}</span>
+                              <div className="flex-1 min-w-0">
+                                <div className="text-[12.5px] font-semibold text-slate-700 truncate">{nombreEquipo(eq)}</div>
+                                <div className="text-[10.5px] text-slate-400 truncate">
+                                  {[eq.atributos?.serie && `Serie ${eq.atributos.serie}`, eq.estado?.nombre].filter(Boolean).join(' · ')}
+                                </div>
+                              </div>
+                              <button type="button" onClick={() => toggleEquipo(eq.id)} aria-label={`Quitar ${eq.codigo}`}
+                                className="w-7 h-7 flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors flex-shrink-0">
+                                <X size={13} />
+                              </button>
                             </div>
                           ))}
-                      </div>
-                    )}
-                  </div>
-                )}
+                        </div>
+                      )}
+                      {prestados > 0 && (
+                        <div className="mt-2.5 flex items-start gap-2 text-[12px] text-[#1D4ED8] bg-[#EFF6FF] px-3 py-2.5 rounded-[9px] border border-[#1D4ED8]/15">
+                          <Package size={13} className="flex-shrink-0 mt-0.5" />
+                          <span>{prestados === 1 ? '1 equipo está prestado' : `${prestados} equipos están prestados`}: quedan &quot;En mantenimiento&quot; y al cerrar vuelven a su préstamo.</span>
+                        </div>
+                      )}
+                    </div>
 
-                {/* Observaciones */}
-                <div>
-                  <label className={labelCls}>Observaciones del cliente / motivo</label>
-                  <textarea value={form.observaciones_cliente}
-                    onChange={e => setForm(f => ({ ...f, observaciones_cliente: e.target.value }))}
-                    placeholder="Descripción del problema o motivo..." rows={3}
-                    className="w-full px-3 py-2.5 border border-slate-200 rounded-[9px] text-[13.5px] outline-none focus:border-[#D81B43] resize-none placeholder:text-slate-400" />
+                    {/* Datos del mantenimiento */}
+                    <div onChange={() => setFormDirty(true)}>
+                      <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wide mb-3.5">Datos del mantenimiento</div>
+                      <div className="space-y-4">
+                        <div>
+                          <label className={labelCls}>Tipo <span className="text-[#D81B43]">*</span></label>
+                          <div className="grid grid-cols-2 gap-2">
+                            {tipos.map(t => (
+                              <button key={t.id} type="button" onClick={() => { setForm(f => ({ ...f, tipo_mantenimiento_id: t.id })); setFormDirty(true) }}
+                                className={`flex items-center justify-center gap-2 px-3 py-2.5 rounded-[9px] border-2 text-[13px] font-semibold transition-all ${form.tipo_mantenimiento_id === t.id
+                                  ? t.nombre === 'Correctivo' ? 'border-[#D81B43] bg-[#D81B43]/5 text-[#D81B43]' : 'border-[#25A9E0] bg-[#E8F7FB] text-[#0E86A0]'
+                                  : 'border-slate-200 text-slate-500 hover:border-slate-300'
+                                  }`}>
+                                {t.nombre === 'Correctivo' ? <AlertTriangle size={14} /> : <Wrench size={14} />}
+                                {t.nombre}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        <div>
+                          <label htmlFor="mant-tecnico" className={labelCls}>Técnico responsable</label>
+                          <input id="mant-tecnico" value={form.tecnico} onChange={e => setForm(f => ({ ...f, tecnico: e.target.value }))}
+                            placeholder="Nombre del técnico" className={inputCls} />
+                        </div>
+                        {listas.length > 0 && (
+                          <div>
+                            <label htmlFor="mant-lista" className={labelCls}>Lista de actividades</label>
+                            <select id="mant-lista" value={form.lista_id} onChange={e => setForm(f => ({ ...f, lista_id: e.target.value }))} className={inputCls}>
+                              <option value="">Sin lista — ingresar al cerrar</option>
+                              {listas.map(l => <option key={l.id} value={l.id}>{l.nombre} ({l.actividades?.length || 0})</option>)}
+                            </select>
+                            {listaSel && (
+                              <div className="mt-2 space-y-1 max-h-28 overflow-y-auto">
+                                {[...(listaSel.actividades || [])].sort((a, b) => a.orden - b.orden).map(a => (
+                                  <div key={a.id} className="flex items-center gap-2 text-[12px] text-slate-500 py-0.5">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-slate-300 flex-shrink-0" />
+                                    {a.nombre}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        <div>
+                          <label htmlFor="mant-obs" className={labelCls}>Observaciones / motivo</label>
+                          <textarea id="mant-obs" value={form.observaciones_cliente}
+                            onChange={e => setForm(f => ({ ...f, observaciones_cliente: e.target.value }))}
+                            placeholder="Descripción del problema o motivo..." rows={3}
+                            className="w-full px-3 py-2.5 border border-slate-200 rounded-[9px] text-[13.5px] outline-none focus:border-[#D81B43] resize-none placeholder:text-slate-400" />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
-              <div className="px-6 py-4 border-t border-slate-200 flex justify-end gap-2 flex-shrink-0 bg-white">
-                <button onClick={() => intentarCerrarModal()} className="px-4 py-2.5 border border-slate-200 rounded-[9px] text-[13px] font-medium text-slate-600 hover:border-slate-300">Cancelar</button>
-                <button onClick={crearMantenimiento} disabled={saving}
-                  className="px-5 py-2.5 bg-[#D81B43] text-white rounded-[9px] text-[13px] font-semibold hover:bg-[#B0172F] disabled:opacity-50">
-                  {saving ? 'Creando...' : 'Abrir mantenimiento'}
+
+              <div className="px-5 md:px-6 py-4 border-t border-slate-200 flex items-center gap-2 flex-shrink-0 bg-white">
+                <div className="hidden sm:block text-[12.5px] text-slate-500 mr-auto">
+                  {seleccionados.length === 0 ? 'Ningún equipo seleccionado' : `${seleccionados.length} equipo${seleccionados.length !== 1 ? 's' : ''} seleccionado${seleccionados.length !== 1 ? 's' : ''}`}
+                </div>
+                <button onClick={() => intentarCerrarModal()} className="ml-auto sm:ml-0 px-4 py-2.5 border border-slate-200 rounded-[9px] text-[13px] font-medium text-slate-600 hover:border-slate-300">Cancelar</button>
+                <button onClick={crearMantenimiento} disabled={saving || seleccionados.length === 0}
+                  className="px-5 py-2.5 bg-[#D81B43] text-white rounded-[9px] text-[13px] font-semibold hover:bg-[#B0172F] disabled:opacity-50 disabled:cursor-not-allowed">
+                  {saving ? 'Abriendo...' : seleccionados.length > 1 ? `Abrir ${seleccionados.length} mantenimientos` : 'Abrir mantenimiento'}
                 </button>
               </div>
             </div>
           </div>
         </>
-      )}
+        )
+      })()}
 
       {/* ── MODAL CIERRE ── */}
       {modalCierre && (

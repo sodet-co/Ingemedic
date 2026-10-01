@@ -59,6 +59,30 @@ Lo que está sin resolver, ordenado por prioridad.
 
 # Entradas
 
+## 2026-09-30 — Mantenimientos: tabla con datos de la unidad y selección múltiple
+**Qué se hizo:** la tabla principal muestra lo mismo que Inventario → unidades:
+código de inventario, equipo + categoría, serie/modelo, paciente (con
+dirección) o cliente, además de tipo, estado, fechas; en pantallas muy anchas
+también técnico y en qué estado quedó el equipo. La búsqueda principal
+encuentra por código de inventario, serie, modelo, paciente y cliente. El
+formulario "Nuevo mantenimiento" usa el diseño del modal "Nueva unidad" y un
+selector (`components/mantenimientos/SelectorEquipos.js`) con mini-inventario
+categorías → tipos → unidades como el wizard de Préstamos, selección múltiple,
+"marcar todos", chips por estado del equipo, filtros por columna de la unidad
+y búsqueda global por código/serie/modelo/equipo/paciente. Se abre un
+mantenimiento por equipo (códigos consecutivos); si falla el cambio de estado
+de los equipos se deshace todo. Las consultas compartidas quedaron en
+`lib/mantenimientos.js` (`SELECT_MANTENIMIENTO`, `SELECT_EQUIPO_MANT`).
+**Archivos:** `mantenimientos/page.js`, `MantenimientosClient.js`,
+`components/mantenimientos/SelectorEquipos.js` (nuevo), `lib/mantenimientos.js`.
+**Verificado en el navegador con una cuenta SuperAdmin desechable (borrada,
+con su bitácora):** buscar FAM370 por serie y EQ500 por código, marcarlos,
+"Abrir 2 mantenimientos" → MAN-2026-003/004 En proceso y ambos equipos En
+mantenimiento en la BD; luego se borraron y los equipos volvieron a
+Disponible. Capturas a 390 y 1440 sin scroll horizontal.
+**Nota:** el rol Administrador no tiene permiso de ver Mantenimientos,
+Servicios ni Bitácora (tabla `permisos`); confirmar que es intencional.
+
 ## 2026-09-29 — Mantenimientos: el estado del equipo ya no miente
 **Qué se hizo:** revisión del módulo. Se puede abrir mantenimiento a un equipo
 prestado (decisión de Sofía, opción B): conserva cliente/paciente y al cerrar
