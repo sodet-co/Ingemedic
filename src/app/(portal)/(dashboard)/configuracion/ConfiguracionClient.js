@@ -6,11 +6,12 @@ import {
   Users, Lock, Tag, Cpu, Building2,
   FileText, Upload, Plus, X, Edit3, Trash2,
   Check, Save, ClipboardList, Download, CheckCircle2, Smartphone,
-  ChevronDown, ChevronRight, Search
+  ChevronDown, ChevronRight, Search, Globe
 } from 'lucide-react'
 import { GaleriaIconos, IconoEquipo } from '@/components/inventario/IconosEquipo'
 import { MODULOS_PRINCIPALES, MODULOS_CONFIGURACION, MODULOS_OCULTOS_POR_DEFECTO, puedeVerModulo } from '@/lib/permisos'
 import BuzonNovedades from '@/components/layout/BuzonNovedades'
+import { filaPortal } from '@/lib/portalClientes'
 
 const NAV_MODULO = {
   usuarios: 'configuracion.usuarios', roles: 'configuracion.roles', categorias: 'configuracion.categorias',
@@ -21,6 +22,7 @@ const NAV_MODULO = {
 const NAV = [
   { id: 'usuarios',   label: 'Usuarios',               icon: Users,         grupo: 'Acceso' },
   { id: 'roles',      label: 'Roles y permisos',       icon: Lock,          grupo: 'Acceso' },
+  { id: 'portal',     label: 'Portal de clientes',     icon: Globe,         grupo: 'Acceso', soloSuperAdmin: true },
   { id: 'categorias', label: 'Categorías',              icon: Tag,           grupo: 'Inventario' },
   { id: 'tipos',      label: 'Tipos de equipo',         icon: Cpu,           grupo: 'Inventario' },
   { id: 'listas',     label: 'Listas de mantenimiento', icon: ClipboardList, grupo: 'Mantenimientos' },
@@ -246,7 +248,7 @@ export default function ConfiguracionClient({
   // Oculta del menú interno de Configuración las secciones que el rol actual
   // no tiene permitidas. SuperAdmin ve todas, sin importar la tabla permisos.
   const navVisible = useMemo(() => (
-    esSuperAdmin ? NAV : NAV.filter(n => puedeVerModulo(NAV_MODULO[n.id], permisosDelRolActual))
+    esSuperAdmin ? NAV : NAV.filter(n => !n.soloSuperAdmin && puedeVerModulo(NAV_MODULO[n.id], permisosDelRolActual))
   ), [esSuperAdmin, permisosDelRolActual])
 
   // Si la sección activa dejó de estar visible (o nunca lo estuvo para este rol),
@@ -339,6 +341,28 @@ export default function ConfiguracionClient({
   const [buscarTipo, setBuscarTipo] = useState('')
   const [nuevaActividad, setNuevaActividad] = useState('')
   const [empresa, setEmpresa]         = useState(empresaInicial)
+  // Interruptor del portal de clientes (solo SuperAdmin; lo guarda /api/configuracion/portal-clientes)
+  const [portalActivo, setPortalActivo] = useState(filaPortal(todosPermisosIniciales)?.puede_ver !== false)
+  const [guardandoPortal, setGuardandoPortal] = useState(false)
+
+  async function cambiarPortal(activo) {
+    if (guardandoPortal || activo === portalActivo) return
+    setGuardandoPortal(true)
+    try {
+      const res = await fetch('/api/configuracion/portal-clientes', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ activo }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) { showToast('Error: ' + (data.error || 'No se pudo guardar'), 'error'); return }
+      setPortalActivo(data.activo)
+      registrarBitacora({ modulo: 'configuracion', accion: 'editar', entidad: 'portal de clientes', detalle: { activo: data.activo } })
+      showToast(data.activo ? 'Portal de clientes activado' : 'Portal de clientes bloqueado')
+    } catch {
+      showToast('No se pudo conectar con el servidor', 'error')
+    } finally {
+      setGuardandoPortal(false)
+    }
+  }
   const [subiendoLogo, setSubiendoLogo] = useState(false)
   const [camposModal, setCamposModal] = useState({ campos_tipo: [], campos_unidad: [] })
   const [nuevoCampo, setNuevoCampo]   = useState({ nombre: '', tipo: 'texto', obligatorio: false, opciones: '', nivel: '' })
@@ -1270,6 +1294,45 @@ export default function ConfiguracionClient({
             )}
 
             {/* PREFERENCIAS */}
+            {seccionActiva === 'portal' && esSuperAdmin && (
+              <div className="max-w-[860px]">
+                <h2 className="text-[20px] font-bold text-slate-800 mb-1">Portal de clientes</h2>
+                <p className="text-[13px] text-slate-400 mb-6">Acceso de los clientes a portal.ingemedic.com.co/cliente · solo SuperAdmin</p>
+
+                <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+                  <div className="flex items-start justify-between gap-4 flex-wrap">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <Globe size={16} className="text-slate-400" />
+                        <div className="text-[14px] font-bold text-slate-700">Estado del módulo</div>
+                        <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold ${portalActivo ? 'bg-[#ECFDF5] text-[#0F7B55]' : 'bg-amber-50 text-amber-700'}`}>
+                          {portalActivo ? 'Activo' : 'Bloqueado temporalmente'}
+                        </span>
+                      </div>
+                      <p className="text-[12.5px] text-slate-500 mt-2 max-w-[520px]">
+                        Al bloquearlo, los clientes ven &quot;Módulo bloqueado temporalmente&quot; al entrar, el login no les deja ingresar
+                        y en Clientes no se pueden crear, cambiar ni quitar accesos. Las cuentas existentes no se borran:
+                        al activarlo de nuevo, todo vuelve a funcionar como antes.
+                      </p>
+                    </div>
+                    <div className="grid grid-cols-2 p-1 rounded-full bg-slate-100 flex-shrink-0" role="radiogroup" aria-label="Estado del portal de clientes">
+                      {[[true, 'Activo'], [false, 'Bloqueado']].map(([v, l]) => (
+                        <button key={l} type="button" role="radio" aria-checked={portalActivo === v} disabled={guardandoPortal}
+                          onClick={() => cambiarPortal(v)}
+                          className={`h-9 px-5 rounded-full text-[13px] font-semibold transition-all disabled:opacity-60 ${
+                            portalActivo === v
+                              ? (v ? 'bg-[#0F7B55] text-white shadow-sm' : 'bg-amber-500 text-white shadow-sm')
+                              : 'text-slate-500 hover:text-slate-700'
+                          }`}>
+                          {l}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {seccionActiva === 'preferencias' && (
               <div className="max-w-[860px]">
                 <h2 className="text-[20px] font-bold text-slate-800 mb-1">Preferencias</h2>

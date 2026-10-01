@@ -1,7 +1,10 @@
 import { redirect } from 'next/navigation'
+import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase-server'
 import { traerTodosLosEquipos } from '@/lib/equipos'
 import PortalClienteClient from './PortalClienteClient'
+import PortalBloqueado from './PortalBloqueado'
+import { portalClientesActivo } from '@/lib/portalClientes'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -20,6 +23,11 @@ export default async function PortalClientePage() {
   const { data: cliente } = await supabase
     .from('clientes').select('id, nombre, nit_cc, digito_verificacion').eq('auth_user_id', user.id).maybeSingle()
   if (!cliente) redirect('/login?cliente=1')
+
+  // Portal bloqueado por un SuperAdmin: no se consulta nada más. El permiso
+  // vive en `permisos`, que RLS no deja leer al cliente → service_role (solo servidor).
+  const admin = createAdminClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } })
+  if (!(await portalClientesActivo(admin))) return <PortalBloqueado nombre={cliente.nombre} />
 
   const [equipos, { data: categorias }] = await Promise.all([
     traerTodosLosEquipos(supabase, q => q

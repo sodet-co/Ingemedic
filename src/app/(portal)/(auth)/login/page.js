@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import Image from 'next/image'
-import { Eye, EyeOff, Loader2, AlertCircle, ArrowLeft, ShieldCheck, Building2 } from 'lucide-react'
+import { Eye, EyeOff, Loader2, AlertCircle, ArrowLeft, ShieldCheck, Building2, Lock } from 'lucide-react'
 import { createClient } from '@/lib/supabase'
 import { registrarBitacora } from '@/lib/bitacora'
 import { SITIO_URL, EMPRESA } from '@/lib/sitio'
@@ -66,12 +66,23 @@ export default function LoginPage() {
   const [error, setError]           = useState('')
   const [showPass, setShowPass]     = useState(false)
   const [bloqMayus, setBloqMayus]   = useState(false)
+  const [portalBloqueado, setPortalBloqueado] = useState(false)
 
   const t = MODOS[modo]
 
   // Arranca vacío siempre (server y cliente deben coincidir en el primer
   // render) y se adopta recién tras montar — igual patrón que el filtro de
   // Préstamos, para no volver a chocar con un error de hidratación.
+  // ¿El SuperAdmin bloqueó el portal de clientes? (API pública: solo dice si está activo)
+  useEffect(() => {
+    let vigente = true
+    fetch('/api/configuracion/portal-clientes')
+      .then(r => r.ok ? r.json() : { activo: true })
+      .then(d => { if (vigente) setPortalBloqueado(d.activo === false) })
+      .catch(() => {})
+    return () => { vigente = false }
+  }, [])
+
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     let guardado = null
@@ -115,6 +126,7 @@ export default function LoginPage() {
       setError(modo === 'cliente' ? 'Escribe tu correo y tu contraseña.' : 'Escribe tu usuario/correo y tu contraseña.')
       return
     }
+    if (modo === 'cliente' && portalBloqueado) return
     // Los clientes no tienen nombre de usuario: solo correo
     if (modo === 'cliente' && !ingresado.includes('@')) {
       setError('Escribe el correo completo con el que Ingemedic te dio acceso.')
@@ -230,6 +242,13 @@ export default function LoginPage() {
             <h1 className="text-[25px] font-extrabold text-[#1B3A6B] mb-1 text-center">{t.titulo}</h1>
             <p className="text-[15px] text-slate-500 mb-7 text-center">{t.subtitulo}</p>
 
+            {modo === 'cliente' && portalBloqueado && (
+              <div role="status" className="flex items-start gap-2.5 p-3.5 mb-5 rounded-[10px] bg-amber-50 border border-amber-200 text-[14px] text-amber-800">
+                <Lock size={16} className="flex-shrink-0 mt-0.5" />
+                <span><strong>Módulo bloqueado temporalmente.</strong> El portal de clientes no está disponible en este momento.</span>
+              </div>
+            )}
+
             {error && (
               <div role="alert" className="flex items-start gap-2 p-3 mb-5 rounded-[10px] bg-red-50 border border-red-200 text-[14.5px] text-red-700">
                 <AlertCircle size={16} className="flex-shrink-0 mt-0.5" />
@@ -293,7 +312,7 @@ export default function LoginPage() {
 
               <button
                 type="submit"
-                disabled={loading}
+                disabled={loading || (modo === 'cliente' && portalBloqueado)}
                 aria-busy={loading}
                 className="w-full flex items-center justify-center gap-2 py-3.5 rounded-full text-[16px] font-bold text-white bg-[#1B3A6B] hover:bg-[#152D54] transition-colors mt-2 disabled:bg-slate-400 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#2EB5D4]/40"
               >

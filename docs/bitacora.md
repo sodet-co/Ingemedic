@@ -59,6 +59,27 @@ Lo que está sin resolver, ordenado por prioridad.
 
 # Entradas
 
+## 2026-10-01 — Bloqueo temporal del portal de clientes
+**Qué se hizo:** interruptor Activo/Bloqueado en Configuración → Portal de
+clientes (grupo Acceso), visible y editable solo por SuperAdmin
+(`/api/configuracion/portal-clientes`, PUT exige SuperAdmin; GET público solo
+dice si está activo). Bloqueado: el cliente ve "Módulo bloqueado
+temporalmente" (`cliente/PortalBloqueado.js`), el login lo avisa en "Soy
+cliente" y desactiva Ingresar, y en Clientes → Acceso al portal no se
+puede crear, cambiar ni quitar accesos (la API responde 423).
+**Por qué así:** sin SQL. Se guarda como permiso del rol "Cliente" ya
+existente: fila `permisos` con `modulo = 'portal_clientes'`; sin fila o
+`puede_ver = true` → activo. La página del cliente lo lee con service_role
+porque RLS no le deja leer `permisos`. Lógica en `lib/portalClientes.js`.
+**Archivos:** `lib/portalClientes.js`, `api/configuracion/portal-clientes`,
+`api/clientes/acceso/route.js`, `cliente/page.js`, `cliente/PortalBloqueado.js`,
+`login/page.js`, `components/clientes/AccesoPortal.js`, `ConfiguracionClient.js`.
+**Verificado con cuentas desechables (SuperAdmin + cliente de CUIDARTE,
+borradas):** bloquear desde la pantalla → fila puede_ver=false; el cliente
+ve la pantalla de bloqueo; login avisa con botón desactivado; Clientes muestra
+el aviso sin botones; PUT de contraseña → 423; al reactivar el cliente vuelve
+a ver sus equipos. Se dejó el interruptor como estaba (sin fila = activo).
+
 ## 2026-09-30 — Mantenimientos sin preventivo/correctivo
 **Qué se hizo:** se quitó el tipo de mantenimiento de toda la interfaz: botones
 del formulario, filtros, tarjeta "Correctivos", insignias y borde rojo en

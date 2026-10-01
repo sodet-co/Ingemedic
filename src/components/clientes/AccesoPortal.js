@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { KeyRound, Loader2, Copy, Check, RefreshCw, UserX, Globe } from 'lucide-react'
+import { KeyRound, Loader2, Copy, Check, RefreshCw, UserX, Globe, Lock } from 'lucide-react'
 import ConfirmDialog from '@/components/ui/ConfirmDialog'
 import { registrarBitacora } from '@/lib/bitacora'
 import { formatear } from '@/lib/fechas'
@@ -23,6 +23,7 @@ export default function AccesoPortal({ cliente, onToast }) {
   const [cargando, setCargando]   = useState(true)
   const [acceso, setAcceso]       = useState(null)
   const [noHabilitado, setNoHabilitado] = useState(false)
+  const [bloqueado, setBloqueado] = useState(false) // portal bloqueado por un SuperAdmin
   const [formulario, setFormulario] = useState(null) // null | 'crear' | 'clave'
   const [email, setEmail]         = useState('')
   const [clave, setClave]         = useState('')
@@ -41,7 +42,7 @@ export default function AccesoPortal({ cliente, onToast }) {
         const data = await r.json().catch(() => ({}))
         if (!vigente) return
         if (!r.ok) { setNoHabilitado(true); setAcceso(null) }
-        else setAcceso(data.acceso || null)
+        else { setAcceso(data.acceso || null); setBloqueado(!!data.bloqueado) }
       })
       .catch(() => { if (vigente) setNoHabilitado(true) })
       .finally(() => { if (vigente) setCargando(false) })
@@ -66,6 +67,7 @@ export default function AccesoPortal({ cliente, onToast }) {
         body: JSON.stringify({ cliente_id: cliente.id, email, password: clave }),
       })
       const data = await res.json().catch(() => ({}))
+      if (res.status === 423) { setBloqueado(true); setFormulario(null); onToast?.(data.error, 'error'); return }
       if (!res.ok) { setError(data.error || 'No se pudo guardar.'); return }
 
       if (formulario === 'crear') {
@@ -90,6 +92,7 @@ export default function AccesoPortal({ cliente, onToast }) {
     try {
       const res = await fetch(`/api/clientes/acceso?cliente_id=${cliente.id}`, { method: 'DELETE' })
       const data = await res.json().catch(() => ({}))
+      if (res.status === 423) setBloqueado(true)
       if (!res.ok) { onToast?.(data.error || 'No se pudo quitar el acceso.', 'error'); return }
       await registrarBitacora({ modulo: 'clientes', accion: 'eliminar', entidad: 'acceso al portal', entidad_id: cliente.id, detalle: { cliente: cliente.nombre, email: acceso?.email } })
       setAcceso(null)
@@ -188,7 +191,14 @@ export default function AccesoPortal({ cliente, onToast }) {
             </div>
           )}
 
-          {!formulario && (
+          {bloqueado && (
+            <div className="mt-3 flex items-start gap-2 text-[12.5px] text-amber-800 bg-amber-50 border border-amber-200 px-3 py-2.5 rounded-[9px]">
+              <Lock size={14} className="flex-shrink-0 mt-0.5" />
+              <span><strong>Módulo bloqueado temporalmente.</strong> Un SuperAdmin lo puede activar en Configuración → Portal de clientes.</span>
+            </div>
+          )}
+
+          {!formulario && !bloqueado && (
             <div className="flex flex-wrap gap-2 mt-3">
               {acceso ? (
                 <>

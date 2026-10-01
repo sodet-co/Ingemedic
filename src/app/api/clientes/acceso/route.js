@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 import { verificarSesion } from '@/lib/api-auth'
+import { portalClientesActivo, MENSAJE_PORTAL_BLOQUEADO } from '@/lib/portalClientes'
 
 // Acceso de un cliente al portal (portal.ingemedic.com.co/cliente).
 // La cuenta es un usuario de Supabase Auth enlazado en clientes.auth_user_id.
@@ -32,6 +33,13 @@ async function traerCliente(clienteId) {
   return { cliente: data }
 }
 
+// Con el portal bloqueado (Configuración → Portal de clientes) no se crean,
+// cambian ni quitan accesos
+async function bloqueado() {
+  if (await portalClientesActivo(supabaseAdmin)) return null
+  return NextResponse.json({ error: MENSAJE_PORTAL_BLOQUEADO, bloqueado: true }, { status: 423 })
+}
+
 function validarClave(password) {
   if (!password || password.length < 8) return 'La contraseña debe tener al menos 8 caracteres.'
   return null
@@ -45,12 +53,14 @@ export async function GET(request) {
 
     const { cliente, error } = await traerCliente(new URL(request.url).searchParams.get('cliente_id'))
     if (error) return error
-    if (!cliente.auth_user_id) return NextResponse.json({ acceso: null })
+    const portalBloqueado = !(await portalClientesActivo(supabaseAdmin))
+    if (!cliente.auth_user_id) return NextResponse.json({ acceso: null, bloqueado: portalBloqueado })
 
     const { data, error: authError } = await supabaseAdmin.auth.admin.getUserById(cliente.auth_user_id)
-    if (authError || !data?.user) return NextResponse.json({ acceso: null })
+    if (authError || !data?.user) return NextResponse.json({ acceso: null, bloqueado: portalBloqueado })
 
     return NextResponse.json({
+      bloqueado: portalBloqueado,
       acceso: {
         email: data.user.email,
         creado: data.user.created_at,
@@ -67,6 +77,8 @@ export async function POST(request) {
   try {
     const { respuesta } = await verificarSesion({ modulos: MODULOS })
     if (respuesta) return respuesta
+    const enBloqueo = await bloqueado()
+    if (enBloqueo) return enBloqueo
 
     const { cliente_id, email: emailCrudo, password } = await request.json()
     const email = (emailCrudo || '').trim().toLowerCase()
@@ -125,6 +137,8 @@ export async function PUT(request) {
   try {
     const { respuesta } = await verificarSesion({ modulos: MODULOS })
     if (respuesta) return respuesta
+    const enBloqueo = await bloqueado()
+    if (enBloqueo) return enBloqueo
 
     const { cliente_id, password } = await request.json()
     const errorClave = validarClave(password)
@@ -149,6 +163,8 @@ export async function DELETE(request) {
   try {
     const { respuesta } = await verificarSesion({ modulos: MODULOS })
     if (respuesta) return respuesta
+    const enBloqueo = await bloqueado()
+    if (enBloqueo) return enBloqueo
 
     const { cliente, error } = await traerCliente(new URL(request.url).searchParams.get('cliente_id'))
     if (error) return error
