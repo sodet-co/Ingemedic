@@ -74,6 +74,9 @@ porque RLS no le deja leer `permisos`. Lógica en `lib/portalClientes.js`.
 **Archivos:** `lib/portalClientes.js`, `api/configuracion/portal-clientes`,
 `api/clientes/acceso/route.js`, `cliente/page.js`, `cliente/PortalBloqueado.js`,
 `login/page.js`, `components/clientes/AccesoPortal.js`, `ConfiguracionClient.js`.
+Login con el portal bloqueado: "Soy cliente" se ve deshabilitada (candado),
+carga Personal, y si una cuenta de cliente entra por Personal se le cierra la
+sesión (scope local) con el aviso — no llega ni a la pantalla de bloqueo.
 **Verificado con cuentas desechables (SuperAdmin + cliente de CUIDARTE,
 borradas):** bloquear desde la pantalla → fila puede_ver=false; el cliente
 ve la pantalla de bloqueo; login avisa con botón desactivado; Clientes muestra

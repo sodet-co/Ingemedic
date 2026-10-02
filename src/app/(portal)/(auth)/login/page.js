@@ -16,6 +16,16 @@ const MENSAJE_INACTIVO     = 'Tu usuario está desactivado. Habla con un adminis
 const MENSAJE_CONEXION     = 'No se pudo conectar con el servidor. Revisa tu internet e intenta de nuevo.'
 const MENSAJE_INTENTOS     = 'Demasiados intentos seguidos. Espera unos minutos e intenta de nuevo.'
 const MENSAJE_SIN_CONFIRMAR = 'Tu cuenta aún no está confirmada. Habla con un administrador.'
+const MENSAJE_PORTAL_BLOQUEADO = 'El portal de clientes está bloqueado temporalmente.'
+
+// ¿El SuperAdmin bloqueó el portal de clientes? (API pública: solo dice si está activo)
+async function consultarPortalBloqueado() {
+  try {
+    const r = await fetch('/api/configuracion/portal-clientes', { cache: 'no-store' })
+    if (!r.ok) return false
+    return (await r.json()).activo === false
+  } catch { return false }
+}
 
 // Textos que cambian entre el personal de Ingemedic y los clientes. La cuenta
 // es la misma (Supabase Auth): el modo solo ajusta la pantalla y a dónde se
@@ -73,13 +83,14 @@ export default function LoginPage() {
   // Arranca vacío siempre (server y cliente deben coincidir en el primer
   // render) y se adopta recién tras montar — igual patrón que el filtro de
   // Préstamos, para no volver a chocar con un error de hidratación.
-  // ¿El SuperAdmin bloqueó el portal de clientes? (API pública: solo dice si está activo)
+  // Con el portal bloqueado, "Soy cliente" queda deshabilitado y se carga Personal
   useEffect(() => {
     let vigente = true
-    fetch('/api/configuracion/portal-clientes')
-      .then(r => r.ok ? r.json() : { activo: true })
-      .then(d => { if (vigente) setPortalBloqueado(d.activo === false) })
-      .catch(() => {})
+    consultarPortalBloqueado().then(bloqueado => {
+      if (!vigente || !bloqueado) return
+      setPortalBloqueado(true)
+      setModo('personal')
+    })
     return () => { vigente = false }
   }, [])
 
@@ -100,6 +111,7 @@ export default function LoginPage() {
 
   function cambiarModo(nuevo) {
     if (nuevo === modo) return
+    if (nuevo === 'cliente' && portalBloqueado) return
     setModo(nuevo)
     setError('')
     try { localStorage.setItem(MODO_KEY, nuevo) } catch { /* almacenamiento no disponible */ }
@@ -165,6 +177,20 @@ export default function LoginPage() {
 
       if (authError) return fallar(mensajeErrorAuth(authError))
 
+      // Portal bloqueado: una cuenta de cliente no entra por ninguna pestaña.
+      // Se consulta de nuevo (el estado de la pantalla puede ser viejo).
+      if (await consultarPortalBloqueado()) {
+        const { data: esCliente } = await supabase.from('clientes').select('id')
+          .eq('auth_user_id', authData.user?.id).maybeSingle()
+        if (esCliente) {
+          // local: solo esta sesión (global cerraría también las de otros dispositivos)
+          await supabase.auth.signOut({ scope: 'local' })
+          setPortalBloqueado(true)
+          setModo('personal')
+          return fallar(MENSAJE_PORTAL_BLOQUEADO)
+        }
+      }
+
       // Si el usuario es diferente al último, resetear el tour.
       // El almacenamiento puede estar bloqueado (modo privado en algunos
       // celulares): si falla no importa, pero no debe impedir el ingreso.
@@ -227,17 +253,28 @@ export default function LoginPage() {
               className="grid grid-cols-2 p-1 mb-7 rounded-full bg-slate-100">
               {[
                 { id: 'personal', label: 'Personal', Icono: ShieldCheck },
-                { id: 'cliente',  label: 'Soy cliente', Icono: Building2 },
-              ].map(({ id, label, Icono }) => (
-                <button key={id} type="button" role="tab" aria-selected={modo === id}
-                  onClick={() => cambiarModo(id)}
-                  className={`flex items-center justify-center gap-1.5 h-10 rounded-full text-[14px] font-semibold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2EB5D4] ${
-                    modo === id ? 'bg-white text-[#1B3A6B] shadow-sm' : 'text-slate-500 hover:text-slate-700'
-                  }`}>
-                  <Icono size={15} /> {label}
-                </button>
-              ))}
+                { id: 'cliente',  label: 'Soy cliente', Icono: portalBloqueado ? Lock : Building2 },
+              ].map(({ id, label, Icono }) => {
+                const deshabilitado = id === 'cliente' && portalBloqueado
+                return (
+                  <button key={id} type="button" role="tab" aria-selected={modo === id}
+                    disabled={deshabilitado} aria-disabled={deshabilitado}
+                    title={deshabilitado ? 'Bloqueado temporalmente' : undefined}
+                    onClick={() => cambiarModo(id)}
+                    className={`flex items-center justify-center gap-1.5 h-10 rounded-full text-[14px] font-semibold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2EB5D4] ${
+                      deshabilitado ? 'text-slate-400 cursor-not-allowed'
+                        : modo === id ? 'bg-white text-[#1B3A6B] shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                    }`}>
+                    <Icono size={15} /> {label}
+                  </button>
+                )
+              })}
             </div>
+            {portalBloqueado && (
+              <p className="-mt-5 mb-6 flex items-center justify-center gap-1.5 text-[12.5px] font-semibold text-amber-700">
+                <Lock size={12} /> Portal de clientes bloqueado temporalmente
+              </p>
+            )}
 
             <h1 className="text-[25px] font-extrabold text-[#1B3A6B] mb-1 text-center">{t.titulo}</h1>
             <p className="text-[15px] text-slate-500 mb-7 text-center">{t.subtitulo}</p>
