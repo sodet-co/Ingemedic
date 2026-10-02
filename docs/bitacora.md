@@ -89,9 +89,8 @@ texto del tour. Los nuevos se guardan con `tipo_mantenimiento_id = null`.
 **Archivos:** `MantenimientosClient.js`, `mantenimientos/page.js`,
 `lib/mantenimientos.js`, `cliente/page.js`, `PortalClienteClient.js`,
 `hooks/useTour.js`.
-**SQL:** entregado, sin correr: `ALTER TABLE mantenimientos ALTER COLUMN
-tipo_mantenimiento_id DROP NOT NULL`. Sin él, crear un mantenimiento falla
-(el formulario avisa que falta el SQL). Correrlo ANTES de desplegar.
+**SQL:** corrido el 2026-10-01 (verificado: la columna ya no es obligatoria):
+`ALTER TABLE mantenimientos ALTER COLUMN tipo_mantenimiento_id DROP NOT NULL`.
 **Pendiente:** los registros viejos conservan su tipo en la BD (no se borró
 la tabla `tipos_mantenimiento`). La variable `mant_tipo` de las plantillas de
 documentos (`/api/documentos`) queda vacía para los nuevos.
