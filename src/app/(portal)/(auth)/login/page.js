@@ -9,7 +9,6 @@ import { SITIO_URL, EMPRESA } from '@/lib/sitio'
 const TOUR_KEY      = 'ingemedic_tour_completado'
 const TOUR_PASO_KEY = 'ingemedic_tour_paso'
 const TOUR_USER_KEY = 'ingemedic_tour_usuario'
-const MODO_KEY      = 'ingemedic_login_modo' // recuerda si la última vez entró como cliente
 
 const MENSAJE_CREDENCIALES = 'Usuario/correo o contraseña incorrectos.'
 const MENSAJE_INACTIVO     = 'Tu usuario está desactivado. Habla con un administrador.'
@@ -80,41 +79,34 @@ export default function LoginPage() {
 
   const t = MODOS[modo]
 
-  // Arranca vacío siempre (server y cliente deben coincidir en el primer
-  // render) y se adopta recién tras montar — igual patrón que el filtro de
-  // Préstamos, para no volver a chocar con un error de hidratación.
-  // Con el portal bloqueado, "Soy cliente" queda deshabilitado y se carga Personal
+  // Siempre arranca en Personal. ?cliente=1 (enlace del acceso que se le
+  // entrega al cliente y su cierre de sesión) abre "Soy cliente" solo después
+  // de confirmar que el portal no está bloqueado.
   useEffect(() => {
     let vigente = true
-    consultarPortalBloqueado().then(bloqueado => {
-      if (!vigente || !bloqueado) return
-      setPortalBloqueado(true)
-      setModo('personal')
-    })
-    return () => { vigente = false }
-  }, [])
-
-  useEffect(() => {
     const params = new URLSearchParams(window.location.search)
-    let guardado = null
-    try { guardado = localStorage.getItem(MODO_KEY) } catch { /* almacenamiento no disponible */ }
-    // ?cliente=1 sirve para enlazar directo al portal de clientes (desde www)
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (params.get('cliente') || guardado === 'cliente') setModo('cliente')
+    consultarPortalBloqueado().then(bloqueado => {
+      if (!vigente) return
+      setPortalBloqueado(bloqueado)
+      if (!bloqueado && params.get('cliente')) setModo('cliente')
+    })
 
     if (params.get('expirada')) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setError('Tu sesión venció tras 8 horas — ingresa de nuevo.')
     } else if (params.get('inactivo')) {
       setError(MENSAJE_INACTIVO)
     }
+    return () => { vigente = false }
   }, [])
 
-  function cambiarModo(nuevo) {
+  // Al ir a "Soy cliente" se consulta otra vez: el bloqueo pudo activarse con
+  // esta pantalla ya abierta. Bloqueado → la pestaña muestra solo el aviso.
+  async function cambiarModo(nuevo) {
     if (nuevo === modo) return
-    if (nuevo === 'cliente' && portalBloqueado) return
     setModo(nuevo)
     setError('')
-    try { localStorage.setItem(MODO_KEY, nuevo) } catch { /* almacenamiento no disponible */ }
+    if (nuevo === 'cliente') setPortalBloqueado(await consultarPortalBloqueado())
   }
 
   // El aviso de Bloq Mayús solo se puede leer de un evento de teclado
@@ -255,36 +247,19 @@ export default function LoginPage() {
                 { id: 'personal', label: 'Personal', Icono: ShieldCheck },
                 { id: 'cliente',  label: 'Soy cliente', Icono: portalBloqueado ? Lock : Building2 },
               ].map(({ id, label, Icono }) => {
-                const deshabilitado = id === 'cliente' && portalBloqueado
                 return (
                   <button key={id} type="button" role="tab" aria-selected={modo === id}
-                    disabled={deshabilitado} aria-disabled={deshabilitado}
-                    title={deshabilitado ? 'Bloqueado temporalmente' : undefined}
                     onClick={() => cambiarModo(id)}
                     className={`flex items-center justify-center gap-1.5 h-10 rounded-full text-[14px] font-semibold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2EB5D4] ${
-                      deshabilitado ? 'text-slate-400 cursor-not-allowed'
-                        : modo === id ? 'bg-white text-[#1B3A6B] shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                      modo === id ? 'bg-white text-[#1B3A6B] shadow-sm' : 'text-slate-500 hover:text-slate-700'
                     }`}>
                     <Icono size={15} /> {label}
                   </button>
                 )
               })}
             </div>
-            {portalBloqueado && (
-              <p className="-mt-5 mb-6 flex items-center justify-center gap-1.5 text-[12.5px] font-semibold text-amber-700">
-                <Lock size={12} /> Portal de clientes bloqueado temporalmente
-              </p>
-            )}
-
             <h1 className="text-[25px] font-extrabold text-[#1B3A6B] mb-1 text-center">{t.titulo}</h1>
             <p className="text-[15px] text-slate-500 mb-7 text-center">{t.subtitulo}</p>
-
-            {modo === 'cliente' && portalBloqueado && (
-              <div role="status" className="flex items-start gap-2.5 p-3.5 mb-5 rounded-[10px] bg-amber-50 border border-amber-200 text-[14px] text-amber-800">
-                <Lock size={16} className="flex-shrink-0 mt-0.5" />
-                <span><strong>Módulo bloqueado temporalmente.</strong> El portal de clientes no está disponible en este momento.</span>
-              </div>
-            )}
 
             {error && (
               <div role="alert" className="flex items-start gap-2 p-3 mb-5 rounded-[10px] bg-red-50 border border-red-200 text-[14.5px] text-red-700">
@@ -293,6 +268,15 @@ export default function LoginPage() {
               </div>
             )}
 
+            {modo === 'cliente' && portalBloqueado ? (
+              <div role="alert" className="flex flex-col items-center text-center gap-2 p-6 rounded-[16px] bg-amber-50 border border-amber-200 text-amber-800">
+                <span className="w-12 h-12 rounded-full bg-amber-100 flex items-center justify-center mb-1">
+                  <Lock size={22} />
+                </span>
+                <strong className="text-[16px]">Módulo bloqueado temporalmente</strong>
+                <span className="text-[14px] leading-relaxed">El portal de clientes no está disponible en este momento. Intenta más tarde.</span>
+              </div>
+            ) : (
             <form onSubmit={handleLogin} className="space-y-4" noValidate>
               <div>
                 <label htmlFor="login-identificador" className="block text-[14px] font-bold text-[#1B3A6B] mb-1.5">
@@ -349,13 +333,14 @@ export default function LoginPage() {
 
               <button
                 type="submit"
-                disabled={loading || (modo === 'cliente' && portalBloqueado)}
+                disabled={loading}
                 aria-busy={loading}
                 className="w-full flex items-center justify-center gap-2 py-3.5 rounded-full text-[16px] font-bold text-white bg-[#1B3A6B] hover:bg-[#152D54] transition-colors mt-2 disabled:bg-slate-400 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#2EB5D4]/40"
               >
                 {loading ? <><Loader2 size={18} className="animate-spin" /> Verificando…</> : 'Ingresar'}
               </button>
             </form>
+            )}
 
             <p className="text-center text-[13.5px] text-slate-500 mt-6 leading-relaxed">
               {modo === 'cliente' ? (

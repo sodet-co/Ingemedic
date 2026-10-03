@@ -74,14 +74,21 @@ porque RLS no le deja leer `permisos`. Lógica en `lib/portalClientes.js`.
 **Archivos:** `lib/portalClientes.js`, `api/configuracion/portal-clientes`,
 `api/clientes/acceso/route.js`, `cliente/page.js`, `cliente/PortalBloqueado.js`,
 `login/page.js`, `components/clientes/AccesoPortal.js`, `ConfiguracionClient.js`.
-Login con el portal bloqueado: "Soy cliente" se ve deshabilitada (candado),
-carga Personal, y si una cuenta de cliente entra por Personal se le cierra la
-sesión (scope local) con el aviso — no llega ni a la pantalla de bloqueo.
+Login: siempre abre en Personal (se quitó el recuerdo de la última pestaña en
+localStorage, que lo hacía abrir en "Soy cliente"; `?cliente=1` solo abre esa
+pestaña si el portal está activo). Con el portal bloqueado, "Soy cliente" se
+puede pulsar pero muestra "Módulo bloqueado temporalmente" en lugar del
+formulario (vuelve a consultar el estado al pulsarla). Si una cuenta de cliente
+entra por Personal se le cierra la sesión (scope local) con el aviso.
 **Verificado con cuentas desechables (SuperAdmin + cliente de CUIDARTE,
 borradas):** bloquear desde la pantalla → fila puede_ver=false; el cliente
 ve la pantalla de bloqueo; login avisa con botón desactivado; Clientes muestra
 el aviso sin botones; PUT de contraseña → 423; al reactivar el cliente vuelve
 a ver sus equipos. Se dejó el interruptor como estaba (sin fila = activo).
+**Pendiente:** el portal sigue ACTIVO (verificado 2026-10-01: no hay fila
+`portal_clientes` en `permisos`). Para bloquearlo, un SuperAdmin debe ponerlo
+en Bloqueado desde Configuración → Portal de clientes. Falta probar el login
+nuevo con el bloqueo puesto.
 
 ## 2026-09-30 — Mantenimientos sin preventivo/correctivo
 **Qué se hizo:** se quitó el tipo de mantenimiento de toda la interfaz: botones
