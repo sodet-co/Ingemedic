@@ -27,7 +27,7 @@ export default async function EntregasPage() {
         cliente:clientes(id, nombre, tipo_persona, nit_cc, direccion, telefono, municipio:municipios(nombre)),
         paciente:pacientes(id, nombre, direccion, telefono, ciudad),
         equipos:orden_equipos(
-          id, equipo_id,
+          id, equipo_id, fecha_devolucion,
           equipo:equipos(id, codigo,
             tipo_equipo:tipos_equipo(id, nombre, atributos)
           )
@@ -50,7 +50,7 @@ export default async function EntregasPage() {
       repartidor:usuarios!ordenes_servicio_repartidor_id_fkey(id, nombre),
       estado:estados_orden(id, nombre),
       equipos:orden_equipos(
-        id, equipo_id,
+        id, equipo_id, fecha_devolucion,
         equipo:equipos(id, codigo,
           tipo_equipo:tipos_equipo(id, nombre, atributos)
         )

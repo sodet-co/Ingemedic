@@ -311,7 +311,7 @@ export default function EntregasClient({ entregasIniciales, ordenesEnReparto, es
       orden:ordenes_servicio(
         id, codigo, fecha_vigencia, observaciones,
         cliente:clientes(id, nombre, tipo_persona, nit_cc, direccion, telefono),
-        equipos:orden_equipos(id, equipo:equipos(id, codigo, tipo_equipo:tipos_equipo(id, nombre, atributos))),
+        equipos:orden_equipos(id, fecha_devolucion, equipo:equipos(id, codigo, tipo_equipo:tipos_equipo(id, nombre, atributos))),
         plantillas:orden_plantillas(id, firmado, firmado_por, firma_iniciales, fecha_firma, plantilla:plantillas_orden(id, nombre, contenido))
       ),
       cliente:clientes(id, nombre),

@@ -59,6 +59,32 @@ Lo que está sin resolver, ordenado por prioridad.
 
 # Entradas
 
+## 2026-10-03 — Préstamos: cambiar un equipo por otro
+**Qué se hizo:** en el detalle del préstamo, cada equipo activo tiene "Cambiar
+equipo": modal que abre en las unidades Disponibles del mismo tipo y deja
+navegar ("Otros tipos" → "Otras categorías", como el wizard) para elegir de otro
+tipo; el buscador fuera del nivel de unidades busca en todo. Antes se devolvía
+y se prestaba de nuevo. De paso, `globals.css` devuelve `cursor: pointer` a los
+botones (Tailwind 4 lo quitó y ningún botón del sistema mostraba la manito).
+**Por qué así:** sin SQL. Antes de la entrega (Borrador/Programada/En reparto)
+se reemplaza `equipo_id` en la misma fila de `orden_equipos` (el equipo nunca
+salió; el acta sale con el nuevo, que queda Reservado). Ya entregado, se
+conserva el historial: la fila vieja se cierra como devuelta con
+"Cambiado por <código> — motivo" y entra una fila nueva En préstamo. Lógica en
+`cambiarEquipo()` de `lib/prestamos.js`. En el drawer, "único equipo" ahora
+cuenta solo los no devueltos (si no, un cambio volvía múltiple un préstamo de
+uno). `finalizarEntrega` ya no pasa a En préstamo equipos devueltos de la orden
+(bug latente también con "Marcar como devuelto" antes de la entrega).
+**Archivos:** `lib/prestamos.js`, `components/prestamos/ModalCambioEquipo.js`,
+`ordenes/OrdenesClient.js`, `ordenes/page.js`, `lib/entregas.js`,
+`entregas/page.js`, `entregas/EntregasClient.js`.
+**Verificado con datos desechables (cliente + 3 equipos + 2 órdenes, borrados):**
+cambio en orden Entregada (2 filas, nota, viejo Disponible, nuevo En préstamo,
+orden sigue Entregada), en Programada (misma fila, viejo Disponible, nuevo
+Reservado) y rechazo si el nuevo ya no está disponible.
+**Pendiente:** probar el modal en el navegador (escritorio y móvil). En los
+paneles de Cliente/Paciente no se agregó el botón: solo en Préstamos.
+
 ## 2026-10-01 — Bloqueo temporal del portal de clientes
 **Qué se hizo:** interruptor Activo/Bloqueado en Configuración → Portal de
 clientes (grupo Acceso), visible y editable solo por SuperAdmin

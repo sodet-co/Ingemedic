@@ -10,7 +10,8 @@ import ConfirmDialog from '@/components/ui/ConfirmDialog'
 import LimpiarFiltros from '@/components/ui/LimpiarFiltros'
 import ModalDevolucion from '@/components/entregas/ModalDevolucion'
 import Paginador from '@/components/ui/Paginador'
-import { devolverEquipo as devolverEquipoLib } from '@/lib/prestamos'
+import { devolverEquipo as devolverEquipoLib, cambiarEquipo as cambiarEquipoLib } from '@/lib/prestamos'
+import ModalCambioEquipo from '@/components/prestamos/ModalCambioEquipo'
 import { liberarEquipos } from '@/lib/mantenimientos'
 import { buscarCedulaDuplicada, mensajeCedulaDuplicada, esErrorCedulaDuplicada, MENSAJE_CEDULA_DUPLICADA } from '@/lib/pacientes'
 import BuzonNovedades from '@/components/layout/BuzonNovedades'
@@ -19,7 +20,7 @@ import { usePaginacion } from '@/hooks/usePaginacion'
 import {
   Plus, X, Search, FileText, CheckCircle2, Package,
   AlertTriangle, Calendar, Clock, User, Edit3, Truck, ChevronRight, ChevronLeft,
-  Building, Layers, Trash2, Check, Ban
+  Building, Layers, Trash2, Check, Ban, ArrowLeftRight, Undo2
 } from 'lucide-react'
 
 const E = {
@@ -342,6 +343,8 @@ export default function OrdenesClient({
     fecha_entrega_domicilio: '', fechaInicioDistinta: false, fecha_vigencia: null,
   })
   const [modalDevolucion, setModalDevolucion] = useState(null) // { ordenEquipoId, equipoId } o null
+  const [modalCambio, setModalCambio]         = useState(null) // fila de orden_equipos a cambiar, o null
+  const [guardandoCambio, setGuardandoCambio] = useState(false)
   const [formDevolucion, setFormDevolucion]   = useState({ fecha: '', observaciones: '' })
   const [modalCancelar, setModalCancelar]     = useState(false)
 
@@ -891,6 +894,28 @@ export default function OrdenesClient({
     router.refresh()
   }
 
+  // ── CAMBIAR EQUIPO ───────────────────────────────────────
+  // Reemplaza un equipo del préstamo por otro del mismo tipo (ver lib/prestamos.js)
+  async function cambiarEquipo({ equipoNuevo, fecha, motivo }) {
+    if (guardandoCambio || !modalCambio) return
+    setGuardandoCambio(true)
+    const oe = modalCambio
+    const { error, entregada } = await cambiarEquipoLib({
+      supabase, orden: drawer, ordenEquipoId: oe.id, equipoAnteriorId: oe.equipo_id || oe.equipo?.id,
+      equipoNuevo, fecha, motivo,
+    })
+    setGuardandoCambio(false)
+    if (error) { showToast('Error: ' + error.message, 'error'); return }
+
+    registrarBitacora({
+      modulo: 'ordenes', accion: 'editar', entidad: 'préstamo', entidad_id: drawer.id,
+      detalle: { codigo: drawer.codigo, cambio_equipo: { sale: oe.equipo?.codigo, entra: equipoNuevo.codigo }, motivo: motivo || null, con_historial: entregada },
+    })
+    showToast(`Equipo cambiado: ${oe.equipo?.codigo} → ${equipoNuevo.codigo}`)
+    setModalCambio(null)
+    router.refresh() // el drawer abierto se actualiza solo con los datos nuevos
+  }
+
   // ── CANCELAR ORDEN ───────────────────────────────────────
   // No borra ninguna fila (ordenes_servicio, orden_equipos, entregas) — el registro
   // queda completo con estado "Cancelada", solo se libera el equipo físico.
@@ -945,9 +970,12 @@ export default function OrdenesClient({
     ? { id: E.Finalizada, nombre: 'Finalizada', requiereRepartidor: false }
     : null
   const puedeEdRep      = drawer && ['Borrador', 'Programada'].includes(drawerEstado)
-  const equiposDrawer   = drawer?.equipos || []
+  // Solo cuentan los que siguen en el préstamo: un equipo cambiado deja su fila
+  // vieja como devuelta y no debe volver "múltiple" un préstamo de un solo equipo
+  const equiposDrawer   = (drawer?.equipos || []).filter(oe => !oe.fecha_devolucion)
   const esUnicoEquipo   = equiposDrawer.length === 1
-  const puedeFinalizarUnico = esUnicoEquipo && !equiposDrawer[0].fecha_devolucion && !['Finalizada', 'Cancelada'].includes(drawerEstado)
+  const puedeFinalizarUnico = esUnicoEquipo && !['Finalizada', 'Cancelada'].includes(drawerEstado)
+  const puedeCambiarEquipo  = drawer && !['Finalizada', 'Cancelada'].includes(drawerEstado)
   const puedeCancelarOrden = drawer && !['Finalizada', 'Cancelada'].includes(drawerEstado)
 
   return (
@@ -1534,7 +1562,9 @@ export default function OrdenesClient({
                                     </span>
                                   )}
                                 </div>
-                                <div className="text-[11.5px] text-slate-400 truncate">{oe.equipo?.codigo}</div>
+                                <div className="text-[11.5px] text-slate-400 truncate">
+                                  {[oe.equipo?.codigo, oe.equipo?.atributos?.serie && `Serie ${oe.equipo.atributos.serie}`].filter(Boolean).join(' · ')}
+                                </div>
                                 {devuelto && (
                                   <div className="text-[11px] text-slate-400 mt-1.5">
                                     Devuelto el {formatear(oe.fecha_devolucion)}
@@ -1543,12 +1573,18 @@ export default function OrdenesClient({
                                     )}
                                   </div>
                                 )}
-                                {!devuelto && !esUnicoEquipo && (
-                                  <div className="mt-1.5">
-                                    <button type="button" onClick={() => abrirModalDevolucion(oe)}
-                                      className="text-[11.5px] text-[#D81B43] font-semibold hover:underline">
-                                      Marcar como devuelto
+                                {!devuelto && puedeCambiarEquipo && (
+                                  <div className="mt-2.5 flex flex-wrap gap-2">
+                                    <button type="button" onClick={() => setModalCambio(oe)}
+                                      className="inline-flex items-center gap-1.5 h-8 px-3 rounded-[8px] border border-[#1B3A6B]/20 bg-[#1B3A6B]/[0.05] text-[12px] font-semibold text-[#1B3A6B] hover:bg-[#1B3A6B]/10 hover:border-[#1B3A6B]/35 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2EB5D4]">
+                                      <ArrowLeftRight size={13} /> Cambiar equipo
                                     </button>
+                                    {!esUnicoEquipo && (
+                                      <button type="button" onClick={() => abrirModalDevolucion(oe)}
+                                        className="inline-flex items-center gap-1.5 h-8 px-3 rounded-[8px] border border-[#D81B43]/25 bg-[#D81B43]/[0.05] text-[12px] font-semibold text-[#D81B43] hover:bg-[#D81B43]/10 hover:border-[#D81B43]/40 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2EB5D4]">
+                                        <Undo2 size={13} /> Marcar como devuelto
+                                      </button>
+                                    )}
                                   </div>
                                 )}
                               </div>
@@ -2074,6 +2110,19 @@ export default function OrdenesClient({
         onConfirmar={() => devolverEquipo(modalDevolucion.ordenEquipoId, modalDevolucion.equipoId, formDevolucion.fecha, formDevolucion.observaciones)}
         onCancelar={() => setModalDevolucion(null)}
       />
+
+      {modalCambio && (
+        <ModalCambioEquipo
+          equipoActual={modalCambio.equipo}
+          disponibles={equiposParaMini.filter(eq => eq.id !== modalCambio.equipo_id)}
+          categorias={categorias}
+          tiposEquipo={tiposEquipo}
+          entregada={drawerEstado === 'Entregada'}
+          guardando={guardandoCambio}
+          onConfirmar={cambiarEquipo}
+          onCancelar={() => setModalCambio(null)}
+        />
+      )}
 
       <ConfirmDialog
         abierto={modalCancelar}

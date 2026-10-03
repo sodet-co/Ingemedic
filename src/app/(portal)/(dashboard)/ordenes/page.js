@@ -18,7 +18,7 @@ export default async function OrdenesPage() {
       equipos:orden_equipos(
         id, equipo_id, fecha_entrega, fecha_devolucion, observaciones_devolucion,
         equipo:equipos(
-          id, codigo,
+          id, codigo, atributos, tipo_equipo_id,
           tipo_equipo:tipos_equipo(id, nombre, atributos,
             categoria:categorias_equipo(id, nombre)
           )

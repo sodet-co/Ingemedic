@@ -29,6 +29,15 @@ html {
    oscuro. Como la app no tiene tema oscuro, las pantallas que no pintan su
    propio fondo (vista del repartidor, su perfil) se veían negras. */
 
+/* Tailwind 4 dejó los botones con cursor de flecha: sin esto nada clicable
+   muestra la manito. En @layer base para que cursor-not-allowed etc. ganen. */
+@layer base {
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]) {
+    cursor: pointer;
+  }
+}
+
 body {
   background: var(--background);
   color: var(--foreground);

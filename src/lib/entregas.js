@@ -18,7 +18,7 @@ const SELECT_ENTREGA = `
     id, codigo, fecha_vigencia, fecha_entrega, observaciones, paciente_id, cliente_id,
     cliente:clientes(id, nombre, tipo_persona, nit_cc, direccion, telefono, municipio:municipios(nombre)),
     paciente:pacientes(id, nombre, direccion, telefono, ciudad),
-    equipos:orden_equipos(id, equipo_id, equipo:equipos(id, codigo, tipo_equipo:tipos_equipo(id, nombre, atributos))),
+    equipos:orden_equipos(id, equipo_id, fecha_devolucion, equipo:equipos(id, codigo, tipo_equipo:tipos_equipo(id, nombre, atributos))),
     plantillas:orden_plantillas(id, plantilla_id, firmado, firmado_por, firma_iniciales, fecha_firma, plantilla:plantillas_orden(id, nombre))
   ),
   cliente:clientes(id, nombre),
@@ -89,7 +89,8 @@ export async function finalizarEntrega(supabase, { entrega, recibidoPor, firma, 
   // ya quedaron asignados al crear la orden (quedó reservado desde ese momento).
   // Los que tienen un mantenimiento abierto siguen "En mantenimiento": al
   // cerrarlo vuelven a "En préstamo" (ver lib/mantenimientos.js).
-  const idsEquipos = (entrega.orden?.equipos || []).map(oe => oe.equipo_id || oe.equipo?.id).filter(Boolean)
+  // Los ya devueltos (o cambiados por otro) salieron del préstamo: no se tocan
+  const idsEquipos = (entrega.orden?.equipos || []).filter(oe => !oe.fecha_devolucion).map(oe => oe.equipo_id || oe.equipo?.id).filter(Boolean)
   const estadoPrestamo = (estadosEquipo || []).find(e => e.nombre === 'En préstamo')
   if (idsEquipos.length > 0 && estadoPrestamo) {
     let enMant = new Set()
