@@ -1,5 +1,6 @@
 'use client'
 import Link from 'next/link'
+import Image from 'next/image'
 import { MapPin, Phone, Mail } from 'lucide-react'
 import { EMPRESA } from '@/lib/sitio'
 import { clicWhatsapp } from '@/lib/analitica'
@@ -14,24 +15,26 @@ function WhatsappIcon({ size = 16, className = '' }) {
 
 export default function Footer() {
   return (
-    <footer className="font-body bg-[#091D36] text-[#B9CBDF] pt-16">
+    <footer className="font-body bg-[#091D36] text-[#B9CBDF] pt-10 md:pt-16">
       <div className="max-w-[1920px] mx-auto px-5 md:px-10 2xl:px-16">
-        <div className="grid grid-cols-1 md:grid-cols-[1.4fr_1fr_1fr_1.1fr] gap-11 pb-12">
+        {/* En móvil: 2 columnas. Identidad y contacto ocupan el ancho completo;
+            los dos bloques de enlaces van lado a lado para acortar el scroll. */}
+        <div className="grid grid-cols-2 md:grid-cols-[1.4fr_1fr_1fr_1.1fr] gap-x-6 gap-y-7 md:gap-11 pb-8 md:pb-12">
           {/* Identidad — texto, no la imagen del logo: trae varios colores propios
               y no existe una versión clara/blanca del archivo para este fondo oscuro. */}
-          <div>
-            <div className="font-display text-[19px] font-semibold text-white mb-4 tracking-[-0.02em]">
+          <div className="col-span-2 md:col-span-1">
+            <div className="font-display text-[19px] font-semibold text-white mb-2 md:mb-4 tracking-[-0.02em]">
               Ingemedic de Colombia
             </div>
-            <p className="text-[14px] leading-relaxed max-w-[34ch]">
+            <p className="text-[13.5px] md:text-[14px] leading-relaxed md:max-w-[34ch]">
               Producción y suministro de oxígeno medicinal y equipos biomédicos para hospitalización domiciliaria en la región del Cesar.
             </p>
           </div>
 
           {/* Enlaces rápidos */}
           <div>
-            <h4 className="font-display text-[15px] font-medium text-white mb-4">Enlaces rápidos</h4>
-            <ul className="space-y-2.5 text-[14px]">
+            <h4 className="font-display text-[15px] font-medium text-white mb-3 md:mb-4">Enlaces rápidos</h4>
+            <ul className="space-y-2 md:space-y-2.5 text-[14px]">
               <li><Link href="/" className="hover:text-white transition-colors">Inicio</Link></li>
               <li><Link href="/quienes-somos" className="hover:text-white transition-colors">Nosotros</Link></li>
               <li><Link href="/portafolio" className="hover:text-white transition-colors">Portafolio</Link></li>
@@ -41,16 +44,16 @@ export default function Footer() {
 
           {/* Servicios */}
           <div>
-            <h4 className="font-display text-[15px] font-medium text-white mb-4">Nuestros servicios</h4>
-            <ul className="space-y-2.5 text-[14px]">
+            <h4 className="font-display text-[15px] font-medium text-white mb-3 md:mb-4">Nuestros servicios</h4>
+            <ul className="space-y-2 md:space-y-2.5 text-[14px]">
               <li><Link href="/portafolio" className="hover:text-white transition-colors">Alquiler de equipos</Link></li>
               <li><Link href="/portafolio" className="hover:text-white transition-colors">Oxígeno domiciliario</Link></li>
             </ul>
           </div>
 
           {/* Contacto */}
-          <div>
-            <h4 className="font-display text-[15px] font-medium text-white mb-4">Contáctanos</h4>
+          <div className="col-span-2 md:col-span-1">
+            <h4 className="font-display text-[15px] font-medium text-white mb-3 md:mb-4">Contáctanos</h4>
             <a
               href="https://wa.me/573103861480?text=Hola,%20requiero%20información%20y%20asesoría%20técnica"
               target="_blank"
@@ -60,7 +63,7 @@ export default function Footer() {
             >
               <WhatsappIcon size={16} /> Escríbenos por WhatsApp
             </a>
-            <ul className="space-y-2.5 text-[14px]">
+            <ul className="space-y-2 md:space-y-2.5 text-[14px]">
               <li className="flex items-start gap-2">
                 <MapPin size={15} className="text-[#1E9FC4] flex-shrink-0 mt-0.5" />
                 <span>Calle 14C # 20-14 Barrio la Popa, Valledupar - César</span>
@@ -88,7 +91,8 @@ export default function Footer() {
           <span className="block md:inline md:before:content-['·'] md:before:mx-2 mt-1.5 md:mt-0">
             Desarrollado por{' '}
             <a href="https://sodet.vercel.app" target="_blank" rel="noopener noreferrer"
-              className="font-medium text-white hover:text-[#1E9FC4] transition-colors">
+              className="inline-flex items-center gap-1.5 align-middle font-medium text-white hover:text-[#1E9FC4] transition-colors">
+              <Image src="/images/sodet-icono.png" alt="" width={18} height={18} className="rounded" />
               SODET
             </a>
           </span>

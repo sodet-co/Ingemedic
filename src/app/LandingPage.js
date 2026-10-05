@@ -271,26 +271,36 @@ export default function LandingPage() {
             <p className="mt-3 font-light text-[17px] text-[#5D6F86]">Resolvemos las dudas más comunes sobre nuestros servicios y equipos médicos.</p>
           </div>
 
-          <div className="space-y-3 max-w-3xl mx-auto">
-            {FAQS.map((f, i) => {
-              const abierta = faqAbierta === i
-              return (
-                <div key={f.q} className="rounded-[10px] border border-[#DDE5EE] bg-white overflow-hidden">
-                  <button onClick={() => setFaqAbierta(abierta ? -1 : i)}
-                    className="w-full flex items-center justify-between gap-4 px-5 py-4 text-left hover:bg-slate-50/60 transition-colors">
-                    <span className="text-[14px] font-medium text-[#0E2A4D]">{f.q}</span>
-                    <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 transition-transform duration-300 ${abierta ? 'bg-[#1E9FC4] text-white rotate-180' : 'bg-[#E3F3F8] text-[#5D6F86]'}`}>
-                      <ChevronDown size={14} />
+          {/* Dos columnas independientes: abrir una pregunta solo empuja las de su columna */}
+          <div className="grid md:grid-cols-2 gap-3 md:gap-x-5 items-start max-w-6xl mx-auto">
+            {[0, Math.ceil(FAQS.length / 2)].map(inicio => (
+              <div key={inicio} className="space-y-3">
+                {FAQS.slice(inicio, inicio ? FAQS.length : Math.ceil(FAQS.length / 2)).map((f, j) => {
+                  const i = inicio + j
+                  const abierta = faqAbierta === i
+                  return (
+                    <div key={f.q} className="rounded-[10px] border border-[#DDE5EE] bg-white overflow-hidden">
+                      <button onClick={() => setFaqAbierta(abierta ? -1 : i)} aria-expanded={abierta}
+                        className="w-full flex items-center justify-between gap-4 px-5 py-4 text-left hover:bg-slate-50/60 transition-colors">
+                        <span className="text-[14px] font-medium text-[#0E2A4D]">{f.q}</span>
+                        <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 transition-transform duration-300 ${abierta ? 'bg-[#1E9FC4] text-white rotate-180' : 'bg-[#E3F3F8] text-[#5D6F86]'}`}>
+                          <ChevronDown size={14} />
+                        </div>
+                      </button>
+                      {/* Siempre montada: la altura se anima con grid-rows 0fr → 1fr,
+                          que funciona sin conocer el alto de la respuesta. */}
+                      <div className={`grid transition-[grid-template-rows] duration-300 ease-out ${abierta ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
+                        <div className="overflow-hidden">
+                          <div className={`px-5 pb-4 pt-1 text-[13.5px] leading-relaxed border-t border-[#DDE5EE] text-[#5D6F86] transition-opacity duration-300 ${abierta ? 'opacity-100' : 'opacity-0'}`}>
+                            {f.a}
+                          </div>
+                        </div>
+                      </div>
                     </div>
-                  </button>
-                  {abierta && (
-                    <div className="px-5 pb-4 pt-1 text-[13.5px] leading-relaxed border-t border-[#DDE5EE] text-[#5D6F86]">
-                      {f.a}
-                    </div>
-                  )}
-                </div>
-              )
-            })}
+                  )
+                })}
+              </div>
+            ))}
           </div>
         </div>
       </section>

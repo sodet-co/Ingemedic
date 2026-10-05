@@ -31,7 +31,7 @@ function WhatsappIcon({ size = 18, className = '' }) {
 }
 
 // Crédito del desarrollador. En el header se oculta entre lg y xl: ahí el menú
-// y los dos botones ya ocupan todo el ancho.
+// y el botón de acceso ya ocupan casi todo el ancho.
 function PorSodet({ className = '' }) {
   return (
     <a href="https://sodet.vercel.app" target="_blank" rel="noopener noreferrer"
@@ -39,7 +39,7 @@ function PorSodet({ className = '' }) {
       className={`group font-body items-center gap-2 rounded-full border border-[#E7DCF1] bg-[#FAF6FD] pl-1.5 pr-3 py-1 text-[12.5px] text-[#6B5A7B] hover:border-[#C9A9E0] hover:bg-[#F4EBFB] transition-colors ${className}`}>
       <Image src="/images/sodet-icono.png" alt="" width={22} height={22} className="rounded-md" />
       <span>
-        by <span className="font-semibold text-[#5B1A7A]">Sodet</span>
+        Software by <span className="font-semibold text-[#5B1A7A]">Sodet</span>
       </span>
       <Heart size={12} className="text-[#8E1F78] fill-[#8E1F78] transition-transform group-hover:scale-125" aria-hidden="true" />
     </a>
@@ -92,15 +92,11 @@ export default function Header() {
           </nav>
 
           <div className="hidden md:flex items-center gap-3 ml-auto">
-            <PorSodet className="inline-flex lg:hidden xl:inline-flex mr-1" />
             <Link href={URL_PORTAL}
               className="font-body inline-flex items-center text-[13.5px] font-medium text-[#0E2A4D] border border-[#0E2A4D] hover:bg-[#0E2A4D] hover:text-white px-4 py-2.5 rounded-md transition-colors">
               Acceso al portal
             </Link>
-            <Link href="/contacto"
-              className="font-body inline-flex items-center text-[14.5px] font-medium text-white bg-[#C8102E] hover:bg-[#a80d26] px-5 py-2.5 rounded-md transition-colors">
-              Solicitar cotización
-            </Link>
+            <PorSodet className="inline-flex lg:hidden xl:inline-flex ml-1" />
           </div>
 
           <div className="flex lg:hidden items-center ml-auto">
@@ -126,10 +122,6 @@ export default function Header() {
             </Link>
           ))}
           <div className="pt-2 flex flex-col gap-2.5">
-            <Link href="/contacto" onClick={() => setMenuAbierto(false)}
-              className="font-body w-full inline-flex items-center justify-center text-[14.5px] font-medium text-white bg-[#C8102E] px-5 py-3 rounded-md">
-              Solicitar cotización
-            </Link>
             <Link href={URL_PORTAL} onClick={() => setMenuAbierto(false)}
               className="font-body w-full inline-flex items-center justify-center text-[14px] font-medium text-[#0E2A4D] border border-[#0E2A4D] px-5 py-3 rounded-md">
               Acceso al portal
