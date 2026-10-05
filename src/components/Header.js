@@ -132,7 +132,7 @@ export default function Header() {
             </Link>
             <Link href={URL_PORTAL} onClick={() => setMenuAbierto(false)}
               className="font-body w-full inline-flex items-center justify-center text-[14px] font-medium text-[#0E2A4D] border border-[#0E2A4D] px-5 py-3 rounded-md">
-              Acceso del personal
+              Acceso al portal
             </Link>
           </div>
           <div className="flex justify-center pt-4">
