@@ -40,8 +40,8 @@ function agrupar(filas, campo, nombres = {}) {
     .sort((a, b) => b.cantidad - a.cantidad)
 }
 
-// `supabase` debe ser un cliente service_role: la tabla no tiene política de
-// lectura, así que con la sesión de un usuario devuelve vacío.
+// `supabase` debe ser un cliente service_role: la única política de lectura
+// de la tabla es para SuperAdmin; con otra sesión devuelve vacío.
 export async function resumenInteresWeb(supabase) {
   const ahora = Date.now()
   const desde = new Date(ahora - DIAS * DIA_MS).toISOString()

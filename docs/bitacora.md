@@ -59,6 +59,35 @@ Lo que está sin resolver, ordenado por prioridad.
 
 # Entradas
 
+## 2026-10-04 — Página web: actualización en tiempo real
+**Qué se hizo:** `/sitio-web` se suscribe a los INSERT de `eventos_sitio` y
+refresca solo (mismo patrón del Dashboard: `router.refresh()` con debounce).
+Indicador "En vivo" en la barra superior.
+**Por qué:** Realtime respeta RLS, y la tabla no tenía ninguna política, así
+que el navegador no habría recibido nada. Se agrega una política de solo
+lectura para SuperAdmin; los datos se siguen consultando con service_role. El
+indicador refleja la conexión al canal, no que la política esté bien: sin el
+SQL dice "En vivo" pero no llega ningún evento.
+**Archivos:** `src/app/(portal)/(dashboard)/sitio-web/SitioWebClient.js`,
+`page.js` y `src/lib/interes-web.js` (comentarios).
+**SQL:** corrido el 2026-10-04 (lo confirmó Sofía; no se vio el resultado de
+la verificación): política `superadmin_lee_eventos_sitio` y `eventos_sitio` en
+la publicación `supabase_realtime`. Comprobado después que anon sigue sin leer
+ni insertar.
+**Pendiente:** probar con un clic real que el módulo se actualiza sin
+recargar. No se probó: requiere sesión de SuperAdmin.
+
+## 2026-10-04 — Política de datos: versión recortada
+**Qué se hizo:** se quitaron de `/politica-de-datos` los nombres de proveedores
+(Vercel, Supabase, Google, WhatsApp), el párrafo de menores, las menciones a
+datos de salud y varios supuestos sin base (EPS/IPS, tecnovigilancia, borrado
+de mensajes del formulario).
+**Por qué:** pedido de Sofía: no aplicaban a Ingemedic y exponían las
+herramientas. Se conservan la fecha de vigencia (la exige el Decreto 1377 de
+2013, art. 13) y los datos de quien usa o recibe el equipo: la tabla
+`pacientes` guarda nombre, cédula, dirección y teléfono, sin nada médico.
+**Archivos:** `src/app/politica-de-datos/page.js`, `src/app/contacto/page.js`.
+
 ## 2026-10-04 — Sitio público: conteo de clics en WhatsApp y envíos del formulario
 **Qué se hizo:** los 7 enlaces a WhatsApp del sitio registran `whatsapp_clic`
 (con `origen` = cuál botón, `pagina` y, en las tarjetas del portafolio, el

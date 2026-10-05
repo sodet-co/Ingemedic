@@ -1,5 +1,7 @@
 'use client'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { createClient } from '@/lib/supabase'
 import { MessageCircle, Send, RefreshCw, ExternalLink } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 import { SITIO_URL } from '@/lib/sitio'
@@ -36,6 +38,29 @@ function Ranking({ titulo, sub, filas, vacio, color = VERDE }) {
 
 export default function SitioWebClient({ datos }) {
   const router = useRouter()
+  const [enVivo, setEnVivo] = useState(false)
+
+  // ── TIEMPO REAL ── cada clic o formulario nuevo refresca los datos solo.
+  // Igual que el Dashboard: todo viene de props, así que basta router.refresh().
+  // La política de lectura de `eventos_sitio` solo deja pasar a SuperAdmin; si
+  // la suscripción no conecta, el punto queda gris y sigue el botón Actualizar.
+  useEffect(() => {
+    const supabase = createClient()
+    let debounceTimer = null
+    function refrescarConDebounce() {
+      clearTimeout(debounceTimer)
+      debounceTimer = setTimeout(() => router.refresh(), 500)
+    }
+
+    const canal = supabase
+      .channel('sitio-web-realtime')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'eventos_sitio' }, refrescarConDebounce)
+      .subscribe(estado => setEnVivo(estado === 'SUBSCRIBED'))
+
+    return () => { clearTimeout(debounceTimer); supabase.removeChannel(canal) }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const sinActividad = datos.whatsapp30 + datos.formularios30 === 0
 
   const cifras = [
@@ -52,6 +77,11 @@ export default function SitioWebClient({ datos }) {
           <div className="text-[12px] text-slate-400 mt-0.5">Interés que genera el sitio público · últimos {datos.dias} días</div>
         </div>
         <div className="ml-auto flex items-center gap-2">
+          <span className="flex items-center gap-1.5 text-[11.5px] font-semibold text-slate-500 mr-1"
+            title={enVivo ? 'Los datos se actualizan solos' : 'Sin conexión en vivo: usa Actualizar'}>
+            <span className={`w-2 h-2 rounded-full ${enVivo ? 'bg-[#0F7B55] animate-pulse' : 'bg-slate-300'}`} />
+            {enVivo ? 'En vivo' : 'Sin conexión'}
+          </span>
           <a href={SITIO_URL} target="_blank" rel="noopener noreferrer"
             className="hidden md:flex items-center gap-1.5 px-3 py-2 text-[12.5px] font-semibold text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors">
             <ExternalLink size={13} /> Ver sitio

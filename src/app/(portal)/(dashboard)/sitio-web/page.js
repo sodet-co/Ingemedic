@@ -9,9 +9,9 @@ export const revalidate = 0
 
 // Módulo "Página web": cómo le va al sitio público (clics en WhatsApp y
 // formularios). SOLO SuperAdmin. No está en la tabla `permisos`: la
-// restricción vive aquí y en el Sidebar. La tabla `eventos_sitio` no tiene
-// política de lectura, por eso se consulta con service_role DESPUÉS de
-// confirmar el rol.
+// restricción vive aquí y en el Sidebar. La tabla `eventos_sitio` solo tiene
+// una política de lectura para SuperAdmin (la necesita el tiempo real); los
+// datos se consultan con service_role DESPUÉS de confirmar el rol.
 export default async function SitioWebPage() {
   const { usuario } = await verificarSesion()
   if (!usuario?.esSuperAdmin) redirect('/dashboard')

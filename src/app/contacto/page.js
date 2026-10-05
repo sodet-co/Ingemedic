@@ -270,7 +270,7 @@ export default function ContactoPage() {
                   className="w-full p-4 rounded-xl border border-slate-300 focus:border-blue-600 focus:ring-2 focus:ring-blue-100 outline-none text-xs sm:text-sm bg-white resize-none shadow-sm"
                 />
                 <p className="text-[11px] text-slate-500 mt-1.5">
-                  No hace falta incluir diagnósticos, historias clínicas ni documentos de identidad.
+                  No hace falta incluir información médica para cotizar.
                 </p>
               </div>
 
