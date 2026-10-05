@@ -3,6 +3,8 @@ import Header from '@/components/Header'
 import Footer from '@/components/Footer'
 import { MapPin, Phone, Mail, Clock, Headphones, Send, CheckCircle2, MessageSquare, Loader2 } from 'lucide-react'
 import { useState } from 'react'
+import Link from 'next/link'
+import { clicWhatsapp, formularioEnviado } from '@/lib/analitica'
 
 function WhatsappIcon({ size = 18, className = '' }) {
   return (
@@ -19,7 +21,7 @@ function WhatsappIcon({ size = 18, className = '' }) {
 }
 
 export default function ContactoPage() {
-  const FORM_VACIO = { nombre: '', telefono: '', correo: '', servicio: 'Suministro de Oxígeno', mensaje: '', sitio_web: '' }
+  const FORM_VACIO = { nombre: '', telefono: '', correo: '', servicio: 'Suministro de Oxígeno', mensaje: '', sitio_web: '', autoriza: false }
   const [enviado, setEnviado] = useState(false)
   const [enviando, setEnviando] = useState(false)
   const [error, setError] = useState('')
@@ -45,6 +47,7 @@ export default function ContactoPage() {
         return
       }
       setEnviado(true)
+      formularioEnviado(form.servicio)
       setForm(FORM_VACIO)
     } catch {
       setError('No pudimos enviar tu mensaje. Revisa tu conexión.')
@@ -154,6 +157,7 @@ export default function ContactoPage() {
                 href="https://wa.me/573103861480?text=Hola,%20requiero%20información%20y%20asesoría%20técnica"
                 target="_blank"
                 rel="noopener noreferrer"
+                onClick={() => clicWhatsapp('contacto')}
                 className="w-full h-12 rounded-2xl bg-[#25D366] hover:bg-[#128C7E] text-white text-xs font-medium flex items-center justify-center gap-2.5 shadow-lg hover:scale-[1.01] active:scale-95 transition-all cursor-pointer"
               >
                 <WhatsappIcon size={18} /> Escribir a WhatsApp
@@ -185,7 +189,7 @@ export default function ContactoPage() {
             {error && (
               <div role="alert" className="p-4 rounded-2xl bg-red-50 border border-red-200 text-red-800 text-xs font-medium mb-6 shadow-sm">
                 {error}{' '}
-                <a href={waFallback} target="_blank" rel="noopener noreferrer" className="underline">
+                <a href={waFallback} target="_blank" rel="noopener noreferrer" onClick={() => clicWhatsapp('contacto_error_formulario')} className="underline">
                   Envíalo por WhatsApp
                 </a>{' '}
                 o llámanos al 310 3861480.
@@ -262,10 +266,30 @@ export default function ContactoPage() {
                   required
                   value={form.mensaje}
                   onChange={(e) => setForm({ ...form, mensaje: e.target.value })}
-                  placeholder="Escribe aquí los detalles del paciente, ubicación o inquietudes..."
+                  placeholder="Cuéntanos qué equipo o servicio necesitas y en qué municipio..."
                   className="w-full p-4 rounded-xl border border-slate-300 focus:border-blue-600 focus:ring-2 focus:ring-blue-100 outline-none text-xs sm:text-sm bg-white resize-none shadow-sm"
                 />
+                <p className="text-[11px] text-slate-500 mt-1.5">
+                  No hace falta incluir diagnósticos, historias clínicas ni documentos de identidad.
+                </p>
               </div>
+
+              {/* Autorización de tratamiento de datos (Ley 1581 de 2012) — también se valida en /api/contacto */}
+              <label className="flex items-start gap-2.5 text-xs text-slate-600 leading-relaxed cursor-pointer">
+                <input
+                  type="checkbox"
+                  required
+                  checked={form.autoriza}
+                  onChange={(e) => setForm({ ...form, autoriza: e.target.checked })}
+                  className="mt-0.5 w-4 h-4 flex-shrink-0 accent-[#0A2656]"
+                />
+                <span>
+                  Autorizo a Ingemedic de Colombia S.A.S. a tratar mis datos para responder esta solicitud, según su{' '}
+                  <Link href="/politica-de-datos" target="_blank" className="font-medium text-blue-600 underline">
+                    política de tratamiento de datos
+                  </Link>. *
+                </span>
+              </label>
 
               <button
                 type="submit"

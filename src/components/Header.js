@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { Menu, X } from 'lucide-react'
 import { PORTAL_URL } from '@/lib/sitio'
+import { clicWhatsapp } from '@/lib/analitica'
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
 const LOGO_URL = SUPABASE_URL
@@ -125,6 +126,7 @@ export default function Header() {
         href="https://wa.me/573103861480?text=Hola,%20requiero%20información%20sobre%20el%20catálogo%20de%20productos"
         target="_blank"
         rel="noopener noreferrer"
+        onClick={() => clicWhatsapp('flotante')}
         aria-label="Consultar catálogo por WhatsApp"
         className="fixed bottom-5 right-5 z-50 w-14 h-14 rounded-full bg-[#25D366] hover:bg-[#128C7E] shadow-lg flex items-center justify-center transition-all hover:scale-105 active:scale-95"
       >

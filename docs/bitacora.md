@@ -59,6 +59,62 @@ Lo que está sin resolver, ordenado por prioridad.
 
 # Entradas
 
+## 2026-10-04 — Sitio público: conteo de clics en WhatsApp y envíos del formulario
+**Qué se hizo:** los 7 enlaces a WhatsApp del sitio registran `whatsapp_clic`
+(con `origen` = cuál botón, `pagina` y, en las tarjetas del portafolio, el
+equipo en `detalle`); el formulario de `/contacto` registra `contacto_enviado`
+(con el servicio) cuando el servidor acepta el mensaje. Se guardan en la tabla
+nueva `eventos_sitio` vía `/api/evento` (pública, service_role, lista cerrada
+de orígenes) y se ven en el módulo nuevo **Página web** (`/sitio-web`), solo
+para SuperAdmin: cifras de 7 y 30 días, actividad por día y desgloses por
+botón, página, equipo y servicio.
+**Por qué:** primero se hizo con eventos de Vercel Analytics, pero el plan de
+la cuenta no los incluye. Son métricas de negocio, no de operación: por eso van
+en un módulo aparte y no en el dashboard. El módulo NO está en la tabla
+`permisos` ni en `MODULOS_RUTA`: lo restringen `sitio-web/page.js` (redirige a
+`/dashboard` si no es SuperAdmin) y el Sidebar (`soloSuperAdmin`). La tabla
+tiene RLS encendido y ninguna política: solo se lee con service_role, después
+de confirmar el rol. No se guarda IP ni dato alguno de la persona.
+**Archivos:** `src/lib/analitica.js`, `src/lib/interes-web.js`,
+`src/app/api/evento/route.js`, `src/app/(portal)/(dashboard)/sitio-web/**`,
+`src/components/layout/Sidebar.js`, `src/lib/sitio.js` (`sitio-web` en
+RUTAS_PORTAL), `Header.js`, `Footer.js`, `LandingPage.js`, `contacto/page.js`,
+`portafolio/page.js`.
+**SQL:** corrido el 2026-10-04: tabla `eventos_sitio`, RLS encendido, sin
+políticas (`rowsecurity = true` confirmado).
+**Verificado en local con 2 eventos desechables (borrados después):** entran
+por `/api/evento`, quedan en la tabla y `resumenInteresWeb` los cuenta en
+cifras, desgloses y serie del día; anon lee 0 filas y no puede insertar
+(42501); orígenes inventados → 400; `/sitio-web` sin sesión → `/login`.
+**Pendiente:** abrir `/sitio-web` con SuperAdmin y con otro rol (no se abrió
+con sesión) y confirmar un clic real desde producción. Un origen de botón
+nuevo hay que sumarlo en `/api/evento` y en `NOMBRE_ORIGEN`.
+
+## 2026-10-04 — Sitio público: páginas legales y autorización de datos
+**Qué se hizo:** páginas `/politica-de-datos` (Ley 1581 de 2012) y `/terminos`,
+enlazadas desde el footer y sumadas al sitemap. El formulario de `/contacto`
+ahora exige una casilla de autorización (también validada en `/api/contacto`,
+que responde 400 sin ella) y ya no invita a escribir "detalles del paciente".
+**Por qué:** el sitio recogía datos personales sin política ni autorización, y
+el placeholder del mensaje pedía datos de salud (dato sensible).
+**Archivos:** `src/app/politica-de-datos/page.js`, `src/app/terminos/page.js`,
+`src/components/PaginaLegal.js`, `src/components/Footer.js`,
+`src/app/contacto/page.js`, `src/app/api/contacto/route.js`, `src/lib/sitio.js`
+(`EMPRESA.nit`, `EMPRESA.correoDatos`, `LEGAL_VIGENCIA`),
+`scripts/google-apps-script/contacto.gs`.
+**Pendiente:**
+- `EMPRESA.nit` está vacío: mientras tanto el NIT no se muestra en ningún lado.
+- Confirmar el correo para reclamos de datos (hoy `ingemedicsas@hotmail.com`).
+- Los textos legales son un borrador base: falta revisión de un abogado.
+- Volver a desplegar el Apps Script ("Nueva versión") para que el correo
+  muestre la fila "Autorización de datos". Sin eso el formulario funciona igual.
+- `DESTINO` del Apps Script es `sodetteam2024@gmail.com`, no un correo de
+  Ingemedic: los mensajes de clientes llegan a SODET. Definir si se cambia.
+- No se probó un envío real completo (habría mandado un correo); solo el
+  rechazo sin autorización y que las páginas cargan.
+- `/api/contacto` sigue escribiendo el mensaje completo en los logs de Vercel
+  cuando Google falla. Está declarado en la política; evaluar si se recorta.
+
 ## 2026-10-03 — Préstamos: cambiar un equipo por otro
 **Qué se hizo:** en el detalle del préstamo, cada equipo activo tiene "Cambiar
 equipo": modal que abre en las unidades Disponibles del mismo tipo y deja

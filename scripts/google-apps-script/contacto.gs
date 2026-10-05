@@ -50,6 +50,8 @@ function doPost(e) {
       ['Correo', correo ? html(correo) : '—'],
       ['Servicio', servicio ? html(servicio) : '—'],
       ['Fecha', fecha],
+      // Constancia de la autorización de tratamiento de datos (Ley 1581 de 2012)
+      ['Autorización de datos', html(limpiar(datos.autorizacion, 120) || 'Sin registro')],
     ].map(function (f) {
       return '<tr><td style="padding:6px 12px 6px 0;color:#5D6F86;white-space:nowrap;vertical-align:top">' + f[0] +
         '</td><td style="padding:6px 0;color:#0E2A4D;font-weight:600">' + f[1] + '</td></tr>'

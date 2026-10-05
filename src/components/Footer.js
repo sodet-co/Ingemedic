@@ -1,6 +1,8 @@
 'use client'
 import Link from 'next/link'
 import { MapPin, Phone, Mail } from 'lucide-react'
+import { EMPRESA } from '@/lib/sitio'
+import { clicWhatsapp } from '@/lib/analitica'
 
 function WhatsappIcon({ size = 16, className = '' }) {
   return (
@@ -53,6 +55,7 @@ export default function Footer() {
               href="https://wa.me/573103861480?text=Hola,%20requiero%20información%20y%20asesoría%20técnica"
               target="_blank"
               rel="noopener noreferrer"
+              onClick={() => clicWhatsapp('footer')}
               className="inline-flex items-center gap-2 bg-[#128C7E] hover:bg-[#0f7566] transition-colors text-white px-4.5 py-2.5 rounded-md text-[14px] font-medium mb-4"
             >
               <WhatsappIcon size={16} /> Escríbenos por WhatsApp
@@ -77,7 +80,11 @@ export default function Footer() {
         {/* pb-20 en móvil: deja espacio para que la bolita flotante de WhatsApp
             (fixed, bottom-5 right-5) no tape el copyright al hacer scroll al fondo. */}
         <div className="border-t border-white/10 pt-5 pb-20 md:pb-5 text-[13px] text-center">
-          © {new Date().getFullYear()} Ingemedic de Colombia S.A.S. · Todos los derechos reservados
+          <div className="flex flex-wrap justify-center gap-x-5 gap-y-1.5 mb-3">
+            <Link href="/politica-de-datos" className="hover:text-white transition-colors">Política de tratamiento de datos</Link>
+            <Link href="/terminos" className="hover:text-white transition-colors">Términos y condiciones</Link>
+          </div>
+          © {new Date().getFullYear()} Ingemedic de Colombia S.A.S.{EMPRESA.nit ? ` · NIT ${EMPRESA.nit}` : ''} · Todos los derechos reservados
           <span className="block md:inline md:before:content-['·'] md:before:mx-2 mt-1.5 md:mt-0">
             Desarrollado por{' '}
             <a href="https://sodet.vercel.app" target="_blank" rel="noopener noreferrer"

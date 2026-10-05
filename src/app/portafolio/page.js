@@ -3,6 +3,7 @@ import { useState } from 'react'
 import Header from '@/components/Header'
 import Footer from '@/components/Footer'
 import { ChevronRight, ChevronLeft } from 'lucide-react'
+import { clicWhatsapp } from '@/lib/analitica'
 
 function WhatsappIcon({ size = 18, className = '' }) {
   return (
@@ -327,6 +328,7 @@ export default function PortafolioPage() {
                 href={`https://wa.me/573103861480?text=Hola,%20requiero%20información%20sobre%20${encodeURIComponent(item.titulo)}`}
                 target="_blank"
                 rel="noopener noreferrer"
+                onClick={() => clicWhatsapp('portafolio_equipo', item.titulo)}
                 className="w-full h-12 rounded-xl bg-[#25D366] hover:bg-[#128C7E] text-white text-xs font-medium flex items-center justify-center gap-2 shadow-md hover:scale-[1.01] active:scale-95 transition-all cursor-pointer"
               >
                 <WhatsappIcon size={18} />
@@ -346,6 +348,7 @@ export default function PortafolioPage() {
             href="https://wa.me/573103861480?text=Hola,%20requiero%20asesoría%20sobre%20los%20equipos%20del%20portafolio"
             target="_blank"
             rel="noopener noreferrer"
+            onClick={() => clicWhatsapp('portafolio_asesoria')}
             className="h-12 px-8 rounded-full bg-[#25D366] hover:bg-[#128C7E] text-white text-xs font-medium flex items-center gap-2 shadow-xl hover:scale-105 transition-all"
           >
             <WhatsappIcon size={18} /> Hablar con un Asesor

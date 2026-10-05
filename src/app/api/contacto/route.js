@@ -32,6 +32,12 @@ export async function POST(request) {
   if (!datos.nombre || !datos.telefono || !datos.mensaje) {
     return NextResponse.json({ ok: false, error: 'Nombre, teléfono y mensaje son obligatorios' }, { status: 400 })
   }
+  // Autorización de tratamiento de datos (Ley 1581 de 2012). Sin ella no se
+  // envía nada. Viaja en el correo como constancia de que se otorgó.
+  if (body.autoriza !== true) {
+    return NextResponse.json({ ok: false, error: 'Debes autorizar el tratamiento de tus datos para enviar el mensaje' }, { status: 400 })
+  }
+  datos.autorizacion = 'Aceptada en el formulario web'
   if (datos.telefono.replace(/\D/g, '').length < 7) {
     return NextResponse.json({ ok: false, error: 'El teléfono no es válido' }, { status: 400 })
   }

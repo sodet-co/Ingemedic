@@ -17,7 +17,7 @@ export const PORTAL_URL = 'https://portal.ingemedic.com.co'
 export const RUTAS_PORTAL = [
   'login', 'sin-acceso', 'dashboard', 'entregas', 'inventario', 'ordenes',
   'clientes', 'mantenimientos', 'servicios', 'bitacora', 'configuracion',
-  'repartidor-preferencias', 'cliente',
+  'repartidor-preferencias', 'cliente', 'sitio-web',
 ]
 
 export function esRutaPortal(pathname) {
@@ -31,6 +31,10 @@ export const EMPRESA = {
     'Alquiler de equipos biomédicos y suministro de oxígeno medicinal domiciliario en Valledupar y todo el departamento del Cesar, con servicio técnico 24/7.',
   telefonos: ['+57 310 3861480', '+57 310 3636481'],
   email: 'ingemedicsas@hotmail.com',
+  // PENDIENTE: NIT real. Mientras esté vacío no se muestra (footer y páginas legales).
+  nit: '',
+  // Canal para consultas y reclamos de datos personales (Ley 1581 de 2012)
+  correoDatos: 'ingemedicsas@hotmail.com',
   direccion: {
     calle: 'Calle 14C # 20-14, Barrio La Popa',
     ciudad: 'Valledupar',
@@ -73,4 +77,9 @@ export const PAGINAS_PUBLICAS = [
   { ruta: '/portafolio', prioridad: 0.9, frecuencia: 'monthly' },
   { ruta: '/quienes-somos', prioridad: 0.7, frecuencia: 'yearly' },
   { ruta: '/contacto', prioridad: 0.8, frecuencia: 'yearly' },
+  { ruta: '/politica-de-datos', prioridad: 0.3, frecuencia: 'yearly' },
+  { ruta: '/terminos', prioridad: 0.3, frecuencia: 'yearly' },
 ]
+
+// Fecha de la versión vigente de las páginas legales. Cambiarla al editar el texto.
+export const LEGAL_VIGENCIA = '4 de octubre de 2026'

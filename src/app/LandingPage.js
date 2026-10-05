@@ -5,6 +5,7 @@ import Image from 'next/image'
 import Header from '@/components/Header'
 import Footer from '@/components/Footer'
 import { FAQS } from '@/components/landing/faqs'
+import { clicWhatsapp } from '@/lib/analitica'
 import {
   Clock, ShieldCheck, Users2, ChevronRight, ChevronDown,
 } from 'lucide-react'
@@ -98,6 +99,7 @@ export default function LandingPage() {
                 href="https://wa.me/573103861480?text=Hola,%20requiero%20información%20sobre%20el%20catálogo%20de%20productos"
                 target="_blank"
                 rel="noopener noreferrer"
+                onClick={() => clicWhatsapp('inicio_hero')}
                 className="inline-flex items-center justify-center gap-2 text-[14.5px] font-medium text-white bg-[#C8102E] hover:bg-[#a80d26] px-6 py-3.5 rounded-md transition-colors"
               >
                 <WhatsappIcon size={17} /> Consultar catálogo
