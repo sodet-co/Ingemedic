@@ -2,7 +2,8 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Menu, X } from 'lucide-react'
+import { Menu, X, Heart } from 'lucide-react'
+import Image from 'next/image'
 import { PORTAL_URL } from '@/lib/sitio'
 import { clicWhatsapp } from '@/lib/analitica'
 
@@ -26,6 +27,22 @@ function WhatsappIcon({ size = 18, className = '' }) {
     >
       <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414-.074-.124-.272-.198-.57-.347m-5.421 7.461h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
     </svg>
+  )
+}
+
+// Crédito del desarrollador. En el header se oculta entre lg y xl: ahí el menú
+// y los dos botones ya ocupan todo el ancho.
+function PorSodet({ className = '' }) {
+  return (
+    <a href="https://sodet.vercel.app" target="_blank" rel="noopener noreferrer"
+      aria-label="Desarrollado por Sodet"
+      className={`group font-body items-center gap-2 rounded-full border border-[#E7DCF1] bg-[#FAF6FD] pl-1.5 pr-3 py-1 text-[12.5px] text-[#6B5A7B] hover:border-[#C9A9E0] hover:bg-[#F4EBFB] transition-colors ${className}`}>
+      <Image src="/images/sodet-icono.png" alt="" width={22} height={22} className="rounded-md" />
+      <span>
+        by <span className="font-semibold text-[#5B1A7A]">Sodet</span>
+      </span>
+      <Heart size={12} className="text-[#8E1F78] fill-[#8E1F78] transition-transform group-hover:scale-125" aria-hidden="true" />
+    </a>
   )
 }
 
@@ -57,7 +74,7 @@ export default function Header() {
   return (
     <>
       <header className="sticky top-0 w-full z-50 bg-white/95 backdrop-blur-md border-b border-[#DDE5EE]">
-        <div className="max-w-[1180px] mx-auto px-5 md:px-7 h-[72px] md:h-[76px] flex items-center gap-9">
+        <div className="max-w-[1920px] mx-auto px-5 md:px-10 2xl:px-16 h-[72px] md:h-[76px] flex items-center gap-9">
           <Logo size={40} />
 
           <nav className="hidden lg:flex items-center gap-7 ml-2">
@@ -75,6 +92,7 @@ export default function Header() {
           </nav>
 
           <div className="hidden md:flex items-center gap-3 ml-auto">
+            <PorSodet className="inline-flex lg:hidden xl:inline-flex mr-1" />
             <Link href={URL_PORTAL}
               className="font-body inline-flex items-center text-[13.5px] font-medium text-[#0E2A4D] border border-[#0E2A4D] hover:bg-[#0E2A4D] hover:text-white px-4 py-2.5 rounded-md transition-colors">
               Acceso al portal
@@ -116,6 +134,9 @@ export default function Header() {
               className="font-body w-full inline-flex items-center justify-center text-[14px] font-medium text-[#0E2A4D] border border-[#0E2A4D] px-5 py-3 rounded-md">
               Acceso del personal
             </Link>
+          </div>
+          <div className="flex justify-center pt-4">
+            <PorSodet className="inline-flex" />
           </div>
         </div>
       )}

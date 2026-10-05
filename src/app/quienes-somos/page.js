@@ -28,7 +28,7 @@ export default function QuienesSomosPage() {
       </section>
 
       {/* Historia & Presentación */}
-      <section className="max-w-7xl mx-auto px-4 md:px-8 py-20">
+      <section className="max-w-[1920px] mx-auto px-4 md:px-10 2xl:px-16 py-20">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
           <div>
             <span className="text-xs font-medium text-blue-600 uppercase tracking-widest">Nuestra Historia</span>
@@ -68,7 +68,7 @@ export default function QuienesSomosPage() {
 
       {/* Misión y Visión */}
       <section className="bg-slate-50 py-20 border-y border-slate-200">
-        <div className="max-w-7xl mx-auto px-4 md:px-8 grid grid-cols-1 md:grid-cols-2 gap-8">
+        <div className="max-w-[1920px] mx-auto px-4 md:px-10 2xl:px-16 grid grid-cols-1 md:grid-cols-2 gap-8">
           <div className="bg-white rounded-3xl p-8 border border-slate-200 shadow-sm flex flex-col items-center text-center">
             <div className="w-16 h-16 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center mb-4">
               <Target size={28} />
@@ -92,7 +92,7 @@ export default function QuienesSomosPage() {
       </section>
 
       {/* ── SECCIÓN ¿POR QUÉ ELEGIRNOS? ── */}
-      <section className="max-w-7xl mx-auto px-8 md:px-8 py-20">
+      <section className="max-w-[1920px] mx-auto px-8 md:px-10 2xl:px-16 py-20">
         <div className="mb-10 text-left max-w-4xl">
           <h2 className="text-3xl sm:text-4xl font-medium tracking-[-0.02em] text-[#0B2656] uppercase mb-4">
             ¿Por qué elegirnos?
@@ -146,7 +146,7 @@ export default function QuienesSomosPage() {
 
       {/* ── SECCIÓN ¿CÓMO FUNCIONA? (DISEÑO EXACTO SEGÚN REFERENCIA) ── */}
       <section className="bg-[#F8FAFC] py-20 border-y border-slate-200/80 overflow-hidden">
-        <div className="max-w-7xl mx-auto px-4 md:px-8">
+        <div className="max-w-[1920px] mx-auto px-4 md:px-10 2xl:px-16">
           <div className="mb-14 text-left max-w-4xl">
             <h2 className="text-3xl sm:text-4xl font-medium tracking-[-0.02em] text-[#1D4ED8] mb-2 uppercase">
               ¿CÓMO FUNCIONA?
@@ -297,7 +297,7 @@ export default function QuienesSomosPage() {
       </section>
 
       {/* Certificación INVIMA */}
-      <section className="max-w-7xl mx-auto px-4 md:px-8 py-20">
+      <section className="max-w-[1920px] mx-auto px-4 md:px-10 2xl:px-16 py-20">
         <div className="bg-slate-950 text-white rounded-3xl p-8 lg:p-12 relative overflow-hidden grid grid-cols-1 lg:grid-cols-12 gap-8 items-center shadow-2xl">
           <div className="lg:col-span-7">
             <div className="inline-block px-4 py-1 rounded-full bg-blue-500/20 text-blue-300 text-xs font-medium uppercase tracking-wider mb-4 border border-blue-400/30">

@@ -141,7 +141,7 @@ export default function PortafolioPage() {
 
       {/* ── HERO UNIFICADO CON CARRUSEL 3D INTEGRADO ── */}
       <section className="relative overflow-hidden bg-gradient-to-b from-[#0B2656] via-[#0D2E68] to-[#071C40] text-white pt-14 pb-16 lg:pt-18 lg:pb-20">
-        <div className="max-w-7xl mx-auto px-4 md:px-8 relative z-10">
+        <div className="max-w-[1920px] mx-auto px-4 md:px-10 2xl:px-16 relative z-10">
           <div className="text-center max-w-3xl mx-auto mb-10">
             <div className="inline-block px-4 py-1.5 rounded-full bg-blue-500/20 border border-blue-400/30 text-blue-200 text-xs font-medium uppercase tracking-wider mb-4 shadow-sm">
               PORTAFOLIO DE EQUIPOS BIOMÉDICOS
@@ -275,7 +275,7 @@ export default function PortafolioPage() {
       </section>
 
       {/* ── REJILLA DE TARJETAS DE PORTAFOLIO ── */}
-      <section className="max-w-7xl mx-auto px-4 md:px-8 py-20 bg-slate-50 border-t border-slate-200">
+      <section className="max-w-[1920px] mx-auto px-4 md:px-10 2xl:px-16 py-20 bg-slate-50 border-t border-slate-200">
         <div className="text-center max-w-2xl mx-auto mb-14">
           <h2 className="text-2xl sm:text-4xl font-medium tracking-[-0.02em] text-[#0B2656] uppercase">
             Detalle del Portafolio
@@ -341,7 +341,7 @@ export default function PortafolioPage() {
 
       {/* Banner de Asesoría Rápida */}
       <section className="bg-[#0B2656] text-white py-12">
-        <div className="max-w-7xl mx-auto px-4 md:px-8 text-center flex flex-col items-center">
+        <div className="max-w-[1920px] mx-auto px-4 md:px-10 2xl:px-16 text-center flex flex-col items-center">
           <h2 className="text-xl sm:text-3xl font-medium tracking-[-0.02em] mb-3">¿Dudas sobre el equipo o servicio indicado?</h2>
           <p className="text-xs sm:text-sm text-blue-100/90 max-w-xl mb-6">Nuestro equipo técnico responde tus preguntas de forma inmediata y coordina la entrega en tu domicilio.</p>
           <a

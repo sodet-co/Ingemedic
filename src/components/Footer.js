@@ -15,7 +15,7 @@ function WhatsappIcon({ size = 16, className = '' }) {
 export default function Footer() {
   return (
     <footer className="font-body bg-[#091D36] text-[#B9CBDF] pt-16">
-      <div className="max-w-[1180px] mx-auto px-5 md:px-7">
+      <div className="max-w-[1920px] mx-auto px-5 md:px-10 2xl:px-16">
         <div className="grid grid-cols-1 md:grid-cols-[1.4fr_1fr_1fr_1.1fr] gap-11 pb-12">
           {/* Identidad — texto, no la imagen del logo: trae varios colores propios
               y no existe una versión clara/blanca del archivo para este fondo oscuro. */}

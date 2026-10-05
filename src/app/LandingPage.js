@@ -86,12 +86,12 @@ export default function LandingPage() {
 
       {/* ── HERO ── */}
       <div className="bg-white border-b border-[#DDE5EE]">
-        <div className="max-w-[1180px] mx-auto px-5 md:px-7 grid grid-cols-1 md:grid-cols-[1.05fr_0.95fr] gap-10 md:gap-14 items-center pt-14 md:pt-16 pb-16 md:pb-24">
+        <div className="max-w-[1920px] mx-auto px-5 md:px-10 2xl:px-16 grid grid-cols-1 md:grid-cols-[1.05fr_0.95fr] gap-10 md:gap-14 items-center pt-14 md:pt-16 pb-16 md:pb-24">
           <div>
-            <h1 className="font-display text-[34px] sm:text-[42px] lg:text-[50px] font-medium text-[#0E2A4D] uppercase leading-[1.12] tracking-[-0.025em]">
+            <h1 className="font-display text-[34px] sm:text-[42px] lg:text-[50px] 2xl:text-[62px] font-medium text-[#0E2A4D] uppercase leading-[1.12] tracking-[-0.025em]">
               Equipos biomédicos<br />y oxígeno domiciliario
             </h1>
-            <p className="mt-5 text-[16px] sm:text-[18px] font-light text-[#5D6F86] leading-relaxed max-w-xl">
+            <p className="mt-5 text-[16px] sm:text-[18px] 2xl:text-[20px] font-light text-[#5D6F86] leading-relaxed max-w-xl 2xl:max-w-2xl">
               Servicio técnico calificado y acompañamiento en la recuperación de tus pacientes en todo el Cesar.
             </p>
             <div className="flex flex-col sm:flex-row gap-3 mt-8">
@@ -126,7 +126,7 @@ export default function LandingPage() {
             {IMAGENES_HERO.map((img, i) => (
               <div key={img.src} className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${i === indiceImagenHero ? 'opacity-100' : 'opacity-0'}`}>
                 {/* La primera es lo primero que se ve (LCP): con prioridad. Las demás, diferidas */}
-                <Image src={img.src} alt={img.alt} fill priority={i === 0} sizes="(min-width: 1180px) 530px, (min-width: 768px) 45vw, 100vw" className="object-cover" />
+                <Image src={img.src} alt={img.alt} fill priority={i === 0} sizes="(min-width: 768px) 48vw, 100vw" className="object-cover" />
               </div>
             ))}
           </div>
@@ -134,10 +134,10 @@ export default function LandingPage() {
       </div>
 
       {/* ── CIFRAS — monta sobre el borde inferior del hero ── */}
-      <div className="max-w-[1180px] mx-auto px-5 md:px-7 -mt-10 md:-mt-14 relative z-10">
+      <div className="max-w-[1920px] mx-auto px-5 md:px-10 2xl:px-16 -mt-10 md:-mt-14 relative z-10">
         <div className="bg-[#0E2A4D] rounded-[10px] grid grid-cols-2 md:grid-cols-4 shadow-[0_18px_40px_-22px_rgba(14,42,77,0.55)]">
           {CIFRAS.map((c, i) => (
-            <div key={c.label} className={`px-6 py-7 md:px-8 ${i < CIFRAS.length - 1 ? 'border-b md:border-b-0 md:border-r border-white/15' : ''} ${i % 2 === 0 ? 'border-r md:border-r-0 border-white/15' : ''}`}>
+            <div key={c.label} className={`px-6 py-7 md:px-8 border-white/15 ${i < 2 ? 'border-b md:border-b-0' : ''} ${i % 2 === 0 ? 'border-r' : ''} ${i < CIFRAS.length - 1 ? 'md:border-r' : ''}`}>
               <div className="font-display text-[26px] md:text-[34px] font-medium tracking-[-0.02em] text-white leading-none">{c.valor}</div>
               <div className="mt-1.5 text-[12.5px] md:text-[13.5px] text-[#A9C2DC]">{c.label}</div>
             </div>
@@ -147,7 +147,7 @@ export default function LandingPage() {
 
       {/* ── POR QUÉ ELEGIRNOS ── */}
       <section className="py-20 md:py-24" id="nosotros">
-        <div className="max-w-[1180px] mx-auto px-5 md:px-7">
+        <div className="max-w-[1920px] mx-auto px-5 md:px-10 2xl:px-16">
           <div className="max-w-xl mb-11">
             <div className="w-[52px] h-[3px] bg-[#1E9FC4] rounded-full mb-[18px]" />
             <h2 className="font-display text-[28px] md:text-[34px] font-medium tracking-[-0.02em] text-[#0E2A4D]">Por qué elegir Ingemedic</h2>
@@ -169,7 +169,7 @@ export default function LandingPage() {
 
       {/* ── SERVICIOS DESTACADOS + EQUIPOS ── */}
       <section className="bg-white py-20 md:py-24" id="servicios">
-        <div className="max-w-[1180px] mx-auto px-5 md:px-7">
+        <div className="max-w-[1920px] mx-auto px-5 md:px-10 2xl:px-16">
           <div className="max-w-xl mb-11">
             <div className="w-[52px] h-[3px] bg-[#1E9FC4] rounded-full mb-[18px]" />
             <h2 className="font-display text-[28px] md:text-[34px] font-medium tracking-[-0.02em] text-[#0E2A4D]">Servicios destacados</h2>
@@ -179,9 +179,9 @@ export default function LandingPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
             {SERVICIOS.map(s => (
               <Link href="/portafolio" key={s.titulo}
-                className="border border-[#DDE5EE] rounded-[10px] overflow-hidden bg-white flex flex-col sm:flex-row hover:shadow-md transition-shadow">
+                className="border border-[#DDE5EE] rounded-[10px] overflow-hidden bg-white flex flex-col sm:flex-row sm:min-h-[200px] 2xl:min-h-[260px] hover:shadow-md transition-shadow">
                 <div className="relative aspect-[16/10] sm:aspect-auto sm:w-[42%] flex-shrink-0">
-                  <Image src={s.img} alt={s.titulo} fill sizes="(min-width: 640px) 240px, 100vw" className="object-cover" />
+                  <Image src={s.img} alt={s.titulo} fill sizes="(min-width: 640px) 21vw, 100vw" className="object-cover" />
                 </div>
                 <div className="p-6 flex flex-col gap-2.5 flex-1">
                   <h3 className="font-display text-[19px] font-medium tracking-[-0.01em] text-[#0E2A4D]">{s.titulo}</h3>
@@ -208,7 +208,7 @@ export default function LandingPage() {
                 <Link href="/portafolio" key={eq.nombre}
                   className="border border-[#DDE5EE] rounded-[10px] bg-white p-[18px] text-center hover:shadow-md transition-shadow">
                   <div className="relative aspect-square rounded-[8px] mb-3.5 bg-gradient-to-br from-[#eaf1f6] to-[#f7fafc] overflow-hidden">
-                    <Image src={eq.img} alt={eq.nombre} fill sizes="(min-width: 1024px) 260px, 50vw" className="object-contain p-3" />
+                    <Image src={eq.img} alt={eq.nombre} fill sizes="(min-width: 1024px) 25vw, 50vw" className="object-contain p-3" />
                   </div>
                   <div className="font-display text-[14px] font-medium text-[#0E2A4D]">{eq.nombre}</div>
                   <div className="text-[12.5px] text-[#5D6F86] mt-0.5">{eq.linea}</div>
@@ -221,7 +221,7 @@ export default function LandingPage() {
 
       {/* ── CTA COTIZACIÓN ── */}
       <div className="bg-[#C8102E]" id="contacto">
-        <div className="max-w-[1180px] mx-auto px-5 md:px-7 py-11 flex items-center justify-between gap-9 flex-wrap">
+        <div className="max-w-[1920px] mx-auto px-5 md:px-10 2xl:px-16 py-11 flex items-center justify-between gap-9 flex-wrap">
           <div>
             <h2 className="font-display text-[24px] md:text-[28px] font-medium tracking-[-0.02em] text-white">¿Necesitas un equipo o servicio técnico?</h2>
             <p className="mt-2 text-[15px] text-white/90">Cuéntanos qué necesitas y te respondemos con una cotización.</p>
@@ -235,7 +235,7 @@ export default function LandingPage() {
 
       {/* ── CERTIFICACIÓN INVIMA ── */}
       <section className="bg-white py-20 md:py-24" id="certificacion-invima">
-        <div className="max-w-[1180px] mx-auto px-5 md:px-7 grid grid-cols-1 md:grid-cols-[0.9fr_1.1fr] gap-11 md:gap-14 items-center">
+        <div className="max-w-[1920px] mx-auto px-5 md:px-10 2xl:px-16 grid grid-cols-1 md:grid-cols-[0.9fr_1.1fr] gap-11 md:gap-14 items-center">
           <div className="aspect-[4/3] rounded-[10px] border border-[#DDE5EE] bg-white flex items-center justify-center p-10">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/images/logo-invima-oficial.png" alt="INVIMA — Instituto Nacional de Vigilancia de Medicamentos y Alimentos" className="max-h-28 w-auto object-contain" />
@@ -264,7 +264,7 @@ export default function LandingPage() {
 
       {/* ── FAQ ── */}
       <section className="py-20 md:py-24">
-        <div className="max-w-[1180px] mx-auto px-5 md:px-7">
+        <div className="max-w-[1920px] mx-auto px-5 md:px-10 2xl:px-16">
           <div className="text-center max-w-2xl mx-auto mb-10 flex flex-col items-center">
             <div className="w-[52px] h-[3px] bg-[#1E9FC4] rounded-full mb-[18px]" />
             <h2 className="font-display text-[28px] md:text-[34px] font-medium tracking-[-0.02em] text-[#0E2A4D]">Preguntas frecuentes</h2>

@@ -81,7 +81,7 @@ export default function ContactoPage() {
       </section>
 
       {/* Sección Principal: Información de Contacto + Formulario Interactivo */}
-      <section className="max-w-7xl mx-auto px-4 md:px-8 py-16 lg:py-24">
+      <section className="max-w-[1920px] mx-auto px-4 md:px-10 2xl:px-16 py-16 lg:py-24">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-start">
 
           {/* Columna Izquierda: Información de Contacto + Asesoría 24h */}

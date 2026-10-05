@@ -59,6 +59,24 @@ Lo que está sin resolver, ordenado por prioridad.
 
 # Entradas
 
+## 2026-10-04 — Sitio público: contenido de borde a borde y crédito de Sodet
+**Qué se hizo:** los contenedores de las páginas públicas (home, portafolio,
+quiénes somos, contacto, header y footer) pasan de `max-w-[1180px]` /
+`max-w-7xl` a `max-w-[1920px]` con `px-5 md:px-10 2xl:px-16`. En la home, el
+título y el texto del hero crecen en `2xl` y se corrigieron los divisores de
+la franja de cifras (solo salía uno). En el header, insignia "by Sodet" con el
+ícono (`public/images/sodet-icono.png`) que enlaza a sodet.vercel.app; se
+oculta entre `lg` y `xl` porque no cabe junto al menú y los dos botones.
+**Por qué:** pedido de Sofía: en pantallas grandes el contenido se veía con
+márgenes exagerados. El tope de 1920px evita que se estire sin límite en
+monitores ultraanchos. Las páginas legales siguen angostas (820px) a
+propósito: es texto de lectura. Por debajo de `md` no cambia nada.
+**Archivos:** `LandingPage.js`, `portafolio/page.js`, `quienes-somos/page.js`,
+`contacto/page.js`, `Header.js`, `Footer.js`.
+**Pendiente:** revisado con capturas a 1920, 1366 y 1100 px. En celular no se
+pudo capturar bien (el navegador sin ventana no baja de ~500px de ancho); las
+clases para móvil no cambiaron, pero falta mirarlo en un teléfono real.
+
 ## 2026-10-04 — Página web: actualización en tiempo real
 **Qué se hizo:** `/sitio-web` se suscribe a los INSERT de `eventos_sitio` y
 refresca solo (mismo patrón del Dashboard: `router.refresh()` con debounce).
