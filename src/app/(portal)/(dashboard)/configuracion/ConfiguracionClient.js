@@ -12,6 +12,8 @@ import { GaleriaIconos, IconoEquipo } from '@/components/inventario/IconosEquipo
 import { MODULOS_PRINCIPALES, MODULOS_CONFIGURACION, MODULOS_OCULTOS_POR_DEFECTO, puedeVerModulo } from '@/lib/permisos'
 import BuzonNovedades from '@/components/layout/BuzonNovedades'
 import { filaPortal } from '@/lib/portalClientes'
+import { equiposDeTipos } from '@/lib/equipos'
+import ModalEliminarEquipos from '@/components/inventario/ModalEliminarEquipos'
 
 const NAV_MODULO = {
   usuarios: 'configuracion.usuarios', roles: 'configuracion.roles', categorias: 'configuracion.categorias',
@@ -331,6 +333,8 @@ export default function ConfiguracionClient({
   const [listas, setListas]           = useState(listasIniciales ?? [])
   const [actividades, setActividades] = useState(actividadesIniciales ?? [])
   const [modal, setModal]             = useState(null)
+  // Tipo o categoría por eliminar: { nivel: 'tipo' | 'categoria', item }
+  const [porEliminar, setPorEliminar] = useState(null)
   const [saving, setSaving]           = useState(false)
   const [toast, setToast]             = useState(null)
   const [form, setForm]               = useState({})
@@ -474,14 +478,45 @@ export default function ConfiguracionClient({
     setSaving(false); setModal(null)
   }
 
-  async function eliminarCat(id) {
-    if (!confirm('¿Eliminar esta categoría?')) return
-    const supabase = await getSupabase()
-    const { error } = await supabase.from('categorias_equipo').update({ activo: false }).eq('id', id)
-    if (error) { showToast('Error: ' + error.message, 'error'); return }
-    registrarBitacora({ modulo: 'configuracion', accion: 'eliminar', entidad: 'categoría de equipo', entidad_id: id })
-    setCats(prev => prev.filter(c => c.id !== id))
-    showToast('Categoría eliminada')
+  // Eliminar una categoría o un tipo arrastra sus equipos (ver ModalEliminarEquipos):
+  // antes solo se ocultaba el tipo y sus unidades seguían vivas — ocupando sus
+  // códigos, en "últimos agregados" y hasta en préstamos en curso.
+  function tiposDe(porEliminar) {
+    return porEliminar.nivel === 'tipo'
+      ? [porEliminar.item.id]
+      : tipos.filter(t => t.categoria_id === porEliminar.item.id).map(t => t.id)
+  }
+
+  async function desactivarTrasEliminar(supabase) {
+    const ids = tiposDe(porEliminar)
+    if (ids.length) {
+      const { error } = await supabase.from('tipos_equipo').update({ activo: false }).in('id', ids)
+      if (error) return error
+    }
+    if (porEliminar.nivel === 'categoria') {
+      const { error } = await supabase.from('categorias_equipo').update({ activo: false }).eq('id', porEliminar.item.id)
+      if (error) return error
+    }
+    return null
+  }
+
+  function alEliminar({ equipos, ordenes, motivo }) {
+    const { nivel, item } = porEliminar
+    const idsTipos = tiposDe(porEliminar)
+    registrarBitacora({
+      modulo: 'configuracion', accion: 'eliminar',
+      entidad: nivel === 'tipo' ? 'tipo de equipo' : 'categoría de equipo', entidad_id: item.id,
+      detalle: {
+        nombre: nivel === 'tipo' ? (item.atributos?.nombre || item.nombre) : item.nombre, motivo,
+        equipos_eliminados: equipos.map(e => e.codigo),
+        ...(ordenes.length && { prestamos_cerrados: ordenes.map(o => `${o.codigo} (${o.queda})`) }),
+      },
+    })
+    setTipos(prev => prev.filter(t => !idsTipos.includes(t.id)))
+    if (nivel === 'categoria') setCats(prev => prev.filter(c => c.id !== item.id))
+    setPorEliminar(null)
+    const n = equipos.length
+    showToast(`${nivel === 'tipo' ? 'Tipo eliminado' : 'Categoría eliminada'}${n ? ` · ${n} equipo${n === 1 ? '' : 's'} fuera del inventario` : ''}`)
   }
 
   function agregarCampoModal() {
@@ -561,16 +596,6 @@ export default function ConfiguracionClient({
       showToast('Tipo creado')
     }
     setSaving(false); setModal(null)
-  }
-
-  async function eliminarTipo(id) {
-    if (!confirm('¿Eliminar este tipo de equipo?')) return
-    const supabase = await getSupabase()
-    const { error } = await supabase.from('tipos_equipo').update({ activo: false }).eq('id', id)
-    if (error) { showToast('Error: ' + error.message, 'error'); return }
-    registrarBitacora({ modulo: 'configuracion', accion: 'eliminar', entidad: 'tipo de equipo', entidad_id: id })
-    setTipos(prev => prev.filter(t => t.id !== id))
-    showToast('Tipo eliminado')
   }
 
   // ── LISTAS ────────────────────────────────────────────────
@@ -948,7 +973,7 @@ export default function ConfiguracionClient({
                         </div>
                         <div className="flex items-center gap-1.5">
                           <button onClick={() => abrirModal('categoria', { ...c })} className="p-1.5 text-slate-400 hover:text-[#D81B43] hover:bg-slate-100 rounded-[6px] transition-all"><Edit3 size={13} /></button>
-                          <button onClick={() => eliminarCat(c.id)} className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-[6px] transition-all"><Trash2 size={13} /></button>
+                          <button onClick={() => setPorEliminar({ nivel: 'categoria', item: c })} className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-[6px] transition-all"><Trash2 size={13} /></button>
                         </div>
                       </div>
                     )
@@ -1067,7 +1092,7 @@ export default function ConfiguracionClient({
                               <div className="flex items-center gap-0.5 flex-shrink-0" onClick={e => e.stopPropagation()}>
                                 <button onClick={() => abrirModal('tipo', { ...t, categoria_id: t.categoria_id ?? t.categoria?.id, lista_mantenimiento_id: t.lista_mantenimiento_id ?? t.lista?.id })}
                                   className="p-1.5 text-slate-400 hover:text-[#D81B43] hover:bg-slate-100 rounded-[6px] transition-all"><Edit3 size={13} /></button>
-                                <button onClick={() => eliminarTipo(t.id)}
+                                <button onClick={() => setPorEliminar({ nivel: 'tipo', item: t })}
                                   className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-[6px] transition-all"><Trash2 size={13} /></button>
                               </div>
                               <div className="text-slate-400">
@@ -1663,6 +1688,20 @@ export default function ConfiguracionClient({
           </div>
         </>
       )}
+
+      <ModalEliminarEquipos
+        abierto={!!porEliminar}
+        titulo={porEliminar?.nivel === 'tipo'
+          ? `Eliminar tipo ${porEliminar.item.atributos?.nombre || porEliminar.item.nombre}`
+          : `Eliminar categoría ${porEliminar?.item.nombre || ''}`}
+        descripcion={porEliminar?.nivel === 'tipo'
+          ? 'El tipo y todas sus unidades salen del inventario.'
+          : 'La categoría, sus tipos y todas sus unidades salen del inventario.'}
+        cargarEquipos={supabase => equiposDeTipos(supabase, tiposDe(porEliminar))}
+        despues={desactivarTrasEliminar}
+        onCancelar={() => setPorEliminar(null)}
+        onHecho={alEliminar}
+      />
 
       {toast && (
         <div className={`fixed bottom-28 md:bottom-6 right-4 md:right-6 left-4 md:left-auto text-center md:text-left z-50 px-4 py-3 rounded-[10px] text-[13px] font-medium text-white shadow-lg ${toast.tipo === 'error' ? 'bg-red-500' : 'bg-[#0F7B55]'}`}>

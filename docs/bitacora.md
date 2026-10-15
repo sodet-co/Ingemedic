@@ -59,6 +59,67 @@ Lo que está sin resolver, ordenado por prioridad.
 
 # Entradas
 
+## 2026-10-15 — Eliminar equipos: libera el código y cierra los préstamos
+**Qué se hizo:** el inventario no tenía cómo eliminar una unidad, y eliminar un
+tipo o una categoría en Configuración solo los ocultaba (`activo = false`): sus
+equipos seguían vivos, ocupando el código (no se podía reutilizar RL1720), en
+"últimos agregados" y hasta en préstamos en curso (ORD-2026-162 y 163 con
+equipos de "Marca Pruebas"). Ahora `equipos` tiene `activo`, `fecha_eliminacion`
+y `motivo_eliminacion`; `traerTodosLosEquipos` solo trae vivos, así que el
+equipo eliminado sale de todas las listas y del consecutivo. `eliminarEquipos()`
+(en `lib/equipos.js`) cierra sus préstamos en curso (devuelto hoy con el
+motivo; la orden que queda sin equipos pasa a Finalizada, o a Cancelada si no
+se había entregado) y no deja eliminar con un mantenimiento abierto. Botón
+Eliminar en la ficha y en Configuración (tipo/categoría arrastran sus
+unidades), con `ModalEliminarEquipos`: lista los préstamos afectados, pide
+motivo y no habilita el botón hasta 5 s (3 s sin préstamos).
+También: "Editar ficha" cambiaba el código de la tabla (`atributos`) pero no la
+columna `codigo` que valida el sistema — 5 equipos quedaron con dos códigos
+distintos. Ahora el código se edita en un solo campo, se valida contra los
+vivos y se copia a las claves de atributos (`atributosConCodigo`). El motivo de
+la edición, que se pedía y se descartaba, ya queda en la bitácora.
+**Por qué así:** la fila no se borra porque préstamos, entregas y
+mantenimientos la referencian y sus actas deben seguir mostrando el código. El
+UNIQUE pasa a ser parcial (`WHERE activo`) para que el código se libere.
+"Baja" sigue siendo para equipos reales que salen de servicio y conservan su
+código; Eliminar es para registros de prueba o errores.
+**Archivos:** `src/lib/equipos.js`, `src/components/inventario/ModalEliminarEquipos.js`
+(nuevo), `inventario/InventarioClient.js`, `configuracion/ConfiguracionClient.js`,
+`api/cargue/route.js`, `api/exportar/inventario/route.js`, `lib/bitacora-texto.js`.
+**SQL:** corrido el 2026-10-15: columnas + índice parcial
+`equipos_codigo_vivo_unico` (va ANTES del deploy: sin la columna `activo` todas
+las listas de equipos fallan) y limpieza de los 6 equipos de "Marca Pruebas"
+(ORD-2026-162 y 163 quedaron Finalizadas). Respaldo en
+`bkp_eliminacion_20261015_*` — borrarlo cuando se confirme.
+**Verificado con datos reales (desechables, restaurados):** RL1720 libre y
+sugerido como siguiente; el aviso lista el préstamo; sin motivo no elimina;
+eliminar uno de dos equipos deja la orden Entregada, el segundo la Finaliza;
+en orden Programada la Cancela; el código eliminado se puede reusar y la BD
+rechaza duplicar uno vivo (23505, sin importar mayúsculas/espacios). Se usaron
+ORD-162/163 (de prueba) para no quemar un número ORD: las órdenes nuevas toman
+consecutivo con huecos, al parecer de una secuencia.
+**Pendiente:** el bloqueo por mantenimiento abierto no se probó (no había
+ninguno abierto). Las pantallas (modal con cuenta regresiva, Editar ficha,
+Configuración) no se abrieron con sesión.
+**Dato corregido:** EQ-0005 (Cama Hospitalaria "Nacional", en préstamo) tenía
+`codigo` EQ-0005 pero la tabla mostraba RL1718; por pedido de Sofía queda
+RL1718 (encaja entre RL1717 y RL1719), con registro en la bitácora. Su campo
+`serie` también dice RL1718, lo que parece error de captura: sin confirmar.
+
+## 2026-10-05 — Bitácora: la columna Detalle en frases legibles
+**Qué se hizo:** el módulo Bitácora mostraba el `detalle` (jsonb) tal cual, con
+uuids y claves de código. Ahora `describirBitacora()` arma una frase por
+registro ("Creó un préstamo de 5 equipos para FOMAG, sin domicilio", "Ocultó
+«Listas de mantenimiento» para el rol Administrador"). También se usa en la
+búsqueda y en el CSV. Se agregó la etiqueta CANCELACIÓN, que faltaba.
+**Por qué así:** solo cambia cómo se lee; lo que se guarda en `bitacora` queda
+igual, así que aplica también a los registros viejos y no hubo SQL. Una acción
+nueva que no tenga caso propio cae en la frase genérica ("Editó el cliente X").
+**Archivos:** `src/lib/bitacora-texto.js` (nuevo), `bitacora/page.js` (trae
+los nombres de clientes), `bitacora/BitacoraClient.js`.
+**Verificado:** corrido sobre los 546 registros reales: ninguno deja uuids,
+`null` ni `undefined` a la vista. No se abrió la pantalla con sesión.
+
 ## 2026-10-04 — Sitio público: contenido de borde a borde y crédito de Sodet
 **Qué se hizo:** los contenedores de las páginas públicas (home, portafolio,
 quiénes somos, contacto, header y footer) pasan de `max-w-[1180px]` /

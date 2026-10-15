@@ -4,13 +4,14 @@ import Image from 'next/image'
 import { useState, useMemo, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
-import { Package, Inbox, Plus, X, Search, Download, Edit3, FileText, AlertTriangle, Clock, CheckCircle2, Box, Hash, Tag, Layers, SlidersHorizontal, Loader2 } from 'lucide-react'
+import { Package, Inbox, Plus, X, Search, Download, Edit3, FileText, AlertTriangle, Clock, CheckCircle2, Box, Hash, Tag, Layers, SlidersHorizontal, Loader2, Trash2 } from 'lucide-react'
 import LimpiarFiltros from '@/components/ui/LimpiarFiltros'
 import { IconoEquipo, GaleriaIconos } from '@/components/inventario/IconosEquipo'
 import { IconoTipo } from '@/components/inventario/IconoTipo'
 import Paginador from '@/components/ui/Paginador'
 import { formatear, hoyBogota } from '@/lib/fechas'
-import { consecutivoCodigos, claveCodigo, porMasReciente } from '@/lib/equipos'
+import { consecutivoCodigos, claveCodigo, porMasReciente, esCampoCodigo, atributosConCodigo } from '@/lib/equipos'
+import ModalEliminarEquipos from '@/components/inventario/ModalEliminarEquipos'
 import BuzonNovedades from '@/components/layout/BuzonNovedades'
 import { useOrdenable } from '@/hooks/useOrdenable'
 import { usePaginacion } from '@/hooks/usePaginacion'
@@ -56,9 +57,16 @@ function formatearValor(valor, tipo) {
 // o "Disponible" con un préstamo o un mantenimiento abierto.
 const ESTADOS_AUTOMATICOS = ['En préstamo', 'Reservado', 'En mantenimiento']
 
-export default function InventarioClient({ categorias: catsIniciales, tipos: tiposIniciales, equipos, estados }) {
+export default function InventarioClient({ categorias: catsIniciales, tipos: tiposIniciales, equipos: equiposBD, estados }) {
   const router = useRouter()
   const supabase = createClient()
+
+  // La columna "Código de inventario" de la tabla sale de atributos; se alinea
+  // con `codigo` (el que valida el sistema) para que la pantalla no muestre uno
+  // y el sistema use otro (ver atributosConCodigo en lib/equipos.js).
+  const equipos = useMemo(() => equiposBD.map(e =>
+    e.codigo ? { ...e, atributos: atributosConCodigo(e.atributos, e.codigo) } : e
+  ), [equiposBD])
 
   const [categorias, setCategorias] = useState(catsIniciales)
   const [tipos, setTipos] = useState(tiposIniciales)
@@ -114,6 +122,7 @@ export default function InventarioClient({ categorias: catsIniciales, tipos: tip
   const [modalNueva, setModalNueva] = useState(false)
   const [modalTipo, setModalTipo] = useState(false)
   const [modalEditar, setModalEditar] = useState(false)
+  const [modalEliminar, setModalEliminar] = useState(false)
   const [modalSalir, setModalSalir] = useState(false)
   const [formDirty, setFormDirty] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -128,7 +137,7 @@ export default function InventarioClient({ categorias: catsIniciales, tipos: tip
   const [verUltimos, setVerUltimos] = useState(false)
   const [tabUltimos, setTabUltimos] = useState('categoria') // 'categoria' | 'todos'
   const [formTipo, setFormTipo] = useState({ icono: '', atributos: {} })
-  const [formEditar, setFormEditar] = useState({ estado_id: '', atributos: {}, motivo: '' })
+  const [formEditar, setFormEditar] = useState({ codigo: '', estado_id: '', atributos: {}, motivo: '' })
   const [prestamosDrawer, setPrestamosDrawer] = useState([])
 
   useEffect(() => {
@@ -272,7 +281,7 @@ export default function InventarioClient({ categorias: catsIniciales, tipos: tip
   // En "Nueva unidad" el código (clave 'codigo' o 'codigo_inventario', según la
   // categoría) ya se captura con el campo unificado "Código de inventario" —
   // se excluye aquí para no duplicarlo en "Detalles de la unidad".
-  const camposUnidadExtra = camposUnidad.filter(c => c.clave !== 'codigo' && c.clave !== 'codigo_inventario')
+  const camposUnidadExtra = camposUnidad.filter(c => !esCampoCodigo(c.clave))
 
   const { itemsOrdenados: unidadesOrdenadas, config: configUnidades, solicitarOrden: solicitarOrdenUnidades } = useOrdenable(unidadesDeTipo)
   const paginacionUnidades = usePaginacion(unidadesOrdenadas, 20)
@@ -314,6 +323,7 @@ export default function InventarioClient({ categorias: catsIniciales, tipos: tip
 
   function abrirEditar() {
     setFormEditar({
+      codigo: drawer?.codigo || '',
       estado_id: drawer?.estado_id || '',
       atributos: { ...(drawer?.atributos || {}) },
       motivo: '',
@@ -328,14 +338,30 @@ export default function InventarioClient({ categorias: catsIniciales, tipos: tip
   }
 
   async function guardarEdicion() {
+    const codigo = formEditar.codigo?.trim()
+    if (!codigo) { showToast('El código de inventario es obligatorio', 'error'); return }
     if (!formEditar.motivo?.trim()) { showToast('El motivo de cambio es obligatorio', 'error'); return }
     setSaving(true)
+    const cambiaCodigo = claveCodigo(codigo) !== claveCodigo(drawer.codigo)
+    if (cambiaCodigo) {
+      // Mismo chequeo de "Nueva unidad": contra la BD completa, comparando por número (RL528 = RL0528)
+      let usadoPor = null
+      try { usadoPor = (await consecutivoCodigos(supabase)).existentes.get(claveCodigo(codigo)) }
+      catch { showToast('No se pudo validar el código, intenta de nuevo', 'error'); setSaving(false); return }
+      if (usadoPor) { showToast(`El código ${codigo} ya está registrado (${usadoPor})`, 'error'); setSaving(false); return }
+    }
     const { error } = await supabase.from('equipos').update({
+      codigo,
       estado_id: formEditar.estado_id || null,
-      atributos: Object.keys(formEditar.atributos).length > 0 ? formEditar.atributos : null,
+      atributos: atributosConCodigo(formEditar.atributos, codigo, camposUnidad),
     }).eq('id', drawer.id)
-    if (error) { showToast('Error: ' + error.message, 'error'); setSaving(false); return }
-    registrarBitacora({ modulo: 'inventario', accion: 'editar', entidad: 'equipo', entidad_id: drawer.id, detalle: { codigo: drawer.codigo || drawer.atributos?.codigo } })
+    if (error) {
+      showToast(error.code === '23505' ? `El código ${codigo} ya está registrado en el sistema` : 'Error: ' + error.message, 'error')
+      setSaving(false); return
+    }
+    registrarBitacora({ modulo: 'inventario', accion: 'editar', entidad: 'equipo', entidad_id: drawer.id, detalle: {
+      codigo, ...(cambiaCodigo && { codigo_anterior: drawer.codigo }), motivo: formEditar.motivo.trim(),
+    } })
     showToast('Equipo actualizado')
     setSaving(false)
     setModalEditar(false)
@@ -610,7 +636,7 @@ export default function InventarioClient({ categorias: catsIniciales, tipos: tip
       tipo_equipo_id: tipoActual.id,
       codigo: codigoInventario,
       estado_id: formUnidad.estado_id || null,
-      atributos: { ...formUnidad.atributos, codigo_inventario: codigoInventario },
+      atributos: atributosConCodigo(formUnidad.atributos, codigoInventario, camposUnidad),
     }).select('id').single()
     if (error) {
       // 23505 = índice único de código (otro usuario lo registró mientras el formulario estaba abierto)
@@ -1144,7 +1170,7 @@ export default function InventarioClient({ categorias: catsIniciales, tipos: tip
                             onClick={() => setDrawer(eq)}>
                             {camposUnidad.map(c => (
                               <td key={c.clave} className="px-4 py-3 text-[13px] text-slate-600">
-                                {c.clave === 'codigo'
+                                {esCampoCodigo(c.clave)
                                   ? <span className="font-mono text-[12.5px] font-bold bg-slate-100 text-slate-700 px-2 py-0.5 rounded">
                                     {eq.atributos?.[c.clave] || eq[c.clave] || '—'}
                                   </span>
@@ -1246,7 +1272,7 @@ export default function InventarioClient({ categorias: catsIniciales, tipos: tip
             <div className="px-6 py-4 border-b border-slate-200 flex items-start justify-between flex-shrink-0">
               <div>
                 <div className="text-[16px] font-bold text-slate-800">
-                  {drawer.atributos?.codigo || drawer.codigo || 'Equipo'}
+                  {drawer.codigo || 'Equipo'}
                   {tipoActual && <span className="text-slate-400 font-normal ml-2">— {nombreTipo(tipoActual)}</span>}
                 </div>
                 <div className="text-[12px] text-slate-400 mt-0.5">{catActual?.nombre}</div>
@@ -1282,7 +1308,7 @@ export default function InventarioClient({ categorias: catsIniciales, tipos: tip
                         {drawer.estado?.nombre || '—'}
                       </span>
                     </div>
-                    {camposUnidad.filter(c => c.clave !== 'codigo').map(c => (
+                    {camposUnidadExtra.map(c => (
                       <div key={c.clave} className="flex justify-between text-[12.5px]">
                         <span className="text-slate-400">{c.nombre}</span>
                         <span className="font-medium text-slate-700 text-right ml-4">{formatearValor(drawer.atributos?.[c.clave], c.tipo)}</span>
@@ -1390,6 +1416,10 @@ export default function InventarioClient({ categorias: catsIniciales, tipos: tip
                 className="flex items-center justify-center gap-1.5 px-4 py-2.5 border border-slate-200 rounded-[9px] text-[13px] font-medium text-slate-600 hover:border-slate-300 transition-all">
                 <Edit3 size={13} /> Editar ficha
               </button>
+              <button onClick={() => setModalEliminar(true)}
+                className="flex items-center justify-center gap-1.5 px-4 py-2.5 border border-slate-200 rounded-[9px] text-[13px] font-medium text-slate-500 hover:border-red-200 hover:text-[#D81B43] hover:bg-red-50 transition-all">
+                <Trash2 size={13} /> Eliminar
+              </button>
               <button onClick={() => generarHojaVidaPDF(drawer)} disabled={pdfGenerando}
                 className="flex items-center justify-center gap-1.5 px-4 py-2.5 bg-[#1B3A6B] text-white rounded-[9px] text-[13px] font-semibold hover:bg-[#152D54] transition-colors sm:ml-auto disabled:opacity-70 disabled:cursor-not-allowed">
                 {pdfGenerando
@@ -1400,6 +1430,28 @@ export default function InventarioClient({ categorias: catsIniciales, tipos: tip
           </div>
         </>
       )}
+
+      {/* ── MODAL ELIMINAR EQUIPO ── */}
+      <ModalEliminarEquipos
+        abierto={modalEliminar && !!drawer}
+        titulo={`Eliminar equipo ${drawer?.codigo || ''}`}
+        descripcion="El equipo sale del inventario y de todas las listas. Si es un equipo real que deja de prestarse, usa mejor el estado «Baja» en Editar ficha: conserva su código."
+        cargarEquipos={async () => [{ id: drawer.id, codigo: drawer.codigo }]}
+        onCancelar={() => setModalEliminar(false)}
+        onHecho={({ prestamos, ordenes, motivo }) => {
+          registrarBitacora({ modulo: 'inventario', accion: 'eliminar', entidad: 'equipo', entidad_id: drawer.id, detalle: {
+            codigo: drawer.codigo, motivo,
+            ...(ordenes.length && { prestamos_cerrados: ordenes.map(o => `${o.codigo} (${o.queda})`) }),
+          } })
+          setModalEliminar(false)
+          setDrawer(null)
+          showToast(prestamos.length
+            ? `Equipo eliminado · ${ordenes.map(o => ['Finalizada', 'Cancelada'].includes(o.queda)
+                ? `${o.codigo} ${o.queda.toLowerCase()}` : `${o.codigo} sigue con sus otros equipos`).join(', ')}`
+            : 'Equipo eliminado')
+          router.refresh()
+        }}
+      />
 
       {/* ── MODAL EDITAR FICHA ── */}
       {modalEditar && (
@@ -1416,6 +1468,13 @@ export default function InventarioClient({ categorias: catsIniciales, tipos: tip
                 <span className="text-[12px] text-amber-700">Los cambios quedan registrados en la bitácora con fecha y usuario</span>
               </div>
               <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
+                <div>
+                  <label className={labelCls}>Código de inventario <span className="text-[#D81B43]">*</span></label>
+                  <input value={formEditar.codigo}
+                    onChange={e => { setFormEditar(f => ({ ...f, codigo: e.target.value })); setFormDirty(true) }}
+                    className={inputCls} />
+                  <p className="text-[11.5px] text-slate-500 mt-1.5">Identifica la unidad en todo el sistema. Si lo cambias, el anterior queda libre.</p>
+                </div>
                 <div>
                   <label className={labelCls}>Estado</label>
                   {(() => {
@@ -1441,10 +1500,10 @@ export default function InventarioClient({ categorias: catsIniciales, tipos: tip
                     )
                   })()}
                 </div>
-                {camposUnidad.length > 0 && (
+                {camposUnidadExtra.length > 0 && (
                   <div className="space-y-3">
                     <div className="text-[11px] font-bold uppercase tracking-[0.07em] text-slate-400">Columnas de la unidad</div>
-                    {camposUnidad.map(campo => (
+                    {camposUnidadExtra.map(campo => (
                       <div key={campo.clave}>
                         <label className={labelCls}>{campo.nombre}</label>
                         {renderCampo(campo, formEditar.atributos, atrs => {

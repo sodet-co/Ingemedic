@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 import { verificarSesion } from '@/lib/api-auth'
 import Papa from 'papaparse'
+import { atributosConCodigo } from '@/lib/equipos'
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -168,7 +169,7 @@ export async function POST(request) {
         continue
       }
 
-      const { data: existente } = await supabaseAdmin.from('equipos').select('id').eq('codigo', codigo).maybeSingle()
+      const { data: existente } = await supabaseAdmin.from('equipos').select('id').eq('codigo', codigo).eq('activo', true).maybeSingle()
       if (existente) {
         resultados.errores.push(`Fila ${nFila}: el código "${codigo}" ya existe en inventario`)
         continue
@@ -178,7 +179,7 @@ export async function POST(request) {
         tipo_equipo_id: tipoObj.id,
         codigo,
         estado_id: estadoDisponible?.id,
-        atributos: Object.keys(atributosUnidad).length > 0 ? atributosUnidad : null,
+        atributos: atributosConCodigo(atributosUnidad, codigo, camposUnidad),
       })
 
       if (error) {

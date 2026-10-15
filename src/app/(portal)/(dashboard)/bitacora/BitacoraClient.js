@@ -8,6 +8,7 @@ import Paginador from '@/components/ui/Paginador'
 import { usePaginacion } from '@/hooks/usePaginacion'
 import { formatear, paraGuardar, hoyBogota } from '@/lib/fechas'
 import BuzonNovedades from '@/components/layout/BuzonNovedades'
+import { describirBitacora } from '@/lib/bitacora-texto'
 
 const ACCION_STYLES = {
   'crear': { bg: '#ECFDF5', color: '#0F7B55', label: 'CREACIÓN' },
@@ -19,6 +20,7 @@ const ACCION_STYLES = {
   'desactivar': { bg: '#FEF2F2', color: '#C0392B', label: 'DESACTIVACIÓN' },
   'cerrar': { bg: '#FFFBEB', color: '#B45309', label: 'CIERRE' },
   'avanzar': { bg: '#E8F7FB', color: '#0E86A0', label: 'AVANCE' },
+  'cancelar': { bg: '#FEF2F2', color: '#C0392B', label: 'CANCELACIÓN' },
 }
 
 const MODULO_LABELS = {
@@ -32,7 +34,7 @@ const MODULO_LABELS = {
   auth: 'Autenticación',
 }
 
-export default function BitacoraClient({ registrosIniciales }) {
+export default function BitacoraClient({ registrosIniciales: registrosCrudos, nombresClientes = {} }) {
   const router = useRouter()
   const supabase = createClient()
   const [search, setSearch] = useState('')
@@ -40,6 +42,12 @@ export default function BitacoraClient({ registrosIniciales }) {
   const [filtroAccion, setFiltroAccion] = useState('')
   const [desde, setDesde] = useState('')
   const [hasta, setHasta] = useState('')
+
+  // Cada registro con su frase legible ya armada (columna Detalle, búsqueda y CSV)
+  const registrosIniciales = useMemo(
+    () => registrosCrudos.map(r => ({ ...r, texto: describirBitacora(r, nombresClientes) })),
+    [registrosCrudos, nombresClientes]
+  )
 
   // ── SINCRONIZACIÓN EN TIEMPO REAL ─────────────────────────
   // Igual que en Dashboard: no hay estado local que proteger,
@@ -72,7 +80,7 @@ export default function BitacoraClient({ registrosIniciales }) {
 
   const filtrados = useMemo(() => {
     return registrosIniciales.filter(r => {
-      const mq = !search || [r.accion, r.modulo, r.entidad, r.usuario?.nombre, r.detalle?.descripcion]
+      const mq = !search || [r.accion, r.modulo, r.entidad, r.usuario?.nombre, r.texto]
         .some(v => v?.toLowerCase().includes(search.toLowerCase()))
       const mm = !filtroModulo || r.modulo === filtroModulo
       const ma = !filtroAccion || r.accion === filtroAccion
@@ -92,9 +100,9 @@ export default function BitacoraClient({ registrosIniciales }) {
       formatear(r.fecha, { month: '2-digit', hour: '2-digit', minute: '2-digit' }),
       r.usuario?.nombre || '—',
       MODULO_LABELS[r.modulo] || r.modulo || '—',
-      r.accion || '—',
+      ACCION_STYLES[r.accion]?.label || r.accion || '—',
       r.entidad || '—',
-      r.detalle?.descripcion || JSON.stringify(r.detalle) || '—'
+      r.texto
     ])
     const bom = '\uFEFF'
     const csv = bom + [header, ...rows].map(row =>
@@ -217,8 +225,8 @@ export default function BitacoraClient({ registrosIniciales }) {
                         </span>
                       </td>
                       <td className="px-4 py-3 text-[12.5px] text-slate-500">{r.entidad || '—'}</td>
-                      <td className="px-4 py-3 text-[12.5px] text-slate-500 max-w-[240px] truncate">
-                        {r.detalle?.descripcion || JSON.stringify(r.detalle) || '—'}
+                      <td className="px-4 py-3 text-[12.5px] text-slate-600 max-w-[420px]">
+                        {r.texto}
                       </td>
                     </tr>
                   )
@@ -261,11 +269,7 @@ export default function BitacoraClient({ registrosIniciales }) {
                   </span>
                   {r.entidad && <span className="text-[11.5px] text-slate-500">{r.entidad}</span>}
                 </div>
-                {(r.detalle?.descripcion || r.detalle) && (
-                  <div className="text-[11.5px] text-slate-400 mt-1.5 line-clamp-2">
-                    {r.detalle?.descripcion || JSON.stringify(r.detalle)}
-                  </div>
-                )}
+                <div className="text-[12px] text-slate-600 mt-1.5">{r.texto}</div>
               </div>
             )
           })}

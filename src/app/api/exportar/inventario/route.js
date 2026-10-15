@@ -405,7 +405,7 @@ export async function POST(request) {
       const { data: tipo }   = await supabase.from('tipos_equipo')
         .select('*, categoria:categorias_equipo(nombre, atributos_extra)').eq('id', tipo_id).single()
       const { data: equipos } = await supabase.from('equipos')
-        .select('*, estado:estados_equipo(nombre), paciente_actual:pacientes(nombre, direccion, telefono), cliente_actual:clientes(nombre)').eq('tipo_equipo_id', tipo_id).order('fecha_creacion', { ascending: false })
+        .select('*, estado:estados_equipo(nombre), paciente_actual:pacientes(nombre, direccion, telefono), cliente_actual:clientes(nombre)').eq('tipo_equipo_id', tipo_id).eq('activo', true).order('fecha_creacion', { ascending: false })
 
       const camposUnidad = tipo?.categoria?.atributos_extra?.campos_unidad || []
       const camposTipo   = tipo?.categoria?.atributos_extra?.campos_tipo   || []
