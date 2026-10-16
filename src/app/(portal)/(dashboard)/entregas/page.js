@@ -23,7 +23,7 @@ export default async function EntregasPage() {
   let entregasQuery = supabase.from('entregas').select(`
       *,
       orden:ordenes_servicio(
-        id, codigo, fecha_vigencia, observaciones, paciente_id, cliente_id,
+        id, codigo, fecha_vigencia, fecha_entrega, observaciones, paciente_id, cliente_id,
         cliente:clientes(id, nombre, tipo_persona, nit_cc, direccion, telefono, municipio:municipios(nombre)),
         paciente:pacientes(id, nombre, direccion, telefono, ciudad),
         equipos:orden_equipos(

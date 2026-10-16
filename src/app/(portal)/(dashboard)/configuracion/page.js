@@ -17,6 +17,7 @@ export default async function ConfiguracionPage() {
     { data: usuarioActual },
     { data: todosPermisos },
     { data: plantillasActa },
+    { data: clientesActivos },
   ] = await Promise.all([
     supabase.from('usuarios').select('*, rol:roles(id, nombre)').order('nombre'),
     supabase.from('roles').select('*'),
@@ -31,8 +32,10 @@ export default async function ConfiguracionPage() {
     supabase.from('usuarios').select('rol_id, roles(nombre)').eq('email', user?.email).single(),
     supabase.from('permisos').select('*'),
     supabase.from('plantillas_acta')
-      .select('id, nombre, descripcion, bloques, es_estandar, tipo, clientes:cliente_plantillas_acta(orden, cliente:clientes(id, nombre))')
+      .select('id, nombre, descripcion, bloques, es_estandar, tipo, uso_general, clientes:cliente_plantillas_acta(orden, cliente_id, cliente:clientes(id, nombre))')
       .eq('activo', true).order('es_estandar', { ascending: false }).order('nombre'),
+    // Para asignar plantillas de actas a clientes
+    supabase.from('clientes').select('id, nombre').eq('activo', true).order('nombre'),
   ])
 
   const superAdmin = esSuperAdmin(usuarioActual?.roles?.nombre)
@@ -47,6 +50,7 @@ export default async function ConfiguracionPage() {
       categorias={categorias || []}
       tipos={tipos || []}
       plantillasActa={plantillasActa || []}
+      clientes={clientesActivos || []}
       listas={listas || []}
       actividades={actividades || []}
       empresaInicial={empresa || {}}

@@ -6,9 +6,10 @@ import { registrarBitacora } from '@/lib/bitacora'
 import { formatear, soloDia, hoyBogota, sumarDias } from '@/lib/fechas'
 import { crearEntrega, finalizarEntrega } from '@/lib/entregas'
 import FirmaActas from '@/components/actas/FirmaActas'
+import EntregaEnCurso, { RutaAnimada } from '@/components/entregas/EntregaEnCurso'
 import ConfirmDialog from '@/components/ui/ConfirmDialog'
 import {
-  Package, MapPin, Clock, User, CheckCircle2, Truck, Phone, Navigation, StickyNote,
+  Package, MapPin, Clock, CheckCircle2, Truck, Phone, Navigation, StickyNote, ChevronLeft,
 } from 'lucide-react'
 
 function nombreEquipo(eq) {
@@ -52,6 +53,8 @@ export default function EntregasRepartidorClient({ nombreRepartidor = '', entreg
   const [tab, setTab]           = useState('activas') // 'activas' | 'completadas'
   const [porIniciar, setPorIniciar] = useState(null)   // orden a confirmar antes de iniciar
   const [modalRegistro, setModalRegistro] = useState(null) // entrega que se está firmando (FirmaActas)
+  // Entrega en curso abierta a pantalla completa (se abre sola al iniciar)
+  const [enCursoId, setEnCursoId] = useState(null)
 
   useEffect(() => {
     const t = setTimeout(() => {
@@ -137,6 +140,7 @@ export default function EntregasRepartidorClient({ nombreRepartidor = '', entreg
     setOrdenes(prev => prev.filter(o => o.id !== orden.id))
     setEntregas(prev => [data, ...prev])
     setSaving(false)
+    setEnCursoId(data.id)
     showToast('Entrega iniciada — vas en camino')
   }
 
@@ -194,7 +198,7 @@ export default function EntregasRepartidorClient({ nombreRepartidor = '', entreg
               <div className="space-y-3">
                 {g.items.map(item => (
                   <TarjetaEntrega key={item.key} item={item} saving={saving} hoy={hoy} manana={manana}
-                    onIniciar={setPorIniciar} onCompletar={abrirCompletar} />
+                    onIniciar={setPorIniciar} onAbrir={e => setEnCursoId(e.id)} />
                 ))}
               </div>
             </div>
@@ -245,8 +249,32 @@ export default function EntregasRepartidorClient({ nombreRepartidor = '', entreg
           titulo="Completar entrega"
           alFirmar={completarEntrega}
           onCancelar={() => setModalRegistro(null)}
-          onHecho={() => { setModalRegistro(null); showToast('¡Entrega completada!'); router.refresh() }} />
+          onHecho={() => { setModalRegistro(null); setEnCursoId(null); showToast('¡Entrega completada!'); router.refresh() }} />
       )}
+
+      {/* Entrega en curso a pantalla completa */}
+      {(() => {
+        const e = enCursoId && entregas.find(x => x.id === enCursoId && x.estado?.nombre === 'En progreso')
+        if (!e) return null
+        return (
+          <div className="fixed inset-0 z-50 bg-[#F8FAFC] flex flex-col">
+            <div className="flex items-center gap-2 px-3 h-14 bg-white border-b border-slate-200 flex-shrink-0" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
+              <button onClick={() => setEnCursoId(null)} className="w-10 h-10 flex items-center justify-center text-slate-500 -ml-1" aria-label="Volver a mis entregas">
+                <ChevronLeft size={22} />
+              </button>
+              <div className="min-w-0">
+                <div className="text-[15px] font-bold text-slate-800 truncate">Entrega en curso</div>
+                <div className="text-[12px] text-slate-400 font-mono truncate">{e.orden?.codigo} · {e.codigo}</div>
+              </div>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
+              <div className="max-w-[560px] mx-auto">
+                <EntregaEnCurso entrega={e} onRegistrar={() => abrirCompletar(e)} />
+              </div>
+            </div>
+          </div>
+        )
+      })()}
 
       {toast && (
         <div className={`fixed bottom-24 left-4 right-4 z-[70] px-4 py-3 rounded-[12px] text-[14px] font-medium text-white shadow-lg text-center ${toast.tipo === 'error' ? 'bg-red-500' : 'bg-[#0F7B55]'}`}>
@@ -267,7 +295,7 @@ function Vacio({ titulo, sub }) {
   )
 }
 
-function TarjetaEntrega({ item, saving, hoy, manana, onIniciar, onCompletar }) {
+function TarjetaEntrega({ item, saving, hoy, manana, onIniciar, onAbrir }) {
   const orden      = item.orden
   const cliente    = orden?.cliente?.nombre || 'Cliente desconocido'
   const paciente   = orden?.paciente?.nombre || null
@@ -324,6 +352,10 @@ function TarjetaEntrega({ item, saving, hoy, manana, onIniciar, onCompletar }) {
           </div>
         )}
 
+        {enProgreso && (
+          <div className="mt-3 bg-[#E8F7FB]/50 rounded-xl px-3 py-2"><RutaAnimada inicio={item.entrega?.fecha_inicio} compacto /></div>
+        )}
+
         <div className="text-[11px] font-mono text-slate-400 mt-3">{orden?.codigo}</div>
       </div>
 
@@ -346,11 +378,11 @@ function TarjetaEntrega({ item, saving, hoy, manana, onIniciar, onCompletar }) {
       </div>
       <div className="px-4 pb-4">
         <button
-          onClick={() => enProgreso ? onCompletar(item.entrega) : onIniciar(orden)}
+          onClick={() => enProgreso ? onAbrir(item.entrega) : onIniciar(orden)}
           disabled={saving}
           className={`w-full py-3.5 rounded-[12px] text-[15px] font-bold text-white disabled:opacity-50 ${
-            enProgreso ? 'bg-[#0F7B55] active:bg-[#0c6444]' : 'bg-[#D81B43] active:bg-[#B0172F]'}`}>
-          {enProgreso ? 'Completar entrega' : 'Iniciar entrega'}
+            enProgreso ? 'bg-[#0E86A0] active:bg-[#0b6f85]' : 'bg-[#D81B43] active:bg-[#B0172F]'}`}>
+          {enProgreso ? 'Abrir entrega en curso' : 'Iniciar entrega'}
         </button>
       </div>
     </article>

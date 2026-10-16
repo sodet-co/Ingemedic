@@ -1,12 +1,11 @@
 'use client'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Search, X, Check, Plus, Package, ChevronDown, ChevronLeft, User, Building, Truck, Store, FileText, RotateCcw, ScanLine } from 'lucide-react'
+import { Search, X, Check, Plus, ChevronDown, ChevronLeft, User, Building, Truck, Store, FileText, RotateCcw } from 'lucide-react'
 import { createClient } from '@/lib/supabase'
 import { registrarBitacora } from '@/lib/bitacora'
 import { paraGuardar, hoyBogota, formatear, formatearSoloFecha } from '@/lib/fechas'
 import { buscarCedulaDuplicada, mensajeCedulaDuplicada, esErrorCedulaDuplicada, MENSAJE_CEDULA_DUPLICADA } from '@/lib/pacientes'
 import { plantillasSugeridas } from '@/lib/actas/firmar'
-import { claveCodigo } from '@/lib/equipos'
 import ControlVigencia from '@/components/prestamos/ControlVigencia'
 import SelectorEquiposPrestamo from '@/components/prestamos/SelectorEquiposPrestamo'
 import ConfirmDialog from '@/components/ui/ConfirmDialog'
@@ -14,8 +13,9 @@ import ConfirmDialog from '@/components/ui/ConfirmDialog'
 // Asistente de préstamo nuevo, un paso a la vez:
 //   1 Cliente y paciente · 2 Equipos · 3 Entrega · 4 Formatos y confirmación
 // Pensado para el caso del día a día (94% con paciente, 96% en oficina, 1–2
-// equipos): el paciente viene activado, la entrega por defecto es en oficina y
-// los equipos se buscan o escanean desde una sola caja. El formulario se guarda
+// equipos): el paciente viene activado y la entrega por defecto es en oficina.
+// Los equipos se eligen con el selector de siempre (SelectorEquiposPrestamo,
+// pedido del cliente). El formulario se guarda
 // como borrador en este navegador mientras se llena (localStorage) y se puede
 // retomar si se sale o se recarga la página.
 
@@ -128,47 +128,12 @@ export default function NuevoPrestamo({
   const editandoPaciente = f.pacienteNuevo || !!f.paciente_id
 
   // ── Paso 2: equipos (E) ──────────────────────────────────
-  const [buscarEquipo, setBuscarEquipo] = useState('')
-  const [catFiltro, setCatFiltro] = useState('')
-  const [tipoFiltro, setTipoFiltro] = useState('')
-  const buscadorRef = useRef(null)
-  const catDeTipo = useMemo(() => Object.fromEntries(tiposEquipo.map(t => [t.id, t.categoria_id])), [tiposEquipo])
-  const catsConDisponibles = useMemo(() => categorias.filter(c => disponibles.some(e => catDeTipo[e.tipo_equipo_id] === c.id)), [categorias, disponibles, catDeTipo])
-  const tiposDeCat = useMemo(() => catFiltro ? tiposEquipo.filter(t => t.categoria_id === catFiltro && disponibles.some(e => e.tipo_equipo_id === t.id)) : [], [catFiltro, tiposEquipo, disponibles])
-  const resultadosEquipo = useMemo(() => {
-    const q = buscarEquipo.trim().toLowerCase()
-    if (!q && !catFiltro) return []
-    return disponibles.filter(e => {
-      if (catFiltro && catDeTipo[e.tipo_equipo_id] !== catFiltro) return false
-      if (tipoFiltro && e.tipo_equipo_id !== tipoFiltro) return false
-      if (!q) return true
-      return [e.codigo, nombreEquipo(e), e.tipo_equipo?.nombre, e.tipo_equipo?.categoria?.nombre, ...Object.values(e.atributos || {})]
-        .some(v => String(v ?? '').toLowerCase().includes(q))
-    }).slice(0, 40)
-  }, [buscarEquipo, catFiltro, tipoFiltro, disponibles, catDeTipo])
   const carrito = f.equipos_ids.map(id => equipos.find(e => e.id === id)).filter(Boolean)
 
   function alternarEquipo(id) {
     setF(x => ({ ...x, equipos_ids: x.equipos_ids.includes(id) ? x.equipos_ids.filter(i => i !== id) : [...x.equipos_ids, id] }))
     setErrores(e => ({ ...e, equipos: null }))
   }
-  // Escáner o código escrito + Enter: si coincide exacto con un código disponible, se agrega
-  function enterBuscador(e) {
-    if (e.key !== 'Enter') return
-    e.preventDefault()
-    const clave = claveCodigo(buscarEquipo)
-    const exacto = disponibles.find(eq => claveCodigo(eq.codigo) === clave)
-    if (exacto) {
-      if (!f.equipos_ids.includes(exacto.id)) alternarEquipo(exacto.id)
-      setBuscarEquipo('')
-    } else if (resultadosEquipo.length === 1) {
-      alternarEquipo(resultadosEquipo[0].id); setBuscarEquipo('')
-    } else {
-      const ocupado = equipos.find(eq => claveCodigo(eq.codigo) === clave)
-      setErrores(er => ({ ...er, equipos: ocupado ? `${ocupado.codigo} no está disponible (${ocupado.estado?.nombre || 'sin estado'})` : 'No hay un equipo disponible con ese código exacto' }))
-    }
-  }
-
   // ── Paso 3: entrega (F) ──────────────────────────────────
   const repartidorSel = repartidores.find(r => r.id === f.repartidor_id)
 
@@ -209,7 +174,6 @@ export default function NuevoPrestamo({
     }
     setErrores({}); setErrorGeneral(null); setPaso(destino)
     contenidoRef.current?.scrollTo({ top: 0 })
-    if (destino === 1) setTimeout(() => buscadorRef.current?.focus(), 50)
   }
 
   // ── Crear ────────────────────────────────────────────────
@@ -287,8 +251,12 @@ export default function NuevoPrestamo({
   }
 
   // ── Render ───────────────────────────────────────────────
-  const formatosEntrega = plantillas.filter(p => (p.tipo || 'entrega') === 'entrega')
-  const anexos = plantillas.filter(p => p.tipo === 'anexo')
+  // Solo se ofrecen las plantillas del cliente, las de uso general y la estándar
+  // (Configuración → Plantillas → Clientes); así la lista no crece con cada cliente
+  const ofrecidas = plantillas.filter(p => p.uso_general || p.es_estandar || f.plantillas_acta.includes(p.id)
+    || (p.clientes || []).some(c => c.cliente_id === f.cliente_id))
+  const formatosEntrega = ofrecidas.filter(p => (p.tipo || 'entrega') === 'entrega')
+  const anexos = ofrecidas.filter(p => p.tipo === 'anexo')
 
   return (
     <div className="flex-1 min-h-0 flex flex-col">
@@ -528,7 +496,7 @@ export default function NuevoPrestamo({
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
               <section className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 md:p-6">
                 <div className="flex items-center gap-2 text-[14px] font-bold text-slate-800 mb-1"><FileText size={16} className="text-[#1B3A6B]" /> Formatos del préstamo</div>
-                <div className="text-[12.5px] text-slate-400 mb-4">Se firman al entregar. Vienen marcados los del cliente.</div>
+                <div className="text-[12.5px] text-slate-400 mb-4">{f.modo === 'domicilio' ? 'Se firman al entregar.' : 'Quedan relacionados al préstamo.'} Vienen marcados los del cliente.</div>
                 {[['De entrega', formatosEntrega], ['Anexos (opcionales)', anexos]].map(([titulo, lista]) => lista.length > 0 && (
                   <div key={titulo} className="mb-4">
                     <div className="text-[10.5px] font-bold uppercase tracking-[0.07em] text-slate-400 mb-2">{titulo}</div>
@@ -569,7 +537,7 @@ export default function NuevoPrestamo({
                   ))}
                 </dl>
                 {f.modo === 'oficina' && (
-                  <div className="mt-4 px-3 py-2.5 bg-[#E8F7FB] rounded-[9px] text-[12.5px] text-[#0E7490]">Al crear el préstamo se abre la firma del acta.</div>
+                  <div className="mt-4 px-3 py-2.5 bg-[#E8F7FB] rounded-[9px] text-[12.5px] text-[#0E7490]">Sin firma: los formatos quedan relacionados al préstamo y se descargan desde su detalle.</div>
                 )}
               </section>
             </div>

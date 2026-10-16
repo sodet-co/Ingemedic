@@ -48,11 +48,11 @@ const alinear = a => a === 'centro' ? 'center' : a === 'derecha' ? 'right' : a =
 const caja = (b, html) => b.borde ? `<div class="caja">${html}</div>` : html
 
 function encabezado(b, vars) {
-  const logos = (lista, extra = '') => (lista || []).map(l =>
-    l.url
-      ? `<img src="${esc(l.url)}" style="max-height:${l.alto || 60}px;max-width:100%">`
-      : `<div class="logo-vacio">${esc(l.texto || 'LOGO')}</div>`
-  ).join(extra)
+  // Solo logos con imagen: si la plantilla aún no tiene el logo, no se deja un
+  // recuadro vacío; la celda desaparece y el título ocupa ese espacio
+  const conImagen = lista => (lista || []).filter(l => l.url)
+  const logos = (lista, extra = '') => conImagen(lista).map(l =>
+    `<img src="${esc(l.url)}" style="max-height:${l.alto || 60}px;max-width:100%">`).join(extra)
   const lineaCentro = c => `<div class="enc-${c.estilo || 'normal'}">${formato(interpolar(c.texto, vars))}</div>`
   // Con etiquetas (PERIODO / PROCESO) el centro es una tabla de dos columnas
   const centro = (b.centro || []).some(c => c.etiqueta)
@@ -61,12 +61,15 @@ function encabezado(b, vars) {
   const filas = lista => (lista || []).map(c =>
     `<tr><td class="enc-et">${esc(c.etiqueta)}</td><td class="enc-va">${interpolar(c.valor || '', vars)}</td></tr>`).join('')
   const derecha = b.derecha?.length ? `<td class="enc-der"><table>${filas(b.derecha)}</table></td>` : ''
-  const logosDer = b.logos_derecha?.length ? `<td class="enc-logo">${logos(b.logos_derecha, '<br>')}</td>` : ''
+  const logosDer = conImagen(b.logos_derecha).length ? `<td class="enc-logo">${logos(b.logos_derecha, '<br>')}</td>` : ''
+  const logoIzq = conImagen(b.logos).length || b.logo_pie
+    ? `<td class="enc-logo" style="width:${b.ancho_logo || 22}%">${logos(b.logos)}${b.logo_pie ? `<div class="enc-logo-pie">${formato(esc(b.logo_pie))}</div>` : ''}</td>`
+    : ''
   const pie = b.pie?.length
     ? `<tr><td colspan="4" class="enc-pie">${b.pie.map(c => `<span><b>${esc(c.etiqueta)}</b> ${interpolar(c.valor || '', vars)}</span>`).join('')}</td></tr>`
     : ''
   return `<table class="enc"><tr>
-    <td class="enc-logo" style="width:${b.ancho_logo || 22}%">${logos(b.logos)}${b.logo_pie ? `<div class="enc-logo-pie">${formato(esc(b.logo_pie))}</div>` : ''}</td>
+    ${logoIzq}
     <td class="enc-centro"${(b.centro || []).some(c => c.etiqueta) ? ' style="padding:0"' : ''}>${centro}</td>${derecha}${logosDer}
   </tr>${pie}</table>`
 }
@@ -218,7 +221,6 @@ body{font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#111;background
 .enc-filas tr:last-child td{border-bottom:0}
 .enc-filas .enc-et{border-right:1px solid #222;font-size:10px;width:22%;vertical-align:bottom}
 .enc-pie span{margin-right:28px}
-.logo-vacio{border:1px dashed #999;color:#999;font-size:10px;padding:14px 4px}
 .titulo{font-size:13px;font-weight:bold;margin:6px 0}
 .texto{line-height:1.45}
 .valor{text-decoration:underline;font-weight:bold}

@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useMemo, useState } from 'react'
-import { X, Plus, Trash2, Loader2, FileText, ChevronLeft } from 'lucide-react'
+import { X, Loader2, FileText, ChevronLeft } from 'lucide-react'
 import { createClient } from '@/lib/supabase'
 import { cargarParaFirma, guardarActas } from '@/lib/actas/firmar'
 import { construirContexto } from '@/lib/actas/contexto'
@@ -13,10 +13,12 @@ const TIPOS_DOC = ['CC', 'TI', 'RC', 'CE', 'PA']
 
 // Paso único de firma de un préstamo, igual para entrega a domicilio
 // (Entregas y vista del repartidor) y préstamo en oficina (al crearlo):
-//   0       datos: quién recibe, datos del paciente que piden los formatos,
-//           insumos entregados y quién entrega
+//   0       datos: quién recibe, datos del paciente que piden los formatos
+//           y quién entrega (los insumos no se capturan: deben salir del
+//           inventario, no escribirse a mano; las filas quedan en blanco)
 //   1..N    revisión de cada formato ya lleno
-//   N+1     firma de quien recibe y de quien entrega
+//   N+1     firma de quien recibe (el paciente o su familiar, primero y sola)
+//   N+2     firma de quien entrega (el repartidor o técnico, después)
 // Al confirmar corre `alFirmar` (p. ej. completar la entrega; si devuelve un
 // error no se guarda nada) y luego guarda una fila de `actas` por formato.
 export default function FirmaActas({ ordenId, entregaId = null, titulo = 'Firmar acta de entrega', alFirmar, onCancelar, onHecho }) {
@@ -30,12 +32,14 @@ export default function FirmaActas({ ordenId, entregaId = null, titulo = 'Firmar
   const [diagnostico, setDiagnostico] = useState('')
   const [ciudad, setCiudad] = useState('')
   const [observaciones, setObservaciones] = useState('')
-  const [insumos, setInsumos] = useState([])
   const [entrega, setEntrega] = useState({ nombre: '', cargo: '', tipo_documento: 'CC', documento: '' })
   // Quien entrega es quien tiene la sesión: con el perfil completo solo firma.
   // Si le faltan datos se le piden aquí y quedan guardados en su perfil.
   const [editarEntrega, setEditarEntrega] = useState(false)
   const [firmas, setFirmas] = useState({ recibe: null, entrega: null })
+  // Firma que se está trazando ahora: el pad sigue abierto aunque ya haya trazos.
+  // Al volver a un paso ya firmado se muestra la firma con "Volver a firmar".
+  const [trazando, setTrazando] = useState(null)
 
   useEffect(() => {
     let cancelado = false
@@ -65,12 +69,13 @@ export default function FirmaActas({ ordenId, entregaId = null, titulo = 'Firmar
     empresa: base.empresa,
     orden: { ...base.orden, diagnostico, paciente: paciente ? { ...paciente, ...pac, ciudad } : null },
     equipos: base.equipos,
-    datos: { ciudad, observaciones, recibe: datosRecibe, entrega, insumos: insumos.filter(i => i.descripcion.trim()) },
+    datos: { ciudad, observaciones, recibe: datosRecibe, entrega, insumos: [] },
     firmas,
-  }), [base, paciente, pac, diagnostico, ciudad, observaciones, datosRecibe, entrega, insumos, firmas])
+  }), [base, paciente, pac, diagnostico, ciudad, observaciones, datosRecibe, entrega, firmas])
 
   const plantillas = base?.plantillas || []
-  const pasoFirma = plantillas.length + 1
+  const pasoFirma = plantillas.length + 1       // firma de quien recibe
+  const pasoFirmaEntrega = plantillas.length + 2 // firma de quien entrega (último)
   const docActual = paso >= 1 && paso <= plantillas.length ? plantillas[paso - 1] : null
 
   function validarDatos() {
@@ -87,7 +92,8 @@ export default function FirmaActas({ ordenId, entregaId = null, titulo = 'Firmar
       const msg = validarDatos()
       if (msg) { setError(msg); return }
     }
-    setError(null)
+    if (paso === pasoFirma && !firmas.recibe) { setError('Falta la firma de quien recibe'); return }
+    setError(null); setTrazando(null)
     setPaso(p => p + 1)
   }
 
@@ -136,7 +142,7 @@ export default function FirmaActas({ ordenId, entregaId = null, titulo = 'Firmar
       <div className="fixed inset-x-0 bottom-0 h-[92vh] rounded-t-2xl md:inset-y-6 md:inset-x-auto md:left-1/2 md:-translate-x-1/2 md:h-auto md:w-[880px] md:rounded-2xl bg-white z-[60] flex flex-col shadow-2xl overflow-hidden">
         <div className="px-5 py-3.5 border-b flex items-center gap-3 flex-shrink-0">
           {paso > 0 && (
-            <button onClick={() => { setError(null); setPaso(p => p - 1) }} disabled={guardando}
+            <button onClick={() => { setError(null); setTrazando(null); setPaso(p => p - 1) }} disabled={guardando}
               className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100"><ChevronLeft size={18} /></button>
           )}
           <div className="min-w-0 flex-1">
@@ -145,18 +151,18 @@ export default function FirmaActas({ ordenId, entregaId = null, titulo = 'Firmar
               {base ? `${base.orden.codigo} · ${base.orden.cliente?.nombre || ''}` : 'Cargando…'}
             </div>
             {base && (
-              <div className="flex items-center gap-1 mt-1.5" aria-label={`Paso ${paso + 1} de ${pasoFirma + 1}`}>
-                {Array.from({ length: pasoFirma + 1 }, (_, i) => (
+              <div className="flex items-center gap-1 mt-1.5" aria-label={`Paso ${paso + 1} de ${pasoFirmaEntrega + 1}`}>
+                {Array.from({ length: pasoFirmaEntrega + 1 }, (_, i) => (
                   <span key={i} className={`h-1 rounded-full transition-all ${i === paso ? 'w-5 bg-[#D81B43]' : i < paso ? 'w-2.5 bg-[#D81B43]/50' : 'w-2.5 bg-slate-200'}`} />
                 ))}
-                <span className="ml-1.5 text-[11px] text-slate-400">Paso {paso + 1} de {pasoFirma + 1}</span>
+                <span className="ml-1.5 text-[11px] text-slate-400">Paso {paso + 1} de {pasoFirmaEntrega + 1}</span>
               </div>
             )}
           </div>
           <button onClick={onCancelar} disabled={guardando} className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100"><X size={16} /></button>
         </div>
 
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 min-h-0 overflow-y-auto flex flex-col">
           {!base && !error && <div className="flex items-center gap-2 p-6 text-[13px] text-slate-400"><Loader2 size={14} className="animate-spin" /> Cargando préstamo y formatos…</div>}
 
           {base && paso === 0 && (
@@ -209,29 +215,6 @@ export default function FirmaActas({ ordenId, entregaId = null, titulo = 'Firmar
                   </div>
                 </section>
               )}
-
-              <section>
-                <div className="flex items-center justify-between mb-3">
-                  <div className="text-[13px] font-bold text-slate-700">Insumos entregados</div>
-                  <button type="button" onClick={() => setInsumos(l => [...l, { descripcion: '', cantidad: 1, lote: '', invima: '' }])}
-                    className="flex items-center gap-1 text-[12.5px] font-semibold text-[#1B3A6B] hover:underline"><Plus size={13} /> Agregar insumo</button>
-                </div>
-                {insumos.length === 0 && <div className="text-[12.5px] text-slate-400">Sin insumos (máscaras, mangueras, cánulas…).</div>}
-                <div className="space-y-2">
-                  {insumos.map((it, i) => {
-                    const set = (k, v) => setInsumos(l => l.map((x, j) => j === i ? { ...x, [k]: v } : x))
-                    return (
-                      <div key={i} className="grid grid-cols-[64px_1fr_1fr_28px] sm:grid-cols-[1fr_64px_1fr_1fr_28px] gap-2 items-center bg-slate-50 rounded-[9px] p-2">
-                        <input value={it.descripcion} placeholder="Insumo" aria-label="Insumo" onChange={e => set('descripcion', e.target.value)} className={`${inputCls} col-span-4 sm:col-span-1`} />
-                        <input value={it.cantidad} type="number" min="1" placeholder="Cant." aria-label="Cantidad" title="Cantidad" onChange={e => set('cantidad', e.target.value)} className={inputCls} />
-                        <input value={it.lote} placeholder="Lote" aria-label="Lote" onChange={e => set('lote', e.target.value)} className={inputCls} />
-                        <input value={it.invima} placeholder="Reg. INVIMA" aria-label="Registro INVIMA" onChange={e => set('invima', e.target.value)} className={inputCls} />
-                        <button type="button" onClick={() => setInsumos(l => l.filter((_, j) => j !== i))} className="text-slate-400 hover:text-[#D81B43] justify-self-center" title="Quitar insumo" aria-label="Quitar insumo"><Trash2 size={15} /></button>
-                      </div>
-                    )
-                  })}
-                </div>
-              </section>
 
               <section>
                 <div className="flex items-center justify-between mb-3">
@@ -292,19 +275,36 @@ export default function FirmaActas({ ordenId, entregaId = null, titulo = 'Firmar
             </div>
           )}
 
-          {base && paso === pasoFirma && (
-            <div className="p-5 md:p-6 space-y-5">
-              <div className="text-[12.5px] text-slate-500">Las firmas se aplican a {plantillas.length === 1 ? 'el documento' : `los ${plantillas.length} documentos`}.</div>
-              <div>
-                <div className="text-[13px] font-bold text-slate-700 mb-2">Firma de quien recibe · <span className="font-medium">{datosRecibe.nombre}</span></div>
-                <div className="h-[180px]"><FirmaPad onFirma={f => setFirmas(x => ({ ...x, recibe: f }))} onLimpiar={() => setFirmas(x => ({ ...x, recibe: null }))} /></div>
+          {base && (paso === pasoFirma || paso === pasoFirmaEntrega) && (() => {
+            const rol = paso === pasoFirma ? 'recibe' : 'entrega'
+            const quien = rol === 'recibe' ? datosRecibe.nombre : entrega.nombre
+            return (
+              <div className="p-5 md:p-6 flex flex-col flex-1 min-h-[340px]">
+                <div className="text-[11px] font-bold uppercase tracking-[0.08em] text-[#D81B43] mb-1">
+                  {rol === 'recibe' ? 'Firma de quien recibe' : 'Firma de quien entrega'}
+                </div>
+                <div className="text-[18px] font-bold text-slate-800 leading-tight">{quien}</div>
+                <div className="text-[12.5px] text-slate-500 mt-1 mb-4">
+                  {rol === 'recibe'
+                    ? 'Pásale el dispositivo para que firme con el dedo.'
+                    : 'Ahora firma tú para cerrar la entrega.'}
+                  {' '}Aplica a {plantillas.length === 1 ? 'el documento' : `los ${plantillas.length} documentos`}.
+                </div>
+                {firmas[rol] && trazando !== rol ? (
+                  <div className="flex-1 flex flex-col items-center justify-center gap-3 border border-slate-200 rounded-[12px] bg-slate-50 p-4">
+                    <img src={firmas[rol]} alt={`Firma de ${quien}`} className="max-h-[160px] max-w-full object-contain" />
+                    <button type="button" onClick={() => setFirmas(x => ({ ...x, [rol]: null }))}
+                      className="text-[12.5px] font-semibold text-[#1B3A6B] hover:underline">Volver a firmar</button>
+                  </div>
+                ) : (
+                  <div key={rol} className="flex-1 min-h-[220px] flex flex-col">
+                    <FirmaPad fullscreen onFirma={f => { setTrazando(rol); setFirmas(x => ({ ...x, [rol]: f })) }}
+                      onLimpiar={() => setFirmas(x => ({ ...x, [rol]: null }))} />
+                  </div>
+                )}
               </div>
-              <div>
-                <div className="text-[13px] font-bold text-slate-700 mb-2">Firma de quien entrega · <span className="font-medium">{entrega.nombre}</span></div>
-                <div className="h-[180px]"><FirmaPad onFirma={f => setFirmas(x => ({ ...x, entrega: f }))} onLimpiar={() => setFirmas(x => ({ ...x, entrega: null }))} /></div>
-              </div>
-            </div>
-          )}
+            )
+          })()}
 
           {error && <div className="mx-5 my-3 px-3 py-2.5 bg-red-50 border border-red-200 rounded-[8px] text-[12.5px] text-red-700">{error}</div>}
         </div>
@@ -313,8 +313,11 @@ export default function FirmaActas({ ordenId, entregaId = null, titulo = 'Firmar
           <div className="px-5 py-3.5 border-t border-slate-200 flex justify-end gap-2 flex-shrink-0"
             style={{ paddingBottom: 'max(14px, env(safe-area-inset-bottom, 14px))' }}>
             <button onClick={onCancelar} disabled={guardando} className="px-4 py-2.5 border border-slate-200 rounded-[9px] text-[13px] font-medium text-slate-600 hover:border-slate-300">Cancelar</button>
-            {paso < pasoFirma
-              ? <button onClick={siguiente} className="px-5 py-2.5 bg-[#1B3A6B] text-white rounded-[9px] text-[13px] font-semibold hover:bg-[#152d55]">Siguiente →</button>
+            {paso < pasoFirmaEntrega
+              ? <button onClick={siguiente} disabled={paso === pasoFirma && !firmas.recibe}
+                  className="px-5 py-2.5 bg-[#1B3A6B] text-white rounded-[9px] text-[13px] font-semibold hover:bg-[#152d55] disabled:opacity-50">
+                  {paso === pasoFirma ? 'Listo, sigue quien entrega →' : 'Siguiente →'}
+                </button>
               : <button onClick={confirmar} disabled={guardando || !firmas.recibe || !firmas.entrega}
                   className="px-5 py-2.5 bg-[#D81B43] text-white rounded-[9px] text-[13px] font-semibold hover:bg-[#B0172F] disabled:opacity-50">
                   {guardando ? 'Guardando…' : '✓ Confirmar y firmar'}

@@ -59,6 +59,48 @@ Lo que está sin resolver, ordenado por prioridad.
 
 # Entradas
 
+## 2026-10-15 — Ajustes de actas, entregas y plantillas por cliente
+**Qué se hizo:**
+- **PDF:** los valores llenos quedaban más arriba que su etiqueta (renglón
+  alineado al fondo con altura mínima). Ahora etiqueta y valor comparten línea
+  base (`last baseline`) y firma + nombre van uno sobre otro. Vive en
+  `render.js`, así que corrige también las actas ya firmadas. Verificado con
+  html2canvas en Chrome sin ventana.
+- **Vista previa de actas** (`components/actas/PreviaActas.js`): desde el detalle
+  del préstamo o la entrega, las actas firmadas o los formatos sin firmar se ven
+  en una ventana grande, hoja por hoja con flechas (← →, deslizar en celular) e
+  índice lateral de documentos; desde ahí también se descarga el PDF.
+- **Logos:** si una plantilla no tiene la imagen del logo (Family, fiduprevisora,
+  FOMAG) no se deja recuadro; la celda desaparece.
+- **Nuevo préstamo:** el paso de equipos vuelve al selector de siempre
+  (categorías → tipos → unidades con filtros + carrito, pedido del cliente),
+  ahora en `components/prestamos/SelectorEquiposPrestamo.js`; se quitó el
+  buscador único con lectura de códigos.
+- **Préstamos en oficina sin firma** (el paciente no está en la oficina): ya no
+  se abre la firma al crearlos; los formatos quedan relacionados y
+  `ActasPrestamo` los descarga llenos y sin firmar. A futuro: enviarlos al correo
+  del cliente para que firme.
+- **Firma:** sin captura de insumos (deben venir del inventario, no escribirse);
+  firma en dos pasos: primero quien recibe, sola y con pad grande; después quien
+  entrega. La firma ya hecha se muestra con "Volver a firmar".
+- **Plantillas por cliente:** Configuración → Plantillas → "Clientes" asigna la
+  plantilla a clientes o la marca de **uso general** (`AsignarPlantilla.js`). Al
+  crear un préstamo solo se ofrecen las del cliente, las de uso general y la
+  estándar.
+- **Entregas (admin):** las pestañas Activas/Historial se cambian por un tablero
+  Por iniciar → En ruta → Completadas (Hoy | Historial). Las que van en ruta
+  muestran un camión animado sobre una barra de progreso (estimado 45 min, sin
+  GPS). El detalle de una entrega en ruta abre con la vista "Entrega en curso"
+  (`components/entregas/EntregaEnCurso.js`): cronómetro, destino con Cómo llegar
+  y Llamar, resumen y equipos.
+- **Repartidor:** al iniciar una entrega se abre esa vista a pantalla completa;
+  la tarjeta en curso muestra el camión y "Abrir entrega en curso".
+**SQL:** `plantillas_acta.uso_general` entregado, sin correr (las pantallas de
+Préstamos y Configuración lo piden).
+**Pendiente:** ver en pantalla el tablero, la vista en curso, la firma en dos
+pasos y la asignación de plantillas (Chrome en segundo plano no pintaba).
+Duración estimada de 45 min es fija: ajustarla si hace falta.
+
 ## 2026-10-15 — Nuevo préstamo: asistente por pasos (rediseño)
 **Qué se hizo:** el asistente sale de `OrdenesClient.js` (de ~2.100 a ~1.250
 líneas) a `components/prestamos/NuevoPrestamo.js`, rehecho con las opciones que

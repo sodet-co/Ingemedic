@@ -14,7 +14,6 @@ import { devolverEquipo as devolverEquipoLib, cambiarEquipo as cambiarEquipoLib 
 import ModalCambioEquipo from '@/components/prestamos/ModalCambioEquipo'
 import { liberarEquipos } from '@/lib/mantenimientos'
 import BuzonNovedades from '@/components/layout/BuzonNovedades'
-import FirmaActas from '@/components/actas/FirmaActas'
 import ActasPrestamo from '@/components/actas/ActasPrestamo'
 import ControlVigencia from '@/components/prestamos/ControlVigencia'
 import NuevoPrestamo from '@/components/prestamos/NuevoPrestamo'
@@ -214,8 +213,6 @@ export default function OrdenesClient({
   const [vista, setVista]                   = useState('lista') // 'lista' | 'nuevo'
   const [toast, setToast]                   = useState(null)
   const [modalConfirm, setModalConfirm]     = useState(null)
-  // Préstamo en oficina recién creado: se abre el paso de firma del acta
-  const [firmarOrden, setFirmarOrden] = useState(null) // { id, codigo } o null
   const [modalDevolucion, setModalDevolucion] = useState(null) // { ordenEquipoId, equipoId } o null
   const [modalCambio, setModalCambio]         = useState(null) // fila de orden_equipos a cambiar, o null
   const [guardandoCambio, setGuardandoCambio] = useState(false)
@@ -413,10 +410,10 @@ export default function OrdenesClient({
   // Equipos que se pueden poner en un préstamo (los usa el modal de cambio de equipo)
   const equiposDisponibles = useMemo(() => equipos.filter(eq => eq.estado?.nombre === 'Disponible'), [equipos])
 
-  function prestamoCreado({ id, codigo, domicilio }) {
-    showToast(domicilio ? 'Préstamo creado — pendiente de entrega' : 'Préstamo registrado y activo')
-    // En oficina el equipo sale ya: se firma el acta en este momento
-    if (!domicilio) setFirmarOrden({ id, codigo })
+  function prestamoCreado({ codigo, domicilio }) {
+    // En oficina no se recoge firma (el paciente no está ahí): los formatos quedan
+    // relacionados al préstamo y se descargan desde su detalle
+    showToast(domicilio ? `${codigo} creado — pendiente de entrega` : `${codigo} registrado y activo`)
     setVista('lista')
     router.refresh()
   }
@@ -1141,8 +1138,7 @@ export default function OrdenesClient({
                 {/* Actas firmadas (lib/actas) */}
                 <div className="p-5">
                   <div className="text-[9.5px] font-bold uppercase tracking-[0.12em] text-slate-400 mb-3">Actas</div>
-                  <ActasPrestamo key={drawer.id} ordenId={drawer.id} ordenCodigo={drawer.codigo}
-                    puedeFirmar={drawerEstado === 'Entregada'} onToast={showToast} />
+                  <ActasPrestamo key={drawer.id} ordenId={drawer.id} ordenCodigo={drawer.codigo} onToast={showToast} />
                 </div>
               </div>
             </div>
@@ -1162,11 +1158,6 @@ export default function OrdenesClient({
       )}
       </div>
 
-      {firmarOrden && (
-        <FirmaActas ordenId={firmarOrden.id} titulo={`Acta de entrega · ${firmarOrden.codigo}`}
-          onCancelar={() => { setFirmarOrden(null); showToast('Puedes firmar el acta luego desde el detalle del préstamo') }}
-          onHecho={() => { setFirmarOrden(null); showToast('Acta firmada') }} />
-      )}
 
       {/* ── MODAL CONFIRMACIÓN CAMBIO ESTADO ── */}
       {modalConfirm && (
