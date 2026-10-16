@@ -8,11 +8,13 @@ import {
   MapPin, Phone, FileText, User, AlertTriangle,
   ArrowUpRight, ArrowDownLeft, Filter, Calendar
 } from 'lucide-react'
-import ConfirmDialog from '@/components/ui/ConfirmDialog'
 import LimpiarFiltros from '@/components/ui/LimpiarFiltros'
 import BuzonNovedades from '@/components/layout/BuzonNovedades'
 import { formatear, soloDia } from '@/lib/fechas'
-import FirmaPad from '@/components/entregas/FirmaPad'
+import FirmaActas from '@/components/actas/FirmaActas'
+import ActasPrestamo from '@/components/actas/ActasPrestamo'
+import VentanaDetalle, { Columnas } from '@/components/ui/VentanaDetalle'
+import { descargarActasPDF } from '@/lib/actas/pdf'
 import { crearEntrega, finalizarEntrega } from '@/lib/entregas'
 
 const TL_STEPS = ['Programada', 'En ruta', 'Entregada']
@@ -161,16 +163,11 @@ export default function EntregasClient({ entregasIniciales, ordenesEnReparto, es
   const [tab, setTab]                     = useState('activas') // 'activas' | 'historial'
   const [modalExito, setModalExito]       = useState(null)
   const [modalOrden, setModalOrden]       = useState(null)
-  const [modalRegistro, setModalRegistro]       = useState(null)
-  const [paso, setPaso]                         = useState(0) // 0=nombre, 1..n=docs
+  const [modalRegistro, setModalRegistro]       = useState(null) // entrega que se está firmando (FirmaActas)
   const [saving, setSaving]                     = useState(false)
   const [toast, setToast]                       = useState(null)
-  const [regForm, setRegForm]                   = useState({ recibido_por: '', observaciones: '', firmas: {} })
-  const [formDirty, setFormDirty]               = useState(false)
-  const [confirmarSalirRegistro, setConfirmarSalirRegistro] = useState(false)
 
-  function cerrarRegistro() { setModalRegistro(null); setFormDirty(false) }
-  function intentarCerrarRegistro() { if (formDirty) setConfirmarSalirRegistro(true); else cerrarRegistro() }
+  function cerrarRegistro() { setModalRegistro(null) }
 
   function showToast(msg, tipo = 'success') {
     setToast({ msg, tipo })
@@ -258,48 +255,50 @@ export default function EntregasClient({ entregasIniciales, ordenesEnReparto, es
     setDrawer(data)
   }
 
-  // ── ABRIR MODAL FIRMA ────────────────────────────────────
+  // ── REGISTRAR ENTREGA: paso de firma de actas (components/actas/FirmaActas.js) ──
   function abrirRegistro(entrega) {
     setModalRegistro(entrega)
-    setPaso(0)
-    setRegForm({ recibido_por: entrega.recibido_por || '', observaciones: '', firmas: {} })
-    setFormDirty(false)
   }
 
-  // ── COMPLETAR ENTREGA ────────────────────────────────────
-  async function completarEntrega() {
-    if (!regForm.recibido_por?.trim()) { showToast('Ingresa quién recibe', 'error'); return }
-    const firmaUnica = regForm.firmas.general || null
-    if (!firmaUnica) { showToast('Falta capturar la firma', 'error'); return }
-    setSaving(true)
-
-    const recibidoPor = regForm.recibido_por.trim()
+  // Lo corre FirmaActas antes de guardar las actas: si falla, no se guarda nada
+  async function completarEntrega({ recibidoPor, firma, observaciones }) {
+    const entrega = modalRegistro
     const { error, erroresFirma, cambios } = await finalizarEntrega(supabase, {
-      entrega: modalRegistro, recibidoPor, firma: firmaUnica, observaciones: regForm.observaciones, estadosEquipo,
+      entrega, recibidoPor, firma, observaciones, estadosEquipo,
     })
-    if (error) { showToast('Error: ' + error.message, 'error'); setSaving(false); return }
-    registrarBitacora({ modulo: 'entregas', accion: 'cerrar', entidad: 'entrega', entidad_id: modalRegistro.id, detalle: { codigo: modalRegistro.codigo, tipo: modalRegistro.tipo, recibido_por: recibidoPor } })
+    if (error) return error
+    registrarBitacora({ modulo: 'entregas', accion: 'cerrar', entidad: 'entrega', entidad_id: entrega.id, detalle: { codigo: entrega.codigo, tipo: entrega.tipo, recibido_por: recibidoPor } })
     if (erroresFirma > 0) {
       showToast(`Entrega completada, pero ${erroresFirma} firma(s) no se guardaron — revisa permisos de la tabla orden_plantillas`, 'error')
     }
 
     skipSyncUntil.current = Date.now() + 2500 // protege el estado local por 2.5s tras completar
-    setEntregas(prev => prev.map(e => e.id === modalRegistro.id ? { ...e, ...cambios } : e))
-    if (drawer?.id === modalRegistro.id) setDrawer(prev => ({ ...prev, ...cambios }))
-    setSaving(false)
-
-    // Guardar detalles para el modal de éxito antes de cerrar el wizard
+    setEntregas(prev => prev.map(e => e.id === entrega.id ? { ...e, ...cambios } : e))
+    if (drawer?.id === entrega.id) setDrawer(prev => ({ ...prev, ...cambios }))
     setModalExito({
-      codigo: modalRegistro.codigo,
-      ordenCodigo: modalRegistro.orden?.codigo,
-      cliente: modalRegistro.orden?.cliente?.nombre || modalRegistro.cliente?.nombre,
-      equipos: modalRegistro.orden?.equipos || [],
+      codigo: entrega.codigo,
+      ordenCodigo: entrega.orden?.codigo,
+      cliente: entrega.orden?.cliente?.nombre || entrega.cliente?.nombre,
+      equipos: entrega.orden?.equipos || [],
       recibidoPor,
       duracion: cambios.duracion_minutos,
       fecha: cambios.fecha_completada,
     })
-    cerrarRegistro()
-    router.refresh()
+    return null
+  }
+
+  // Acta en PDF: las actas firmadas del préstamo; las entregas de antes de las
+  // actas por cliente siguen saliendo con el formato viejo (generarActaEntregaPDF)
+  async function descargarActa(entrega) {
+    const { data: actas } = await supabase.from('actas')
+      .select('id, nombre, bloques, datos, firma_recibe, firma_entrega')
+      .eq('orden_id', entrega.orden?.id || entrega.orden_id).order('fecha_firma')
+    if (actas?.length) {
+      try { await descargarActasPDF(actas, `Actas_${entrega.orden?.codigo || entrega.codigo}.pdf`); showToast('PDF generado') }
+      catch (e) { showToast('No se pudo generar el PDF: ' + e.message, 'error') }
+      return
+    }
+    return generarActaEntregaPDF(entrega)
   }
 
   // ── GENERAR PDF ACTA DE ENTREGA (con firmas) ─────────────
@@ -615,12 +614,6 @@ export default function EntregasClient({ entregasIniciales, ordenesEnReparto, es
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entregas])
 
-  const plantillasOrden = modalRegistro?.orden?.plantillas || []
-  // Estructura: [0] info recibido_por -> [1..N] previsualización de cada documento -> [N+1] firma única final
-  const totalPasos    = plantillasOrden.length + 2
-  const esPasoPreview  = paso > 0 && paso <= plantillasOrden.length
-  const esPasoFirma    = paso === totalPasos - 1
-  const docActual      = esPasoPreview ? plantillasOrden[paso - 1] : null
 
   const hayFiltros = filtroEstado || filtroRep || filtroFecha || filtroCliente
 
@@ -967,11 +960,9 @@ export default function EntregasClient({ entregasIniciales, ordenesEnReparto, es
         </>
       )}
 
-      {/* ── DRAWER DETALLE ENTREGA ── */}
+      {/* ── DETALLE ENTREGA (ventana ancha; en celular, hoja desde abajo) ── */}
       {drawer && (
-        <>
-          <div className="fixed inset-0 bg-black/30 z-20 backdrop-blur-sm" onClick={() => setDrawer(null)} />
-          <div className="fixed inset-x-0 bottom-0 h-[92vh] rounded-t-2xl md:rounded-none md:inset-x-auto md:top-0 md:right-0 md:bottom-0 md:h-full md:w-[480px] bg-white z-30 flex flex-col shadow-2xl">
+        <VentanaDetalle onCerrar={() => setDrawer(null)} z="z-30">
             <div className="px-6 py-4 border-b flex items-start justify-between flex-shrink-0 bg-[#D81B43]">
               <div>
                 <div className="text-[11px] text-white/60">Entrega · OS: {drawer.orden?.codigo}</div>
@@ -980,7 +971,7 @@ export default function EntregasClient({ entregasIniciales, ordenesEnReparto, es
               </div>
               <div className="flex items-center gap-2">
                 {drawer.estado?.nombre === 'Completada' && (
-                  <button onClick={() => generarActaEntregaPDF(drawer)}
+                  <button onClick={() => descargarActa(drawer)}
                     className="flex items-center gap-1.5 px-3 py-1.5 bg-white/20 text-white text-[12px] font-semibold rounded-[7px] hover:bg-white/30">
                     <FileText size={13} /> Acta PDF
                   </button>
@@ -991,7 +982,7 @@ export default function EntregasClient({ entregasIniciales, ordenesEnReparto, es
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto divide-y divide-slate-100 pb-[calc(var(--mobile-nav-space,0px)+16px)] md:pb-0">
+            <Columnas izquierda={<>
               {/* Timeline + cronómetro */}
               <div className="p-5">
                 <TimelineHorizontal
@@ -1051,6 +1042,15 @@ export default function EntregasClient({ entregasIniciales, ordenesEnReparto, es
                 </div>
               </div>
 
+            </>} derecha={<>
+              {/* Actas firmadas del préstamo (lib/actas) */}
+              {drawer.orden?.id && (
+                <div className="p-5">
+                  <div className="text-[9.5px] font-bold uppercase tracking-[0.12em] text-slate-400 mb-3">Actas</div>
+                  <ActasPrestamo key={drawer.id} ordenId={drawer.orden.id} ordenCodigo={drawer.orden.codigo} onToast={showToast} />
+                </div>
+              )}
+
               {/* Documentos con estado de firma */}
               <div className="p-5">
                 <div className="text-[9.5px] font-bold uppercase tracking-[0.12em] text-slate-400 mb-3">
@@ -1083,140 +1083,17 @@ export default function EntregasClient({ entregasIniciales, ordenesEnReparto, es
                   )}
                 </div>
               </div>
-            </div>
-          </div>
-        </>
+            </>} />
+        </VentanaDetalle>
       )}
 
-      {/* ── MODAL WIZARD FIRMA ── */}
+      {/* ── FIRMA DE ACTAS — completa la entrega ── */}
       {modalRegistro && (
-        <>
-          <div className="fixed inset-0 bg-black/40 z-40 backdrop-blur-sm" onClick={() => !esPasoFirma && intentarCerrarRegistro()} />
-          <div className={`fixed z-50 flex ${esPasoFirma ? 'inset-0 md:items-center md:justify-center md:p-4' : 'inset-0 items-center justify-center p-4'}`}>
-            <div className={`bg-white flex flex-col shadow-2xl overflow-hidden transition-all ${
-              esPasoFirma
-                ? 'w-full h-full rounded-none md:w-full md:max-w-[560px] md:h-auto md:max-h-[calc(100vh-2rem)] md:rounded-2xl'
-                : 'rounded-2xl w-full max-w-[560px] max-h-[calc(100vh-2rem)]'
-            }`}
-              onClick={e => e.stopPropagation()}>
-
-              {/* Header */}
-              <div className="px-6 py-4 border-b flex items-center gap-3 flex-shrink-0 bg-[#D81B43]">
-                <div className="flex-1">
-                  <div className="text-[11px] text-white/60">Paso {paso + 1} de {totalPasos}</div>
-                  <div className="text-[15px] font-bold text-white">
-                    {paso === 0 ? '✍️ Registrar recepción'
-                      : esPasoFirma ? '✒️ Firma de recepción'
-                      : `Documento: ${docActual?.plantilla?.nombre}`}
-                  </div>
-                </div>
-                <div className="flex gap-1.5">
-                  {Array.from({ length: totalPasos }).map((_, i) => (
-                    <div key={i} className={`h-2 rounded-full transition-all ${
-                      i === paso ? 'w-6 bg-white' : i < paso ? 'w-2 bg-white/60' : 'w-2 bg-white/25'
-                    }`} />
-                  ))}
-                </div>
-                {!esPasoFirma && (
-                  <button onClick={() => intentarCerrarRegistro()} className="text-white/60 hover:text-white w-8 h-8 flex items-center justify-center rounded-lg bg-white/10 hover:bg-white/20">
-                    <X size={16} />
-                  </button>
-                )}
-              </div>
-
-              <div className={`flex-1 overflow-y-auto px-6 py-5 ${esPasoFirma ? 'flex flex-col' : ''}`} onChange={() => setFormDirty(true)}>
-                {/* PASO 0 — Nombre receptor */}
-                {paso === 0 && (
-                  <div className="space-y-4">
-                    <div className="bg-slate-50 rounded-[10px] p-4 border border-slate-200">
-                      <div className="text-[12px] font-bold text-slate-500 mb-1">Orden: {modalRegistro.orden?.codigo}</div>
-                      <div className="text-[13px] font-semibold text-slate-700">{modalRegistro.orden?.cliente?.nombre || modalRegistro.cliente?.nombre}</div>
-                      <div className="text-[12px] text-slate-400 mt-0.5">
-                        {modalRegistro.orden?.equipos?.length || 0} equipo{(modalRegistro.orden?.equipos?.length || 0) !== 1 ? 's' : ''}
-                        {plantillasOrden.length > 0 && ` · ${plantillasOrden.length} documento${plantillasOrden.length !== 1 ? 's' : ''} a firmar`}
-                      </div>
-                    </div>
-                    <div>
-                      <label className="block text-[11px] font-bold uppercase tracking-[0.07em] text-slate-500 mb-1.5">
-                        Nombre de quien recibe <span className="text-[#D81B43]">*</span>
-                      </label>
-                      <input value={regForm.recibido_por}
-                        onChange={e => setRegForm(f => ({ ...f, recibido_por: e.target.value }))}
-                        placeholder="Nombre completo"
-                        className="w-full px-3 py-2.5 border border-slate-200 rounded-[9px] text-[13.5px] outline-none focus:border-[#D81B43] bg-white placeholder:text-slate-400" />
-                    </div>
-                    <div>
-                      <label className="block text-[11px] font-bold uppercase tracking-[0.07em] text-slate-500 mb-1.5">Observaciones</label>
-                      <textarea value={regForm.observaciones}
-                        onChange={e => setRegForm(f => ({ ...f, observaciones: e.target.value }))}
-                        placeholder="Notas de la entrega..." rows={3}
-                        className="w-full px-3 py-2.5 border border-slate-200 rounded-[9px] text-[13.5px] outline-none focus:border-[#D81B43] resize-none placeholder:text-slate-400" />
-                    </div>
-                  </div>
-                )}
-
-                {/* PASOS DE PREVISUALIZACIÓN — solo ver el documento, sin firmar todavía */}
-                {esPasoPreview && docActual && (
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-2 text-[12px] text-slate-500 bg-slate-50 px-3 py-2 rounded-[8px] border border-slate-200">
-                      <User size={12} /> Firmante: <span className="font-semibold text-slate-700">{regForm.recibido_por}</span>
-                    </div>
-                    <div className="text-[11px] font-bold uppercase tracking-[0.07em] text-slate-500">Vista previa del documento</div>
-                    <div className="border border-slate-200 rounded-[9px] overflow-hidden bg-slate-50 h-[320px] flex items-center justify-center">
-                      <div className="text-center text-slate-400">
-                        <FileText size={36} className="mx-auto mb-2 opacity-30" />
-                        <div className="text-[13.5px] font-medium">{docActual?.plantilla?.nombre}</div>
-                        <div className="text-[11px] mt-1">Vista previa disponible en Fase 2</div>
-                      </div>
-                    </div>
-                    <div className="text-[12px] text-slate-400 text-center">
-                      Documento {paso} de {plantillasOrden.length} · La firma se recoge al final, una sola vez
-                    </div>
-                  </div>
-                )}
-
-                {/* PASO FINAL — firma única a pantalla completa en móvil */}
-                {esPasoFirma && (
-                  <div className="flex-1 flex flex-col">
-                    <div className="flex items-center gap-2 text-[12px] text-slate-500 bg-slate-50 px-3 py-2 rounded-[8px] border border-slate-200 mb-3 flex-shrink-0">
-                      <User size={12} /> Firmante: <span className="font-semibold text-slate-700">{regForm.recibido_por}</span>
-                      {plantillasOrden.length > 0 && (
-                        <span className="ml-auto text-[11px] text-slate-400">Aplica a {plantillasOrden.length} documento{plantillasOrden.length !== 1 ? 's' : ''}</span>
-                      )}
-                    </div>
-                    <label className="block text-[11px] font-bold uppercase tracking-[0.07em] text-slate-500 mb-2 flex-shrink-0">
-                      Firma a mano alzada
-                    </label>
-                    <div className="flex-1 flex flex-col min-h-0">
-                      <FirmaPad
-                        fullscreen
-                        onFirma={d => setRegForm(f => ({ ...f, firmas: { ...f.firmas, general: d } }))}
-                        onLimpiar={() => setRegForm(f => { const nf = { ...f.firmas }; delete nf.general; return { ...f, firmas: nf } })}
-                      />
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <div className="px-6 py-4 border-t border-slate-200 flex justify-between flex-shrink-0 bg-white">
-                <button onClick={() => paso > 0 ? setPaso(p => p - 1) : intentarCerrarRegistro()}
-                  className="px-4 py-2.5 border border-slate-200 rounded-[9px] text-[13px] font-medium text-slate-600 hover:border-slate-300">
-                  {paso === 0 ? 'Cancelar' : '← Anterior'}
-                </button>
-                <button
-                  onClick={() => {
-                    if (!regForm.recibido_por?.trim()) { showToast('Ingresa quién recibe', 'error'); return }
-                    if (paso < totalPasos - 1) setPaso(p => p + 1)
-                    else completarEntrega()
-                  }}
-                  disabled={saving || (esPasoFirma && !regForm.firmas.general)}
-                  className="px-5 py-2.5 bg-[#0F7B55] text-white rounded-[9px] text-[13px] font-semibold hover:bg-[#0a5c3f] disabled:opacity-50">
-                  {saving ? 'Guardando...' : paso < totalPasos - 1 ? 'Continuar →' : '✓ Completar entrega'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </>
+        <FirmaActas ordenId={modalRegistro.orden?.id || modalRegistro.orden_id} entregaId={modalRegistro.id}
+          titulo={`Registrar entrega · ${modalRegistro.codigo}`}
+          alFirmar={completarEntrega}
+          onCancelar={cerrarRegistro}
+          onHecho={() => { cerrarRegistro(); router.refresh() }} />
       )}
 
       {/* ── MODAL ÉXITO — entrega completada ── */}
@@ -1287,16 +1164,6 @@ export default function EntregasClient({ entregasIniciales, ordenesEnReparto, es
         </div>
       )}
 
-      <ConfirmDialog
-        abierto={confirmarSalirRegistro}
-        titulo="¿Descartar cambios?"
-        mensaje="Tienes cambios sin guardar. ¿Deseas salir sin guardar?"
-        textoConfirmar="Sí, salir"
-        textoCancelar="Seguir editando"
-        tipo="default"
-        onConfirmar={() => { setConfirmarSalirRegistro(false); cerrarRegistro() }}
-        onCancelar={() => setConfirmarSalirRegistro(false)}
-      />
     </div>
   )
 }

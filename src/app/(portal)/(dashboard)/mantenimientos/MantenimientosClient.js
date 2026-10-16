@@ -9,6 +9,7 @@ import {
   FileText, Download, Paperclip, Eye
 } from 'lucide-react'
 import ConfirmDialog from '@/components/ui/ConfirmDialog'
+import VentanaDetalle, { Columnas } from '@/components/ui/VentanaDetalle'
 import LimpiarFiltros from '@/components/ui/LimpiarFiltros'
 import Paginador from '@/components/ui/Paginador'
 import { usePaginacion } from '@/hooks/usePaginacion'
@@ -860,11 +861,9 @@ export default function MantenimientosClient({ mantenimientosIniciales, equipos,
         </div>
       </div>
 
-      {/* ── DRAWER ── */}
+      {/* ── DETALLE (ventana ancha; en celular, hoja desde abajo) ── */}
       {drawer && (
-        <>
-          <div className="fixed inset-0 bg-black/30 z-20 backdrop-blur-sm" onClick={() => setDrawer(null)} />
-          <div className="fixed inset-x-0 bottom-0 h-[92vh] rounded-t-2xl md:rounded-none md:inset-x-auto md:top-0 md:right-0 md:bottom-0 md:h-full md:w-[520px] bg-white z-30 flex flex-col shadow-2xl">
+        <VentanaDetalle onCerrar={() => setDrawer(null)} z="z-30">
             <div className={`px-6 py-4 border-b flex items-start justify-between flex-shrink-0 bg-[#1B3A6B]`}>
               <div>
                 <div className="text-[11px] text-white/60">{drawer.codigo} · {drawer.equipo?.codigo}</div>
@@ -883,7 +882,7 @@ export default function MantenimientosClient({ mantenimientosIniciales, equipos,
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto divide-y divide-slate-100">
+            <Columnas izquierda={<>
               {/* Estado + timeline */}
               <div className="p-5">
                 <div className="flex items-center justify-between mb-3">
@@ -937,6 +936,7 @@ export default function MantenimientosClient({ mantenimientosIniciales, equipos,
                 )}
               </div>
 
+            </>} derecha={<>
               {/* Checklist interactivo */}
               {drawer.actividades?.length > 0 && (
                 <div className="p-5">
@@ -978,9 +978,8 @@ export default function MantenimientosClient({ mantenimientosIniciales, equipos,
                   <div className="text-[13px] text-slate-600 whitespace-pre-line leading-relaxed">{drawer.actividades_texto}</div>
                 </div>
               )}
-            </div>
-          </div>
-        </>
+            </>} />
+        </VentanaDetalle>
       )}
 
       {/* ── MODAL NUEVO MANTENIMIENTO ── */}

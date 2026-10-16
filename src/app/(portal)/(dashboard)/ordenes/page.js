@@ -33,7 +33,9 @@ export default async function OrdenesPage() {
     supabase.from('pacientes').select('*').eq('activo', true).order('nombre'),
     supabase.from('estados_orden').select('*').order('nombre'),
     supabase.from('estados_equipo').select('*').order('nombre'),
-    supabase.from('plantillas_orden').select('id, nombre, descripcion').eq('activo', true).order('nombre'),
+    // Formatos de acta que se eligen al crear un préstamo (lib/actas)
+    supabase.from('plantillas_acta').select('id, nombre, tipo, es_estandar, clientes:cliente_plantillas_acta(orden, cliente_id)')
+      .eq('activo', true).order('es_estandar', { ascending: false }).order('nombre'),
     traerTodosLosEquipos(supabase, q => q.select(`
       id, codigo, tipo_equipo_id, atributos,
       tipo_equipo:tipos_equipo(id, nombre, atributos,
@@ -52,7 +54,7 @@ export default async function OrdenesPage() {
 
   const NOMBRES_CONSULTAS = [
     'ordenes_servicio', 'clientes', 'pacientes', 'estados_orden', 'estados_equipo',
-    'plantillas_orden', 'equipos', 'usuarios', 'tipos_orden', 'categorias_equipo',
+    'plantillas_acta', 'equipos', 'usuarios', 'tipos_orden', 'categorias_equipo',
     'tipos_equipo', 'estados_entrega',
   ]
   resultados.forEach(({ error }, i) => {

@@ -3,7 +3,7 @@ import { registrarBitacora } from '@/lib/bitacora'
 import { useState, useMemo, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
-import { paraGuardar, paraInput, formatear, formatearSoloFecha, hoyBogota, sumarDias } from '@/lib/fechas'
+import { paraGuardar, paraInput, formatear, formatearSoloFecha, hoyBogota } from '@/lib/fechas'
 import { estaVencida, diasParaVencer } from '@/lib/vigencia'
 import { IconoTipo } from '@/components/inventario/IconoTipo'
 import ConfirmDialog from '@/components/ui/ConfirmDialog'
@@ -13,14 +13,15 @@ import Paginador from '@/components/ui/Paginador'
 import { devolverEquipo as devolverEquipoLib, cambiarEquipo as cambiarEquipoLib } from '@/lib/prestamos'
 import ModalCambioEquipo from '@/components/prestamos/ModalCambioEquipo'
 import { liberarEquipos } from '@/lib/mantenimientos'
-import { buscarCedulaDuplicada, mensajeCedulaDuplicada, esErrorCedulaDuplicada, MENSAJE_CEDULA_DUPLICADA } from '@/lib/pacientes'
 import BuzonNovedades from '@/components/layout/BuzonNovedades'
+import FirmaActas from '@/components/actas/FirmaActas'
+import ActasPrestamo from '@/components/actas/ActasPrestamo'
+import ControlVigencia from '@/components/prestamos/ControlVigencia'
+import NuevoPrestamo from '@/components/prestamos/NuevoPrestamo'
 import { useOrdenable } from '@/hooks/useOrdenable'
 import { usePaginacion } from '@/hooks/usePaginacion'
 import {
-  Plus, X, Search, FileText, CheckCircle2, Package,
-  AlertTriangle, Calendar, Clock, User, Edit3, Truck, ChevronRight, ChevronLeft,
-  Building, Layers, Trash2, Check, Ban, ArrowLeftRight, Undo2
+  Plus, X, Search, FileText, CheckCircle2, AlertTriangle, Clock, User, Edit3, Truck, ChevronRight, Ban, ArrowLeftRight, Undo2
 } from 'lucide-react'
 
 const E = {
@@ -32,7 +33,6 @@ const E = {
 }
 
 const FLUJO = ['Borrador', 'Programada', 'En reparto', 'Entregada', 'Finalizada']
-const FILAS_POR_PAGINA = 10
 
 const ESTADO_STYLES = {
   'Borrador':   { bg: '#F1F5F9', color: '#64748B', dot: '#94A3B8' },
@@ -67,7 +67,6 @@ function estaIncompleta(orden) {
 }
 
 const inputCls = 'w-full px-3 py-2.5 border border-slate-200 rounded-[9px] text-[13.5px] text-slate-800 outline-none focus:border-[#D81B43] bg-white transition-colors placeholder:text-slate-400'
-const labelCls = 'block text-[11px] font-bold uppercase tracking-[0.07em] text-slate-500 mb-1.5'
 
 // Una orden solo se marca "Vencida" mientras sigue en curso — una vez Finalizada
 // o Cancelada la vigencia ya no significa nada (el préstamo terminó).
@@ -107,71 +106,6 @@ function EstadoBadge({ orden, retrasada }) {
   )
 }
 
-const PRESETS_VIGENCIA = [30, 60, 90]
-
-// Captura de fecha_vigencia — un solo control para el wizard y para editar una
-// orden existente. Apagado = préstamo indefinido (fecha_vigencia null, caso de
-// las instituciones). Encendido = chips de 30/60/90 días desde hoy, o "Hasta
-// fecha" con selector — siempre se guarda solo la fecha final, nunca la
-// duración (si luego se extiende, la duración deja de ser verdad).
-function ControlVigencia({ value, onChange }) {
-  const activo = !!value
-  const chipsCalculados = PRESETS_VIGENCIA.map(dias => ({ dias, fecha: sumarDias(hoyBogota(), dias) }))
-  const [modo, setModo] = useState(() => {
-    const coincideConChip = value && chipsCalculados.some(c => c.fecha === value)
-    return value && !coincideConChip ? 'fecha' : 'chip'
-  })
-
-  function toggle() {
-    if (activo) { onChange(null); return }
-    onChange(sumarDias(hoyBogota(), 30)) // al encender, preselecciona 30 días
-    setModo('chip')
-  }
-
-  return (
-    <div>
-      <div className="flex items-center justify-between mb-2">
-        <span className={labelCls + ' mb-0'}>Vigencia del préstamo</span>
-        <button type="button" onClick={toggle} aria-pressed={activo}
-          className={`relative w-10 h-6 rounded-full transition-colors flex-shrink-0 ${activo ? 'bg-[#D81B43]' : 'bg-slate-200'}`}>
-          <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${activo ? 'translate-x-4' : ''}`} />
-        </button>
-      </div>
-
-      {!activo ? (
-        <div className="text-[12.5px] text-slate-400">Préstamo indefinido — sin fecha de vencimiento (uso típico para instituciones).</div>
-      ) : (
-        <div className="space-y-2.5">
-          <div className="flex items-center gap-2 flex-wrap">
-            {chipsCalculados.map(c => (
-              <button type="button" key={c.dias} onClick={() => { onChange(c.fecha); setModo('chip') }}
-                className={`px-3 py-1.5 rounded-full text-[12px] font-medium border transition-all ${
-                  modo === 'chip' && value === c.fecha
-                    ? 'bg-[#D81B43] text-white border-[#D81B43]'
-                    : 'bg-white border-slate-200 text-slate-600 hover:border-[#D81B43]'
-                }`}>
-                {c.dias} días
-              </button>
-            ))}
-            <button type="button" onClick={() => setModo('fecha')}
-              className={`px-3 py-1.5 rounded-full text-[12px] font-medium border transition-all ${
-                modo === 'fecha' ? 'bg-[#D81B43] text-white border-[#D81B43]' : 'bg-white border-slate-200 text-slate-600 hover:border-[#D81B43]'
-              }`}>
-              Hasta fecha
-            </button>
-          </div>
-          {modo === 'fecha' && (
-            <input type="date" value={value || ''} onChange={e => onChange(e.target.value || null)} className={inputCls} />
-          )}
-          {value && (
-            <div className="text-[11.5px] text-slate-400">Vence el {formatearSoloFecha(value)}</div>
-          )}
-        </div>
-      )}
-    </div>
-  )
-}
-
 function TimelineBar({ estadoNombre }) {
   const idx = FLUJO.indexOf(estadoNombre)
   return (
@@ -187,50 +121,6 @@ function TimelineBar({ estadoNombre }) {
 
 function nombreEquipo(eq) {
   return eq?.tipo_equipo?.atributos?.nombre || eq?.tipo_equipo?.nombre || '—'
-}
-
-function nombreTipo(tipo) {
-  return tipo?.nombre || '—'
-}
-
-// Buscador de equipo por código, reusado en las vistas de categorías y tipos del
-// mini-navegador — deja saltar directo a la unidad sin navegar nivel por nivel.
-function BuscadorCodigoMini({ valor, onChange, resultados, onSeleccionar }) {
-  return (
-    <div className="relative mb-3">
-      <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
-      <input
-        value={valor}
-        onChange={e => onChange(e.target.value)}
-        onBlur={() => setTimeout(() => onChange(''), 200)}
-        placeholder="Buscar equipo por código..."
-        className="w-full pl-8 pr-3 py-2 border border-slate-200 rounded-[9px] text-[13px] outline-none focus:border-[#D81B43]" />
-      {resultados.length > 0 && (
-        <div className="absolute z-20 left-0 top-full mt-1 w-full bg-white border border-slate-200 rounded-[9px] shadow-lg overflow-hidden max-h-[240px] overflow-y-auto">
-          {resultados.slice(0, 8).map(eq => (
-            <div key={eq.id} onMouseDown={e => { e.preventDefault(); onSeleccionar(eq) }}
-              className="px-3 py-2.5 hover:bg-slate-50 cursor-pointer border-b border-slate-100 last:border-0 flex items-center gap-2.5">
-              <Package size={12} className="text-[#D81B43] flex-shrink-0" />
-              <div className="flex-1 min-w-0">
-                <div className="text-[12.5px] font-bold text-slate-800 truncate">{nombreEquipo(eq)}</div>
-                <div className="text-[11px] font-mono text-slate-400">{eq.codigo}</div>
-              </div>
-            </div>
-          ))}
-          {resultados.length > 8 && (
-            <div className="px-3 py-2 text-[11px] text-slate-400 bg-slate-50 text-center">
-              +{resultados.length - 8} más — escribe más para afinar
-            </div>
-          )}
-        </div>
-      )}
-      {valor.trim() && resultados.length === 0 && (
-        <div className="absolute z-20 left-0 top-full mt-1 w-full bg-white border border-slate-200 rounded-[9px] shadow-lg px-3 py-3 text-[12px] text-slate-400">
-          Sin resultados
-        </div>
-      )}
-    </div>
-  )
 }
 
 export default function OrdenesClient({
@@ -301,7 +191,6 @@ export default function OrdenesClient({
   const [nuevaFecha, setNuevaFecha] = useState('')
   const [editVigencia, setEditVigencia] = useState(false)
   const [nuevaVigencia, setNuevaVigencia] = useState(null)
-  const [pacienteFiltro, setPacienteFiltro] = useState('')
 
   // Si el drawer está abierto y esa orden cambió (ej. entrega completada desde otro dispositivo), refrescar su vista
   useEffect(() => {
@@ -323,25 +212,10 @@ export default function OrdenesClient({
   }, [drawer])
 
   const [vista, setVista]                   = useState('lista') // 'lista' | 'nuevo'
-  const [seccion1Completa, setSeccion1Completa] = useState(false)
-  const [seccion2Completa, setSeccion2Completa] = useState(false)
-  const [miniVista, setMiniVista]           = useState('categorias') // 'categorias' | 'tipos' | 'unidades'
-  const [miniCategoria, setMiniCategoria]   = useState(null)
-  const [miniTipo, setMiniTipo]             = useState(null)
-  const [buscarCodigoMini, setBuscarCodigoMini] = useState('')
-  const [filtrosCamposMini, setFiltrosCamposMini] = useState({})
-  const [paginaUnidades, setPaginaUnidades] = useState(1)
-  const seccion2Ref = useRef(null)
-  const seccion3Ref = useRef(null)
-  const [saving, setSaving]                 = useState(false)
   const [toast, setToast]                   = useState(null)
   const [modalConfirm, setModalConfirm]     = useState(null)
-  const [wForm, setWForm] = useState({
-    cliente_id: '', equipos_ids: [], tiene_paciente: false, paciente_id: '',
-    pacienteNuevo: { nombre: '', cedula: '', direccion: '', ciudad: '', telefono: '', correo: '' },
-    fecha_inicio: '', domicilio: false, repartidor_id: '', observaciones: '',
-    fecha_entrega_domicilio: '', fechaInicioDistinta: false, fecha_vigencia: null,
-  })
+  // Préstamo en oficina recién creado: se abre el paso de firma del acta
+  const [firmarOrden, setFirmarOrden] = useState(null) // { id, codigo } o null
   const [modalDevolucion, setModalDevolucion] = useState(null) // { ordenEquipoId, equipoId } o null
   const [modalCambio, setModalCambio]         = useState(null) // fila de orden_equipos a cambiar, o null
   const [guardandoCambio, setGuardandoCambio] = useState(false)
@@ -367,104 +241,6 @@ export default function OrdenesClient({
     en_curso: stats.borrador + stats.programada + stats.enReparto + stats.entregada,
     historial: stats.finalizada,
   }), [stats])
-
-  // Un equipo asignado a un préstamo a domicilio pasa a "Reservado" de inmediato al
-  // crear la orden (ver crearOrden), así que basta con filtrar por estado — ya no
-  // hace falta cruzar contra órdenes pendientes para no ofrecerlo dos veces.
-  const equiposParaMini = useMemo(
-    () => equipos.filter(eq => eq.estado?.nombre === 'Disponible'),
-    [equipos]
-  )
-
-  const miniTiposDeCategoria = useMemo(
-    () => miniCategoria ? tiposEquipo.filter(t => t.categoria_id === miniCategoria.id) : [],
-    [tiposEquipo, miniCategoria]
-  )
-
-  // Solo se muestran categorías con al menos un tipo que tenga unidades disponibles,
-  // y dentro de una categoría, solo los tipos que sí tienen disponibles.
-  const categoriasConDisponibles = useMemo(() =>
-    categorias.filter(cat => {
-      const idsTipos = tiposEquipo.filter(t => t.categoria_id === cat.id).map(t => t.id)
-      return equiposParaMini.some(eq => idsTipos.includes(eq.tipo_equipo_id))
-    }),
-    [categorias, tiposEquipo, equiposParaMini]
-  )
-
-  const miniTiposConDisponibles = useMemo(
-    () => miniTiposDeCategoria.filter(tipo => equiposParaMini.some(eq => eq.tipo_equipo_id === tipo.id)),
-    [miniTiposDeCategoria, equiposParaMini]
-  )
-
-  const miniUnidadesDeTipo = useMemo(
-    () => miniTipo ? equiposParaMini.filter(eq => eq.tipo_equipo_id === miniTipo.id) : [],
-    [equiposParaMini, miniTipo]
-  )
-
-  // Todas las unidades del tipo (sin filtrar por disponibilidad) — solo para el conteo "X de Y"
-  const unidadesTotalDelTipo = useMemo(
-    () => miniTipo ? equipos.filter(eq => eq.tipo_equipo_id === miniTipo.id) : [],
-    [equipos, miniTipo]
-  )
-
-  const unidadesFiltradasEnTipo = useMemo(() => {
-    let result = miniUnidadesDeTipo
-    Object.entries(filtrosCamposMini).forEach(([clave, valor]) => {
-      if (valor) result = result.filter(eq => (eq.atributos?.[clave] ?? eq[clave])?.toString().toLowerCase().includes(valor.toLowerCase()))
-    })
-    return result
-  }, [miniUnidadesDeTipo, filtrosCamposMini])
-
-  // Filtros dinámicos de unidad definidos por categoría (igual que en Inventario), sin el de Estado.
-  // Si la categoría no tiene campos configurados, mostramos al menos la columna de código.
-  const camposUnidadMini = miniCategoria?.atributos_extra?.campos_unidad?.length
-    ? miniCategoria.atributos_extra.campos_unidad
-    : [{ clave: 'codigo', nombre: 'Código', tipo: 'texto' }]
-
-  const valoresUnicosPorCampoMini = useMemo(() => {
-    const result = {}
-    for (const campo of camposUnidadMini) {
-      result[campo.clave] = [...new Set(
-        miniUnidadesDeTipo.map(eq => eq.atributos?.[campo.clave] ?? eq[campo.clave]).filter(v => v != null && v !== '')
-      )].sort()
-    }
-    return result
-  }, [miniUnidadesDeTipo, camposUnidadMini])
-
-  const unidadesPaginadas = useMemo(() => {
-    const inicio = (paginaUnidades - 1) * FILAS_POR_PAGINA
-    return unidadesFiltradasEnTipo.slice(inicio, inicio + FILAS_POR_PAGINA)
-  }, [unidadesFiltradasEnTipo, paginaUnidades])
-
-  const totalPaginasUnidades = Math.max(1, Math.ceil(unidadesFiltradasEnTipo.length / FILAS_POR_PAGINA))
-
-  useEffect(() => {
-    const t = setTimeout(() => setPaginaUnidades(1), 0)
-    return () => clearTimeout(t)
-  }, [miniTipo, filtrosCamposMini])
-
-  // Búsqueda de equipo por código, disponible desde las vistas de categorías y tipos —
-  // deja saltar directo a la unidad sin tener que navegar nivel por nivel
-  const resultadosBusquedaMini = useMemo(() => {
-    const q = buscarCodigoMini.trim().toLowerCase()
-    if (!q) return []
-    let pool = equiposParaMini
-    if (miniVista === 'tipos' && miniCategoria) {
-      const idsTiposCat = tiposEquipo.filter(t => t.categoria_id === miniCategoria.id).map(t => t.id)
-      pool = pool.filter(eq => idsTiposCat.includes(eq.tipo_equipo_id))
-    }
-    return pool.filter(eq => {
-      if (eq.codigo?.toLowerCase().includes(q)) return true
-      return Object.values(eq.atributos || {}).some(v => String(v).toLowerCase().includes(q))
-    })
-  }, [buscarCodigoMini, equiposParaMini, miniVista, miniCategoria, tiposEquipo])
-
-  const pacientesFiltrados = useMemo(() => {
-    const q = pacienteFiltro.trim().toLowerCase()
-    if (!q) return []
-    return pacientesLocal.filter(p => [p.nombre, p.cedula]
-      .some(v => v?.toLowerCase().includes(q)))
-  }, [pacientesLocal, pacienteFiltro])
 
   // Reset filtros detalle al cambiar de pestaña
   useEffect(() => {
@@ -624,256 +400,23 @@ export default function OrdenesClient({
     showToast(nuevoEstado?.nombre === 'Programada' ? '✓ Repartidor asignado — orden programada' : 'Repartidor asignado')
   }
 
-  // ── NUEVO PRÉSTAMO (acordeón de página completa) ─────────
-  function iniciarNuevoPrestamo() {
-    setWForm({
-      cliente_id: '', equipos_ids: [], tiene_paciente: false, paciente_id: '',
-      pacienteNuevo: { nombre: '', cedula: '', direccion: '', ciudad: '', telefono: '', correo: '' },
-      fecha_inicio: '', domicilio: false, repartidor_id: '', observaciones: '',
-      fecha_entrega_domicilio: '', fechaInicioDistinta: false, fecha_vigencia: null,
-    })
-    setPacienteFiltro('')
-    setSeccion1Completa(false)
-    setSeccion2Completa(false)
-    setMiniVista('categorias')
-    setMiniCategoria(null)
-    setMiniTipo(null)
-    setFiltrosCamposMini({})
-    setBuscarCodigoMini('')
-    setVista('nuevo')
-  }
+  // ── NUEVO PRÉSTAMO (components/prestamos/NuevoPrestamo.js) ──
+  function iniciarNuevoPrestamo() { setVista('nuevo') }
 
-  function cancelarNuevo() {
-    setVista('lista')
-    setSeccion1Completa(false)
-    setSeccion2Completa(false)
-  }
+  // Uso por cliente: los más frecuentes salen como accesos rápidos en el asistente
+  const usoClientes = useMemo(() => {
+    const m = {}
+    ordenes.forEach(o => { if (o.cliente_id) m[o.cliente_id] = (m[o.cliente_id] || 0) + 1 })
+    return m
+  }, [ordenes])
 
-  function agregarEquipo(id) {
-    setWForm(f => f.equipos_ids.includes(id) ? f : { ...f, equipos_ids: [...f.equipos_ids, id] })
-  }
+  // Equipos que se pueden poner en un préstamo (los usa el modal de cambio de equipo)
+  const equiposDisponibles = useMemo(() => equipos.filter(eq => eq.estado?.nombre === 'Disponible'), [equipos])
 
-  function quitarEquipo(id) {
-    setWForm(f => ({ ...f, equipos_ids: f.equipos_ids.filter(e => e !== id) }))
-  }
-
-  function miniIrACategoria(cat) { setMiniCategoria(cat); setMiniVista('tipos'); setBuscarCodigoMini('') }
-  function miniIrATipo(tipo) { setMiniTipo(tipo); setMiniVista('unidades'); setFiltrosCamposMini({}); setBuscarCodigoMini('') }
-  function miniVolver() {
-    if (miniVista === 'unidades') { setMiniVista('tipos'); setMiniTipo(null); setFiltrosCamposMini({}) }
-    else if (miniVista === 'tipos') { setMiniVista('categorias'); setMiniCategoria(null); setBuscarCodigoMini('') }
-  }
-
-  function irDirectoAUnidad(eq) {
-    const tipo = tiposEquipo.find(t => t.id === eq.tipo_equipo_id)
-    const cat  = categorias.find(c => c.id === tipo?.categoria_id)
-    setMiniCategoria(cat || null)
-    setMiniTipo(tipo || null)
-    setMiniVista('unidades')
-    setFiltrosCamposMini({})
-    setBuscarCodigoMini('')
-  }
-
-  function volverACategorias() {
-    setMiniVista('categorias'); setMiniCategoria(null); setMiniTipo(null)
-    setFiltrosCamposMini({}); setBuscarCodigoMini('')
-  }
-
-  function avanzarSeccion1() {
-    if (!wForm.cliente_id) { showToast('Selecciona un cliente', 'error'); return }
-    if (wForm.tiene_paciente && !wForm.pacienteNuevo.nombre.trim()) {
-      showToast('El nombre del paciente es obligatorio', 'error'); return
-    }
-    if (wForm.tiene_paciente && !wForm.pacienteNuevo.direccion.trim()) {
-      showToast('La dirección del paciente es obligatoria', 'error'); return
-    }
-    if (wForm.tiene_paciente) {
-      const duplicado = buscarCedulaDuplicada(pacientesLocal, wForm.pacienteNuevo.cedula, wForm.paciente_id || null)
-      if (duplicado) { showToast(mensajeCedulaDuplicada(duplicado), 'error'); return }
-    }
-    setSeccion1Completa(true)
-    setTimeout(() => seccion2Ref.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50)
-  }
-
-  function avanzarSeccion2() {
-    if (wForm.equipos_ids.length === 0) { showToast('Agrega al menos un equipo', 'error'); return }
-    setSeccion2Completa(true)
-    setTimeout(() => seccion3Ref.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50)
-  }
-
-  function seleccionarPaciente(paciente) {
-    setWForm(f => ({
-      ...f,
-      paciente_id: paciente.id,
-      pacienteNuevo: {
-        nombre:    paciente.nombre    || '',
-        cedula:    paciente.cedula    || '',
-        direccion: paciente.direccion || '',
-        ciudad:    paciente.ciudad    || '',
-        telefono:  paciente.telefono  || '',
-        correo:    paciente.correo    || '',
-      },
-    }))
-    setPacienteFiltro('')
-  }
-
-  function limpiarPacienteSeleccionado() {
-    setWForm(f => ({ ...f, paciente_id: '', pacienteNuevo: { nombre: '', cedula: '', direccion: '', ciudad: '', telefono: '', correo: '' } }))
-  }
-
-  async function crearOrden() {
-    if (!wForm.cliente_id) {
-      showToast('Selecciona un cliente', 'error'); return
-    }
-    if (wForm.equipos_ids.length === 0) {
-      showToast('Agrega al menos un equipo', 'error'); return
-    }
-    if (wForm.domicilio) {
-      if (!wForm.fecha_entrega_domicilio) { showToast('Ingresa la fecha de entrega del equipo', 'error'); return }
-      if (wForm.fechaInicioDistinta && !wForm.fecha_inicio) { showToast('Ingresa la fecha de inicio del préstamo', 'error'); return }
-    } else {
-      if (!wForm.fecha_inicio) { showToast('Ingresa la fecha de inicio del préstamo', 'error'); return }
-    }
-    if (wForm.tiene_paciente && !wForm.pacienteNuevo.nombre.trim()) {
-      showToast('Completa los datos del paciente o desmarca la casilla', 'error'); return
-    }
-    if (wForm.tiene_paciente && !wForm.pacienteNuevo.direccion.trim()) {
-      showToast('La dirección del paciente es obligatoria', 'error'); return
-    }
-    if (wForm.tiene_paciente) {
-      const duplicado = buscarCedulaDuplicada(pacientesLocal, wForm.pacienteNuevo.cedula, wForm.paciente_id || null)
-      if (duplicado) { showToast(mensajeCedulaDuplicada(duplicado), 'error'); return }
-    }
-    if (wForm.domicilio && !wForm.repartidor_id) {
-      showToast('Selecciona un repartidor', 'error'); return
-    }
-    setSaving(true)
-
-    const tipoOrden = tipos.find(t => {
-      const nombre = t.nombre?.toLowerCase() || ''
-      return nombre.includes('arrendamiento') || nombre.includes('préstamo') || nombre.includes('prestamo')
-    })
-    if (!tipoOrden) {
-      showToast('No se encontró el tipo de orden de préstamo/arrendamiento', 'error'); setSaving(false); return
-    }
-
-    // La lista del wizard se cargó al abrir la página: si entretanto a un equipo
-    // le abrieron un mantenimiento o lo prestaron, no se presta.
-    const { data: estadosActuales, error: errEstados } = await supabase.from('equipos')
-      .select('codigo, estado:estados_equipo(nombre)').in('id', wForm.equipos_ids)
-    if (errEstados) { showToast('Error verificando los equipos: ' + errEstados.message, 'error'); setSaving(false); return }
-    const noDisponibles = (estadosActuales || []).filter(e => e.estado?.nombre !== 'Disponible')
-    if (noDisponibles.length > 0) {
-      showToast(`Ya no está disponible: ${noDisponibles.map(e => `${e.codigo} (${e.estado?.nombre})`).join(', ')}`, 'error')
-      setSaving(false); router.refresh(); return
-    }
-
-    let pacienteId = wForm.tiene_paciente ? wForm.paciente_id : null
-    if (wForm.tiene_paciente && pacienteId) {
-      // Paciente existente — puede haber sido editado en el formulario, se actualiza
-      const { error: errUpdatePac } = await supabase.from('pacientes').update({
-        nombre:    wForm.pacienteNuevo.nombre.trim(),
-        cedula:    wForm.pacienteNuevo.cedula.trim() || null,
-        direccion: wForm.pacienteNuevo.direccion.trim(),
-        ciudad:    wForm.pacienteNuevo.ciudad.trim() || null,
-        telefono:  wForm.pacienteNuevo.telefono.trim() || null,
-        correo:    wForm.pacienteNuevo.correo.trim() || null,
-      }).eq('id', pacienteId)
-      if (errUpdatePac) {
-        showToast(esErrorCedulaDuplicada(errUpdatePac) ? MENSAJE_CEDULA_DUPLICADA : 'Error actualizando paciente: ' + errUpdatePac.message, 'error')
-        setSaving(false); return
-      }
-      setPacientesLocal(prev => prev.map(p => p.id === pacienteId ? {
-        ...p,
-        nombre: wForm.pacienteNuevo.nombre.trim(),
-        cedula: wForm.pacienteNuevo.cedula.trim() || null,
-      } : p))
-    } else if (wForm.tiene_paciente && !pacienteId) {
-      const { data: nuevoPaciente, error: errPac } = await supabase.from('pacientes')
-        .insert({
-          nombre:    wForm.pacienteNuevo.nombre.trim(),
-          cedula:    wForm.pacienteNuevo.cedula.trim() || null,
-          direccion: wForm.pacienteNuevo.direccion.trim(),
-          ciudad:    wForm.pacienteNuevo.ciudad.trim() || null,
-          telefono:  wForm.pacienteNuevo.telefono.trim() || null,
-          correo:    wForm.pacienteNuevo.correo.trim() || null,
-        }).select('id').single()
-      if (errPac) {
-        showToast(esErrorCedulaDuplicada(errPac) ? MENSAJE_CEDULA_DUPLICADA : 'Error creando paciente: ' + errPac.message, 'error')
-        setSaving(false); return
-      }
-      pacienteId = nuevoPaciente.id
-      setPacientesLocal(prev => [...prev, {
-        id: nuevoPaciente.id,
-        nombre: wForm.pacienteNuevo.nombre.trim(),
-        cedula: wForm.pacienteNuevo.cedula.trim() || null,
-        activo: true,
-      }])
-    }
-
-    const estadoProgramada = estados.find(e => e.nombre === 'Programada')
-    const estadoEntregada  = estados.find(e => e.nombre === 'Entregada')
-    if (!estadoProgramada || !estadoEntregada) {
-      showToast('No se encontraron los estados de orden necesarios (Programada/Entregada) — revisa la tabla estados_orden', 'error')
-      setSaving(false); return
-    }
-    const estadoInicial = wForm.domicilio ? estadoProgramada.id : estadoEntregada.id
-    const notaInicio = wForm.domicilio && wForm.fechaInicioDistinta && wForm.fecha_inicio
-      ? `[Inicio: ${wForm.fecha_inicio}]${wForm.observaciones ? ' ' + wForm.observaciones : ''}`
-      : wForm.observaciones || null
-
-    const { data: orden, error: errOrden } = await supabase.from('ordenes_servicio')
-      .insert({
-        tipo_orden_id: tipoOrden.id,
-        cliente_id:    wForm.cliente_id,
-        paciente_id:   pacienteId,
-        estado_id:     estadoInicial,
-        repartidor_id: wForm.domicilio ? wForm.repartidor_id : null,
-        fecha_entrega: paraGuardar(wForm.domicilio ? wForm.fecha_entrega_domicilio : wForm.fecha_inicio),
-        observaciones: notaInicio,
-        fecha_vigencia: wForm.fecha_vigencia || null,
-      }).select('id').single()
-
-    if (errOrden) { showToast('Error: ' + errOrden.message, 'error'); setSaving(false); return }
-
-    for (const equipoId of wForm.equipos_ids) {
-      const { error: errEq } = await supabase.from('orden_equipos').insert({
-        orden_id: orden.id,
-        equipo_id: equipoId,
-        fecha_entrega: wForm.domicilio ? null : paraGuardar(wForm.fecha_inicio),
-      })
-      if (errEq) { showToast('Error vinculando equipo: ' + errEq.message, 'error'); setSaving(false); return }
-
-      if (!wForm.domicilio) {
-        const estadoPrestamo = (estadosEquipo || estados).find(e => e.nombre === 'En préstamo')
-        if (estadoPrestamo) {
-          await supabase.from('equipos').update({
-            estado_id:          estadoPrestamo.id,
-            paciente_actual_id: pacienteId,
-            cliente_actual_id:  wForm.cliente_id,
-          }).eq('id', equipoId)
-        }
-      } else {
-        const estadoReservado = (estadosEquipo || estados).find(e => e.nombre === 'Reservado')
-        if (estadoReservado) {
-          await supabase.from('equipos').update({
-            estado_id:          estadoReservado.id,
-            paciente_actual_id: pacienteId,
-            cliente_actual_id:  wForm.cliente_id,
-          }).eq('id', equipoId)
-        }
-      }
-    }
-
-    registrarBitacora({
-      modulo: 'ordenes', accion: 'crear', entidad: 'préstamo', entidad_id: orden.id,
-      detalle: { cliente_id: wForm.cliente_id, equipos_ids: wForm.equipos_ids, con_domicilio: wForm.domicilio, fecha_vigencia: wForm.fecha_vigencia || null }
-    })
-
-    showToast(wForm.domicilio ? 'Préstamo creado — pendiente de entrega' : 'Préstamo registrado y activo')
-    setSaving(false)
-    setSeccion1Completa(false)
-    setSeccion2Completa(false)
+  function prestamoCreado({ id, codigo, domicilio }) {
+    showToast(domicilio ? 'Préstamo creado — pendiente de entrega' : 'Préstamo registrado y activo')
+    // En oficina el equipo sale ya: se firma el acta en este momento
+    if (!domicilio) setFirmarOrden({ id, codigo })
     setVista('lista')
     router.refresh()
   }
@@ -1595,25 +1138,11 @@ export default function OrdenesClient({
                   }
                 </div>
 
-                {/* Documentos */}
+                {/* Actas firmadas (lib/actas) */}
                 <div className="p-5">
-                  <div className="text-[9.5px] font-bold uppercase tracking-[0.12em] text-slate-400 mb-3">
-                    Documentos ({drawer.plantillas?.length || 0})
-                  </div>
-                  {!drawer.plantillas?.length
-                    ? <div className="text-[13px] text-slate-400">Sin documentos asignados</div>
-                    : <div className="space-y-2">
-                        {drawer.plantillas.map(op => (
-                          <div key={op.id} className="flex items-center gap-3 p-3 border border-slate-200 rounded-[9px]">
-                            <FileText size={14} className="text-slate-400 flex-shrink-0" />
-                            <div className="flex-1 text-[13px] font-medium text-slate-700">{op.plantilla?.nombre || '—'}</div>
-                            <span className={`text-[11px] font-semibold ${op.firmado ? 'text-[#0F7B55]' : 'text-slate-400'}`}>
-                              {op.firmado ? '✓ Firmado' : 'Pendiente'}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                  }
+                  <div className="text-[9.5px] font-bold uppercase tracking-[0.12em] text-slate-400 mb-3">Actas</div>
+                  <ActasPrestamo key={drawer.id} ordenId={drawer.id} ordenCodigo={drawer.codigo}
+                    puedeFirmar={drawerEstado === 'Entregada'} onToast={showToast} />
                 </div>
               </div>
             </div>
@@ -1624,447 +1153,20 @@ export default function OrdenesClient({
       )}
 
       {vista === 'nuevo' && (
-        <div className="flex-1 overflow-y-auto p-3 md:p-6 space-y-4">
-
-          {/* SECCIÓN 1 — Cliente */}
-          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
-            <div className="text-[13px] font-bold text-slate-700 mb-4">1. Cliente</div>
-            <div className="space-y-4">
-              <div>
-                <label className={labelCls}>Cliente <span className="text-[#D81B43]">*</span></label>
-                <select value={wForm.cliente_id} onChange={e => setWForm(f => ({ ...f, cliente_id: e.target.value }))} className={inputCls}>
-                  <option value="">Seleccionar cliente...</option>
-                  {clientes.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-                </select>
-              </div>
-
-              <div className="space-y-3">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" checked={wForm.tiene_paciente}
-                    onChange={e => setWForm(f => ({ ...f, tiene_paciente: e.target.checked, paciente_id: e.target.checked ? f.paciente_id : '', pacienteNuevo: e.target.checked ? f.pacienteNuevo : { nombre: '', cedula: '', direccion: '', ciudad: '', telefono: '', correo: '' } }))} />
-                  <span className="text-[13.5px] font-medium text-slate-700">¿Tiene paciente asociado?</span>
-                </label>
-
-                {wForm.tiene_paciente && (
-                  <div className="bg-slate-50 border border-slate-200 rounded-[10px] p-4 space-y-3">
-                    {!wForm.paciente_id ? (
-                      <>
-                        <div className="relative">
-                          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                          <input value={pacienteFiltro} onChange={e => setPacienteFiltro(e.target.value)}
-                            placeholder="Buscar paciente por nombre o cédula..."
-                            className="w-full pl-10 pr-3 py-2.5 border border-slate-200 rounded-[9px] text-[13.5px] outline-none focus:border-[#D81B43] bg-white" />
-                        </div>
-                        {pacientesFiltrados.length > 0 && (
-                          <div className="border border-slate-200 rounded-[9px] bg-white shadow-sm max-h-[220px] overflow-y-auto">
-                            {pacientesFiltrados.map(p => (
-                              <button key={p.id} type="button" onClick={() => seleccionarPaciente(p)}
-                                className="w-full text-left px-4 py-3 border-b last:border-b-0 hover:bg-slate-50">
-                                <div className="text-[13px] font-semibold text-slate-800 truncate">{p.nombre}</div>
-                                <div className="text-[11px] text-slate-500">{p.cedula || 'Sin cédula'}</div>
-                              </button>
-                            ))}
-                          </div>
-                        )}
-                        <div className="text-[12px] text-slate-400">O completa los datos abajo para crear un paciente nuevo</div>
-                      </>
-                    ) : (
-                      <div className="flex items-center justify-between gap-3 pb-3 border-b border-slate-200">
-                        <div className="flex items-center gap-1.5 text-[12.5px] text-[#0F7B55] font-semibold">
-                          <CheckCircle2 size={14} /> Paciente existente — puedes editar sus datos si hace falta
-                        </div>
-                        <button type="button" onClick={limpiarPacienteSeleccionado}
-                          className="text-[12px] text-slate-500 hover:text-[#D81B43] font-medium flex-shrink-0">Cambiar</button>
-                      </div>
-                    )}
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div>
-                        <label className={labelCls}>Nombre <span className="text-[#D81B43]">*</span></label>
-                        <input value={wForm.pacienteNuevo.nombre} onChange={e => setWForm(f => ({ ...f, pacienteNuevo: { ...f.pacienteNuevo, nombre: e.target.value } }))}
-                          type="text" className={inputCls} />
-                      </div>
-                      <div>
-                        <label className={labelCls}>Cédula</label>
-                        <input value={wForm.pacienteNuevo.cedula} onChange={e => setWForm(f => ({ ...f, pacienteNuevo: { ...f.pacienteNuevo, cedula: e.target.value.replace(/[^0-9]/g, '') } }))}
-                          type="text" inputMode="numeric" className={inputCls} />
-                      </div>
-                      <div>
-                        <label className={labelCls}>Dirección <span className="text-[#D81B43]">*</span></label>
-                        <input value={wForm.pacienteNuevo.direccion} onChange={e => setWForm(f => ({ ...f, pacienteNuevo: { ...f.pacienteNuevo, direccion: e.target.value } }))}
-                          type="text" className={inputCls} />
-                      </div>
-                      <div>
-                        <label className={labelCls}>Ciudad</label>
-                        <input value={wForm.pacienteNuevo.ciudad} onChange={e => setWForm(f => ({ ...f, pacienteNuevo: { ...f.pacienteNuevo, ciudad: e.target.value } }))}
-                          type="text" className={inputCls} />
-                      </div>
-                      <div>
-                        <label className={labelCls}>Correo</label>
-                        <input value={wForm.pacienteNuevo.correo} onChange={e => setWForm(f => ({ ...f, pacienteNuevo: { ...f.pacienteNuevo, correo: e.target.value } }))}
-                          type="email" className={inputCls} />
-                      </div>
-                      <div>
-                        <label className={labelCls}>Teléfono</label>
-                        <input value={wForm.pacienteNuevo.telefono} onChange={e => setWForm(f => ({ ...f, pacienteNuevo: { ...f.pacienteNuevo, telefono: e.target.value } }))}
-                          type="text" className={inputCls} />
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <div>
-                <label className={labelCls}>Observaciones</label>
-                <textarea value={wForm.observaciones} onChange={e => setWForm(f => ({ ...f, observaciones: e.target.value }))}
-                  placeholder="Notas adicionales..." rows={3}
-                  className="w-full px-3 py-2.5 border border-slate-200 rounded-[9px] text-[13.5px] outline-none focus:border-[#D81B43] resize-none placeholder:text-slate-400" />
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-2 mt-5 pt-4 border-t border-slate-100">
-              <button onClick={cancelarNuevo}
-                className="px-4 py-2.5 border border-slate-200 rounded-[9px] text-[13px] font-medium text-slate-600 hover:border-slate-300">
-                Cancelar
-              </button>
-              <button onClick={avanzarSeccion1}
-                className="px-5 py-2.5 bg-[#D81B43] text-white rounded-[9px] text-[13px] font-semibold hover:bg-[#B0172F]">
-                Siguiente →
-              </button>
-            </div>
-          </div>
-
-          {/* SECCIÓN 2 — Equipos */}
-          {seccion1Completa && (
-            <div ref={seccion2Ref} className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
-              <div className="text-[13px] font-bold text-slate-700 mb-4">2. Equipos</div>
-
-              <div className="grid grid-cols-1 md:grid-cols-[1fr_320px] gap-4">
-                {/* Mini-navegador de inventario */}
-                <div>
-                  {miniVista === 'tipos' && (
-                    <button type="button" onClick={miniVolver}
-                      className="flex items-center gap-1 text-[12px] text-slate-500 hover:text-[#D81B43] mb-3 font-medium">
-                      <ChevronRight size={12} className="rotate-180" /> Volver
-                    </button>
-                  )}
-
-                  {miniVista === 'categorias' && (
-                    <div>
-                      <BuscadorCodigoMini valor={buscarCodigoMini} onChange={setBuscarCodigoMini}
-                        resultados={resultadosBusquedaMini} onSeleccionar={irDirectoAUnidad} />
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                      {categoriasConDisponibles.map(cat => {
-                        const nTipos = tiposEquipo.filter(t => t.categoria_id === cat.id).length
-                        return (
-                          <div key={cat.id} onClick={() => miniIrACategoria(cat)}
-                            className="bg-slate-50 rounded-[9px] border border-slate-200 p-3 cursor-pointer hover:border-[#D81B43]/40 transition-all">
-                            <div className="text-[12.5px] font-bold text-slate-700 leading-tight">{cat.nombre}</div>
-                            <div className="text-[10.5px] text-slate-400 mt-0.5">{nTipos} tipo{nTipos !== 1 ? 's' : ''}</div>
-                          </div>
-                        )
-                      })}
-                      {categoriasConDisponibles.length === 0 && (
-                        <div className="col-span-full text-[12.5px] text-slate-400 text-center py-6">Sin equipos disponibles en ninguna categoría</div>
-                      )}
-                    </div>
-                    </div>
-                  )}
-
-                  {miniVista === 'tipos' && (
-                    <div>
-                      <BuscadorCodigoMini valor={buscarCodigoMini} onChange={setBuscarCodigoMini}
-                        resultados={resultadosBusquedaMini} onSeleccionar={irDirectoAUnidad} />
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      {miniTiposConDisponibles.map(tipo => {
-                        const stockTotal = equipos.filter(eq => eq.tipo_equipo_id === tipo.id).length
-                        const stockDisp  = equiposParaMini.filter(eq => eq.tipo_equipo_id === tipo.id).length
-                        const enUso = stockTotal - stockDisp
-                        return (
-                          <div key={tipo.id} onClick={() => miniIrATipo(tipo)}
-                            className="bg-white rounded-[9px] border border-slate-200 overflow-hidden cursor-pointer hover:border-[#D81B43]/40 hover:shadow-sm transition-all flex">
-                            <div className="w-[44px] h-[44px] flex-shrink-0 bg-slate-50 flex items-center justify-center border-r border-slate-100">
-                              <IconoTipo tipo={tipo} categorias={categorias} size={26} />
-                            </div>
-                            <div className="p-2 flex-1 min-w-0 relative">
-                              <div className="text-[11.5px] font-bold text-slate-800 leading-snug pr-8 truncate">{nombreTipo(tipo)}</div>
-                              <div className="text-[10px] mt-0.5">
-                                <span className="font-bold text-[#0F7B55]">{stockDisp} disp.</span>
-                                {enUso > 0 && <span className="text-slate-400"> · {enUso} en uso</span>}
-                              </div>
-                              <div className="absolute top-1 right-1 bg-white border border-slate-100 rounded-full px-1.5 py-0.5">
-                                <span className="text-[10px] font-extrabold text-slate-800 tabular-nums">{stockTotal}</span>
-                                <span className="text-[8px] text-slate-400 ml-0.5">uds.</span>
-                              </div>
-                            </div>
-                          </div>
-                        )
-                      })}
-                      {miniTiposConDisponibles.length === 0 && (
-                        <div className="col-span-full text-[12.5px] text-slate-400 text-center py-6">Sin tipos con unidades disponibles en esta categoría</div>
-                      )}
-                    </div>
-                    </div>
-                  )}
-
-                  {miniVista === 'unidades' && (
-                    <div>
-                      <div className="flex items-center gap-1.5 mb-2.5 text-[12px]">
-                        <button onClick={volverACategorias} className="text-slate-500 hover:text-slate-700 flex items-center gap-1">
-                          <ChevronLeft size={13} /> Volver
-                        </button>
-                        <span className="text-slate-300">/</span>
-                        <span className="text-slate-400">{miniCategoria?.nombre}</span>
-                        <span className="text-slate-300">/</span>
-                        <span className="font-bold text-slate-800">{nombreTipo(miniTipo)}</span>
-                      </div>
-
-                      <div className="flex items-center gap-3 mb-3.5 pb-3.5 border-b border-slate-100">
-                        <div className="w-[52px] h-[52px] rounded-[10px] bg-slate-50 border border-slate-200 flex items-center justify-center flex-shrink-0">
-                          <IconoTipo tipo={miniTipo} categorias={categorias} size={30} />
-                        </div>
-                        <div>
-                          <div className="text-[15px] font-bold text-slate-800">{nombreTipo(miniTipo)}</div>
-                          <div className="text-[11.5px] text-slate-400">
-                            {miniUnidadesDeTipo.length} disponibles de {unidadesTotalDelTipo.length} unidades
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="bg-slate-50 border border-slate-200 rounded-[9px] p-2.5 mb-3 grid grid-cols-2 gap-2">
-                        {camposUnidadMini.map(campo => {
-                          const valoresUnicos = valoresUnicosPorCampoMini[campo.clave] || []
-                          const usarDropdown = valoresUnicos.length > 0 && valoresUnicos.length <= 6
-                          return (
-                            <div key={campo.clave}>
-                              <label className="text-[10px] font-bold uppercase text-slate-500 mb-1 block truncate">{campo.nombre}</label>
-                              {usarDropdown ? (
-                                <select value={filtrosCamposMini[campo.clave] || ''}
-                                  onChange={e => setFiltrosCamposMini(f => ({ ...f, [campo.clave]: e.target.value }))}
-                                  className="w-full px-2 py-1.5 border border-slate-200 rounded-[7px] text-[12px] outline-none focus:border-[#D81B43] bg-white">
-                                  <option value="">Todos</option>
-                                  {valoresUnicos.map(v => <option key={v} value={v}>{v}</option>)}
-                                </select>
-                              ) : (
-                                <input type="text" value={filtrosCamposMini[campo.clave] || ''}
-                                  onChange={e => setFiltrosCamposMini(f => ({ ...f, [campo.clave]: e.target.value }))}
-                                  placeholder="Filtrar…"
-                                  className="w-full px-2 py-1.5 border border-slate-200 rounded-[7px] text-[12px] outline-none focus:border-[#D81B43] bg-white placeholder:text-slate-400" />
-                              )}
-                            </div>
-                          )
-                        })}
-                      </div>
-
-                      <div className="border border-slate-200 rounded-[9px] overflow-hidden overflow-x-auto">
-                        <table className="w-full border-collapse">
-                          <thead>
-                            <tr className="border-b border-slate-200">
-                              {camposUnidadMini.map(c => (
-                                <th key={c.clave} className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-[0.05em] text-slate-400 bg-slate-50 whitespace-nowrap">{c.nombre}</th>
-                              ))}
-                              <th className="w-10 bg-slate-50"></th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {unidadesPaginadas.map(eq => {
-                              const seleccionado = wForm.equipos_ids.includes(eq.id)
-                              return (
-                                <tr key={eq.id}
-                                  onClick={() => seleccionado ? quitarEquipo(eq.id) : agregarEquipo(eq.id)}
-                                  className={`border-b border-slate-100 last:border-0 cursor-pointer transition-colors ${seleccionado ? 'bg-[#FFF0F3]' : 'hover:bg-slate-50'}`}>
-                                  {camposUnidadMini.map(c => {
-                                    const valor = eq.atributos?.[c.clave] ?? eq[c.clave]
-                                    return (
-                                      <td key={c.clave} className="px-3 py-2 text-[12.5px] text-slate-600 whitespace-nowrap">
-                                        {c.clave === 'codigo'
-                                          ? <span className="font-mono text-[12px] font-bold bg-slate-100 text-slate-700 px-2 py-0.5 rounded">{valor || '—'}</span>
-                                          : (valor ?? '—')}
-                                      </td>
-                                    )
-                                  })}
-                                  <td className="px-2 py-2 text-right">
-                                    <button type="button"
-                                      onClick={e => { e.stopPropagation(); seleccionado ? quitarEquipo(eq.id) : agregarEquipo(eq.id) }}
-                                      className={`w-6 h-6 rounded-full inline-flex items-center justify-center transition-colors ${
-                                        seleccionado ? 'bg-[#D81B43] text-white' : 'bg-[#D81B43]/10 text-[#D81B43]'}`}>
-                                      {seleccionado ? <Check size={12} strokeWidth={3} /> : <Plus size={12} strokeWidth={3} />}
-                                    </button>
-                                  </td>
-                                </tr>
-                              )
-                            })}
-                            {unidadesPaginadas.length === 0 && (
-                              <tr><td colSpan={camposUnidadMini.length + 1} className="text-center py-8 text-[12.5px] text-slate-400">Sin unidades que coincidan</td></tr>
-                            )}
-                          </tbody>
-                        </table>
-                      </div>
-
-                      {totalPaginasUnidades > 1 && (
-                        <div className="flex items-center justify-between mt-2.5 text-[12px] text-slate-500">
-                          <button type="button" disabled={paginaUnidades === 1} onClick={() => setPaginaUnidades(p => p - 1)}
-                            className="px-2.5 py-1.5 border border-slate-200 rounded-[7px] disabled:opacity-40 disabled:cursor-not-allowed hover:border-slate-300">
-                            ‹ Anterior
-                          </button>
-                          <span>Página {paginaUnidades} de {totalPaginasUnidades} · {unidadesFiltradasEnTipo.length} unidades</span>
-                          <button type="button" disabled={paginaUnidades === totalPaginasUnidades} onClick={() => setPaginaUnidades(p => p + 1)}
-                            className="px-2.5 py-1.5 border border-slate-200 rounded-[7px] disabled:opacity-40 disabled:cursor-not-allowed hover:border-slate-300">
-                            Siguiente ›
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                {/* Carrito */}
-                <div className="md:border-l md:border-slate-100 md:pl-4">
-                  <div className={labelCls}>Carrito ({wForm.equipos_ids.length})</div>
-                  {wForm.equipos_ids.length === 0 ? (
-                    <div className="text-[12.5px] text-slate-400 text-center py-8 border border-dashed border-slate-200 rounded-[9px]">
-                      Agrega equipos desde el panel de la izquierda
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      {wForm.equipos_ids.map(id => {
-                        const eq = equipos.find(e => e.id === id)
-                        if (!eq) return null
-                        return (
-                          <div key={id} className="flex items-center gap-2.5 p-2.5 rounded-[8px] border border-[#D81B43]/30 bg-[#D81B43]/5">
-                            <Package size={14} className="text-[#D81B43] flex-shrink-0" />
-                            <div className="flex-1 min-w-0">
-                              <div className="text-[13px] font-semibold text-slate-700 truncate">{nombreEquipo(eq)}</div>
-                              <div className="text-[11px] font-mono text-slate-400">{eq.codigo}</div>
-                              <div className="text-[10.5px] text-slate-400 truncate">{eq.tipo_equipo?.categoria?.nombre}</div>
-                            </div>
-                            <button type="button" onClick={() => quitarEquipo(id)}
-                              className="w-6 h-6 flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors flex-shrink-0">
-                              <Trash2 size={13} />
-                            </button>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div className="flex justify-end gap-2 mt-5 pt-4 border-t border-slate-100">
-                <button onClick={cancelarNuevo}
-                  className="px-4 py-2.5 border border-slate-200 rounded-[9px] text-[13px] font-medium text-slate-600 hover:border-slate-300">
-                  Cancelar
-                </button>
-                <button onClick={avanzarSeccion2}
-                  className="px-5 py-2.5 bg-[#D81B43] text-white rounded-[9px] text-[13px] font-semibold hover:bg-[#B0172F]">
-                  Siguiente →
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* SECCIÓN 3 — Resumen y entrega */}
-          {seccion2Completa && (
-            <div ref={seccion3Ref} className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
-              <div className="text-[13px] font-bold text-slate-700 mb-4">3. Resumen y entrega</div>
-
-              <div className="mb-5 pb-5 border-b border-slate-100 space-y-3">
-                <div>
-                  <div className="text-[10px] font-semibold uppercase text-slate-400 mb-1">Cliente</div>
-                  <div className="text-[13.5px] font-semibold text-slate-800">{clientes.find(c => c.id === wForm.cliente_id)?.nombre || '—'}</div>
-                </div>
-                {wForm.tiene_paciente && (
-                  <div>
-                    <div className="text-[10px] font-semibold uppercase text-slate-400 mb-1">Paciente</div>
-                    <div className="text-[13.5px] font-semibold text-slate-800">
-                      {wForm.pacienteNuevo.nombre || '—'}
-                    </div>
-                  </div>
-                )}
-                <div>
-                  <div className="text-[10px] font-semibold uppercase text-slate-400 mb-1">Equipos ({wForm.equipos_ids.length})</div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {wForm.equipos_ids.map(id => {
-                      const eq = equipos.find(e => e.id === id)
-                      if (!eq) return null
-                      return (
-                        <span key={id} className="text-[11.5px] font-mono bg-slate-100 text-slate-600 px-2 py-1 rounded">
-                          {eq.codigo}
-                        </span>
-                      )
-                    })}
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-4">
-                <div className="flex items-center gap-2">
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input type="checkbox" checked={wForm.domicilio}
-                      onChange={e => setWForm(f => ({ ...f, domicilio: e.target.checked, repartidor_id: '', fecha_entrega_domicilio: '', fechaInicioDistinta: false, fecha_inicio: '' }))} />
-                    <span className="text-[13.5px] font-medium text-slate-700">¿Entrega a domicilio?</span>
-                  </label>
-                </div>
-
-                {!wForm.domicilio && (
-                  <div>
-                    <label className={labelCls}>Fecha de inicio del préstamo <span className="text-[#D81B43]">*</span></label>
-                    <input type="date" value={wForm.fecha_inicio}
-                      onChange={e => setWForm(f => ({ ...f, fecha_inicio: e.target.value }))} className={inputCls} />
-                  </div>
-                )}
-
-                {wForm.domicilio && (
-                  <>
-                    <div>
-                      <label className={labelCls}>Repartidor <span className="text-[#D81B43]">*</span></label>
-                      <select value={wForm.repartidor_id} onChange={e => setWForm(f => ({ ...f, repartidor_id: e.target.value }))} className={inputCls}>
-                        <option value="">Seleccionar repartidor...</option>
-                        {usuarios.map(u => <option key={u.id} value={u.id}>{u.nombre}</option>)}
-                      </select>
-                    </div>
-                    <div>
-                      <label className={labelCls}>Fecha y hora de entrega del equipo <span className="text-[#D81B43]">*</span></label>
-                      <input type="datetime-local" value={wForm.fecha_entrega_domicilio}
-                        onChange={e => setWForm(f => ({ ...f, fecha_entrega_domicilio: e.target.value }))} className={inputCls} />
-                    </div>
-                    <label className="flex items-center gap-2 text-[12.5px] text-slate-600 cursor-pointer">
-                      <input type="checkbox" checked={wForm.fechaInicioDistinta}
-                        onChange={e => setWForm(f => ({ ...f, fechaInicioDistinta: e.target.checked, fecha_inicio: '' }))} />
-                      La fecha de inicio del préstamo es diferente a la fecha de entrega
-                    </label>
-                    {wForm.fechaInicioDistinta && (
-                      <div>
-                        <label className={labelCls}>Fecha de inicio del préstamo <span className="text-[#D81B43]">*</span></label>
-                        <input type="date" value={wForm.fecha_inicio}
-                          onChange={e => setWForm(f => ({ ...f, fecha_inicio: e.target.value }))} className={inputCls} />
-                      </div>
-                    )}
-                  </>
-                )}
-
-                <div className="pt-3 border-t border-slate-100">
-                  <ControlVigencia value={wForm.fecha_vigencia}
-                    onChange={v => setWForm(f => ({ ...f, fecha_vigencia: v }))} />
-                </div>
-              </div>
-
-              <div className="flex justify-end gap-2 mt-5 pt-4 border-t border-slate-100">
-                <button onClick={cancelarNuevo}
-                  className="px-4 py-2.5 border border-slate-200 rounded-[9px] text-[13px] font-medium text-slate-600 hover:border-slate-300">
-                  Cancelar
-                </button>
-                <button onClick={crearOrden} disabled={saving}
-                  className="px-5 py-2.5 bg-[#D81B43] text-white rounded-[9px] text-[13px] font-semibold hover:bg-[#B0172F] disabled:opacity-50">
-                  {saving ? 'Creando...' : '✓ Crear préstamo'}
-                </button>
-              </div>
-            </div>
-          )}
-
-        </div>
+        <NuevoPrestamo
+          clientes={clientes} pacientes={pacientesLocal} equipos={equipos} categorias={categorias}
+          tiposEquipo={tiposEquipo} plantillas={plantillas} repartidores={usuarios} estados={estados}
+          estadosEquipo={estadosEquipo || estados} tipos={tipos} usoClientes={usoClientes}
+          onSalir={hayDatos => { setVista('lista'); if (hayDatos) showToast('Borrador guardado — lo retomas al crear otro préstamo') }}
+          onCreado={prestamoCreado} />
       )}
       </div>
+
+      {firmarOrden && (
+        <FirmaActas ordenId={firmarOrden.id} titulo={`Acta de entrega · ${firmarOrden.codigo}`}
+          onCancelar={() => { setFirmarOrden(null); showToast('Puedes firmar el acta luego desde el detalle del préstamo') }}
+          onHecho={() => { setFirmarOrden(null); showToast('Acta firmada') }} />
+      )}
 
       {/* ── MODAL CONFIRMACIÓN CAMBIO ESTADO ── */}
       {modalConfirm && (
@@ -2114,7 +1216,7 @@ export default function OrdenesClient({
       {modalCambio && (
         <ModalCambioEquipo
           equipoActual={modalCambio.equipo}
-          disponibles={equiposParaMini.filter(eq => eq.id !== modalCambio.equipo_id)}
+          disponibles={equiposDisponibles.filter(eq => eq.id !== modalCambio.equipo_id)}
           categorias={categorias}
           tiposEquipo={tiposEquipo}
           entregada={drawerEstado === 'Entregada'}

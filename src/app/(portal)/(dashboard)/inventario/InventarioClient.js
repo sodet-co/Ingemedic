@@ -12,6 +12,7 @@ import Paginador from '@/components/ui/Paginador'
 import { formatear, hoyBogota } from '@/lib/fechas'
 import { consecutivoCodigos, claveCodigo, porMasReciente, esCampoCodigo, atributosConCodigo } from '@/lib/equipos'
 import ModalEliminarEquipos from '@/components/inventario/ModalEliminarEquipos'
+import VentanaDetalle, { Columnas } from '@/components/ui/VentanaDetalle'
 import BuzonNovedades from '@/components/layout/BuzonNovedades'
 import { useOrdenable } from '@/hooks/useOrdenable'
 import { usePaginacion } from '@/hooks/usePaginacion'
@@ -1264,11 +1265,9 @@ export default function InventarioClient({ categorias: catsIniciales, tipos: tip
         </div>
       </div>
 
-      {/* ── DRAWER HOJA DE VIDA ── */}
+      {/* ── HOJA DE VIDA (ventana ancha; en celular, hoja desde abajo) ── */}
       {drawer && (
-        <>
-          <div className="fixed inset-0 bg-black/30 z-[45] backdrop-blur-sm" onClick={() => setDrawer(null)} />
-          <div className="fixed inset-x-0 bottom-0 h-[92vh] rounded-t-2xl md:rounded-none md:inset-x-auto md:top-0 md:right-0 md:bottom-0 md:h-full md:w-[500px] bg-white z-[50] flex flex-col shadow-2xl overflow-hidden">
+        <VentanaDetalle onCerrar={() => setDrawer(null)}>
             <div className="px-6 py-4 border-b border-slate-200 flex items-start justify-between flex-shrink-0">
               <div>
                 <div className="text-[16px] font-bold text-slate-800">
@@ -1282,8 +1281,8 @@ export default function InventarioClient({ categorias: catsIniciales, tipos: tip
               </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto">
-              <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6 border-b border-slate-100">
+            <Columnas izquierda={
+              <div className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 gap-6">
                 {camposTipo.length > 0 && (
                   <div>
                     <div className="text-[9.5px] font-bold uppercase tracking-[0.12em] text-slate-400 mb-3">Información del equipo</div>
@@ -1318,6 +1317,7 @@ export default function InventarioClient({ categorias: catsIniciales, tipos: tip
                 </div>
               </div>
 
+            } derecha={
               <div className="p-6">
                 <div className="text-[13px] font-bold text-slate-700 mb-4">Hoja de vida · Línea de tiempo</div>
                 {(() => {
@@ -1408,7 +1408,7 @@ export default function InventarioClient({ categorias: catsIniciales, tipos: tip
                   )
                 })()}
               </div>
-            </div>
+            } />
 
             <div className="px-4 pt-3 border-t border-slate-200 flex flex-col sm:flex-row gap-2 flex-shrink-0"
               style={{ paddingBottom: 'max(12px, env(safe-area-inset-bottom, 12px))' }}>
@@ -1427,8 +1427,7 @@ export default function InventarioClient({ categorias: catsIniciales, tipos: tip
                   : <><FileText size={13} /> Hoja de vida PDF</>}
               </button>
             </div>
-          </div>
-        </>
+        </VentanaDetalle>
       )}
 
       {/* ── MODAL ELIMINAR EQUIPO ── */}

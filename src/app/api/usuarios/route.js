@@ -28,7 +28,7 @@ export async function POST(request) {
     const { usuario: actual, respuesta } = await verificarSesion({ modulos: MODULOS_USUARIOS })
     if (respuesta) return respuesta
 
-    const { nombre, email, username, password, rol_id } = await request.json()
+    const { nombre, email, username, password, rol_id, cargo, tipo_documento, cedula } = await request.json()
 
     if (!nombre || !email || !username || !password || !rol_id) {
       return NextResponse.json({ error: 'Todos los campos son requeridos' }, { status: 400 })
@@ -56,6 +56,10 @@ export async function POST(request) {
         username,
         rol_id,
         activo:   true,
+        // Datos de quien entrega en las actas (lib/actas): se autocompletan al firmar
+        cargo:          cargo || null,
+        tipo_documento: tipo_documento || 'CC',
+        cedula:         cedula || null,
       })
       .select('*, rol:roles(id, nombre)')
       .single()
@@ -78,7 +82,7 @@ export async function PUT(request) {
     const { usuario: actual, respuesta } = await verificarSesion({ modulos: MODULOS_USUARIOS })
     if (respuesta) return respuesta
 
-    const { id, nombre, email, username, rol_id, password, activo } = await request.json()
+    const { id, nombre, email, username, rol_id, password, activo, cargo, tipo_documento, cedula } = await request.json()
 
     if (!id) return NextResponse.json({ error: 'ID requerido' }, { status: 400 })
 
@@ -114,6 +118,9 @@ export async function PUT(request) {
     if (username  !== undefined) payload.username  = username
     if (rol_id    !== undefined) payload.rol_id    = rol_id
     if (activo    !== undefined) payload.activo    = activo
+    if (cargo          !== undefined) payload.cargo          = cargo || null
+    if (tipo_documento !== undefined) payload.tipo_documento = tipo_documento || 'CC'
+    if (cedula         !== undefined) payload.cedula         = cedula || null
 
     const { data: usuario, error: dbError } = await supabaseAdmin
       .from('usuarios')

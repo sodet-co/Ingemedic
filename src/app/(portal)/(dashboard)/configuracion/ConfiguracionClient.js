@@ -14,6 +14,8 @@ import BuzonNovedades from '@/components/layout/BuzonNovedades'
 import { filaPortal } from '@/lib/portalClientes'
 import { equiposDeTipos } from '@/lib/equipos'
 import ModalEliminarEquipos from '@/components/inventario/ModalEliminarEquipos'
+import VistaActa from '@/components/actas/VistaActa'
+import { contextoEjemplo } from '@/lib/actas/ejemplo'
 
 const NAV_MODULO = {
   usuarios: 'configuracion.usuarios', roles: 'configuracion.roles', categorias: 'configuracion.categorias',
@@ -238,7 +240,7 @@ function CargueCard({ titulo, tipo, sub, cols, Icono = Upload }) {
 
 export default function ConfiguracionClient({
   usuariosIniciales = [], roles = [], categorias: catsIniciales = [],
-  tipos: tiposIniciales = [], plantillas = [], listas: listasIniciales = [],
+  tipos: tiposIniciales = [], plantillasActa = [], listas: listasIniciales = [],
   actividades: actividadesIniciales = [], empresaInicial = {},
   esSuperAdmin = false, permisosDelRolActual = [], todosPermisosIniciales = [],
 }) {
@@ -333,6 +335,8 @@ export default function ConfiguracionClient({
   const [listas, setListas]           = useState(listasIniciales ?? [])
   const [actividades, setActividades] = useState(actividadesIniciales ?? [])
   const [modal, setModal]             = useState(null)
+  // Plantilla de acta abierta en vista previa
+  const [vistaActa, setVistaActa] = useState(null)
   // Tipo o categoría por eliminar: { nivel: 'tipo' | 'categoria', item }
   const [porEliminar, setPorEliminar] = useState(null)
   const [saving, setSaving]           = useState(false)
@@ -424,6 +428,7 @@ export default function ConfiguracionClient({
         id: form.id, nombre: form.nombre.trim(), email: form.email.trim(),
         username: form.username.trim().toLowerCase().replace(/\s+/g, '_'),
         password: form.password?.trim() || undefined, rol_id: form.rol_id,
+        cargo: form.cargo?.trim() || '', tipo_documento: form.tipo_documento || 'CC', cedula: form.cedula?.trim() || '',
       }),
     })
     const data = await res.json()
@@ -672,21 +677,6 @@ export default function ConfiguracionClient({
     if (error) { showToast('Error: ' + error.message, 'error'); return }
     registrarBitacora({ modulo: 'configuracion', accion: 'editar', entidad: 'configuración de empresa', entidad_id: empresa.id, detalle: { razon_social: empresa.razon_social } })
     showToast('Datos guardados')
-  }
-
-  function previsualizarPlantilla(plantilla) {
-    const vars = {
-      empresa_logo: empresa.logo_url || '', empresa_dir: empresa.dir || '',
-      empresa_tel: empresa.tel || '', empresa_email: empresa.email || '', empresa_web: empresa.web || '',
-      orden_codigo: 'OS-2024-001', ciudad: 'Valledupar', orden_fecha: '15/01/2024',
-      cliente_nombre: 'IPS San Juan de Dios', equipo_nombre: 'Concentrador de Oxígeno',
-      equipo_serial: 'SN-001234', equipo_codigo: 'EQ-001',
-    }
-    let html = plantilla.contenido || ''
-    for (const [k, v] of Object.entries(vars)) html = html.replaceAll(`{{${k}}}`, v)
-    const w = window.open('', '_blank')
-    if (!w) { showToast('No se pudo abrir la previsualización', 'error'); return }
-    w.document.write(html); w.document.close()
   }
 
   const actividadesDeLista = id => actividades.filter(a => a.lista_id === id)
@@ -1281,26 +1271,36 @@ export default function ConfiguracionClient({
               </div>
             )}
 
-            {/* PLANTILLAS */}
+            {/* PLANTILLAS — actas de entrega por cliente (lib/actas) */}
             {seccionActiva === 'plantillas' && (
               <div>
-                <h2 className="text-[20px] font-bold text-slate-800 mb-1">Plantillas de documentos</h2>
-                <p className="text-[13px] text-slate-400 mb-6">Documentos legales usados en las órdenes de servicio</p>
+                <h2 className="text-[20px] font-bold text-slate-800 mb-1">Plantillas de actas</h2>
+                <p className="text-[13px] text-slate-400 mb-6">Documentos que se firman al entregar un préstamo. El cliente sin plantillas propias usa la estándar.</p>
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-                  {plantillas.map(p => (
-                    <div key={p.id} className="bg-white rounded-xl border border-slate-200 shadow-sm flex items-center gap-3 px-4 py-3.5 hover:border-slate-300 transition-colors">
-                      <div className="w-8 h-8 rounded-[8px] bg-[#D81B43]/10 flex items-center justify-center flex-shrink-0"><FileText size={15} className="text-[#D81B43]" /></div>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-[13.5px] font-semibold text-slate-700 truncate">{p.nombre}</div>
-                        {p.descripcion && <div className="text-[12px] text-slate-400 mt-0.5">{p.descripcion}</div>}
-                        <div className="text-[11px] text-slate-300 font-mono mt-0.5">v{p.version || '1'}</div>
+                  {plantillasActa.map(p => {
+                    const clientesP = (p.clientes || []).map(c => c.cliente?.nombre).filter(Boolean)
+                    return (
+                      <div key={p.id} className="bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col gap-2 px-4 py-3.5 hover:border-slate-300 transition-colors">
+                        <div className="flex items-start gap-3">
+                          <div className="w-8 h-8 rounded-[8px] bg-[#D81B43]/10 flex items-center justify-center flex-shrink-0"><FileText size={15} className="text-[#D81B43]" /></div>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-[13.5px] font-semibold text-slate-700">{p.nombre}</div>
+                            {p.descripcion && <div className="text-[12px] text-slate-400 mt-0.5">{p.descripcion}</div>}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {p.es_estandar && <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-[#1B3A6B]/10 text-[#1B3A6B]">Estándar</span>}
+                          {clientesP.map(n => <span key={n} className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-slate-100 text-slate-600">{n}</span>)}
+                          {p.tipo === 'anexo' && <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-700">Anexo opcional</span>}
+                          {!p.es_estandar && p.tipo !== 'anexo' && clientesP.length === 0 && <span className="text-[11px] text-slate-400">Sin cliente asignado</span>}
+                          <button onClick={() => setVistaActa(p)} className="ml-auto flex-shrink-0 px-3 py-1.5 border border-slate-200 rounded-[7px] text-[12px] font-medium text-slate-600 hover:border-[#D81B43] hover:text-[#D81B43] transition-all">
+                            Previsualizar
+                          </button>
+                        </div>
                       </div>
-                      <button onClick={() => previsualizarPlantilla(p)} className="flex-shrink-0 px-3 py-1.5 border border-slate-200 rounded-[7px] text-[12px] font-medium text-slate-600 hover:border-[#D81B43] hover:text-[#D81B43] transition-all">
-                        Previsualizar
-                      </button>
-                    </div>
-                  ))}
-                  {plantillas.length === 0 && <div className="col-span-full bg-white rounded-xl border border-slate-200 shadow-sm text-center py-12 text-slate-400">Sin plantillas configuradas</div>}
+                    )
+                  })}
+                  {plantillasActa.length === 0 && <div className="col-span-full bg-white rounded-xl border border-slate-200 shadow-sm text-center py-12 text-slate-400">Sin plantillas configuradas</div>}
                 </div>
               </div>
             )}
@@ -1461,6 +1461,23 @@ export default function ConfiguracionClient({
                       <input value={form.username || ''} onChange={e => setForm(f => ({ ...f, username: e.target.value }))} className={inputCls} />
                     </div>
                   </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-[1fr_88px_1fr] gap-3">
+                    <div>
+                      <label className={labelCls}>Cargo</label>
+                      <input value={form.cargo || ''} onChange={e => setForm(f => ({ ...f, cargo: e.target.value }))} className={inputCls} placeholder="Biomédico, auxiliar…" />
+                    </div>
+                    <div>
+                      <label className={labelCls}>Tipo doc.</label>
+                      <select value={form.tipo_documento || 'CC'} onChange={e => setForm(f => ({ ...f, tipo_documento: e.target.value }))} className={inputCls}>
+                        {['CC', 'CE', 'PA', 'TI'].map(t => <option key={t} value={t}>{t}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className={labelCls}>Número de documento</label>
+                      <input value={form.cedula || ''} inputMode="numeric" onChange={e => setForm(f => ({ ...f, cedula: e.target.value.replace(/[^0-9]/g, '') }))} className={inputCls} />
+                    </div>
+                  </div>
+                  <p className="text-[11.5px] text-slate-400 -mt-1">Salen en las actas de entrega que firme este usuario.</p>
                   <div>
                     <label className={labelCls}>Rol</label>
                     <select value={form.rol_id || ''} onChange={e => setForm(f => ({ ...f, rol_id: e.target.value }))} className={inputCls}>
@@ -1684,6 +1701,24 @@ export default function ConfiguracionClient({
                   {subiendoImagen ? 'Subiendo imagen...' : saving ? 'Guardando...' : 'Guardar'}
                 </button>
               </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {vistaActa && (
+        <>
+          <div className="fixed inset-0 bg-black/50 z-[60]" onClick={() => setVistaActa(null)} />
+          <div className="fixed inset-x-0 bottom-0 h-[92vh] rounded-t-2xl md:inset-y-6 md:inset-x-auto md:left-1/2 md:-translate-x-1/2 md:h-auto md:w-[860px] md:rounded-2xl bg-slate-100 z-[60] flex flex-col shadow-2xl overflow-hidden">
+            <div className="px-5 py-3.5 bg-white border-b flex items-center justify-between gap-3 flex-shrink-0">
+              <div className="min-w-0">
+                <div className="text-[14px] font-bold text-slate-800 truncate">{vistaActa.nombre}</div>
+                <div className="text-[11.5px] text-slate-400">Vista previa con datos de ejemplo</div>
+              </div>
+              <button onClick={() => setVistaActa(null)} className="text-slate-400 hover:text-slate-600 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100 flex-shrink-0"><X size={16} /></button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-3 md:p-6">
+              <VistaActa bloques={vistaActa.bloques} ctx={contextoEjemplo(empresa)} />
             </div>
           </div>
         </>

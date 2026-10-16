@@ -536,9 +536,10 @@ function DetalleEquipo({ equipo: e, categorias, mantenimientos, onCerrar }) {
   ].filter(([, v]) => v)
 
   return (
-    <div className="fixed inset-0 z-40 flex items-end justify-center md:items-stretch md:justify-end" role="dialog" aria-modal="true" aria-label={`Equipo ${e.codigo || ''}`}>
+    // Ventana centrada y ancha en md+ (antes, panel lateral de 480px); en celular, hoja desde abajo
+    <div className="fixed inset-0 z-40 flex items-end justify-center md:items-center md:p-6" role="dialog" aria-modal="true" aria-label={`Equipo ${e.codigo || ''}`}>
       <div className="absolute inset-0 bg-[#0F1E36]/50" onClick={onCerrar} />
-      <div className="relative w-full md:w-[480px] max-h-[92vh] md:max-h-none md:h-full bg-[#F4F6FA] rounded-t-[24px] md:rounded-none flex flex-col overflow-hidden shadow-2xl">
+      <div className="relative w-full md:max-w-[960px] max-h-[92vh] md:max-h-[calc(100vh-3rem)] bg-[#F4F6FA] rounded-t-[24px] md:rounded-[24px] flex flex-col overflow-hidden shadow-2xl">
         <div className="bg-[#1B3A6B] px-[18px] pt-3 pb-5 flex flex-col gap-3">
           <div className="md:hidden mx-auto w-10 h-1 rounded-full bg-white/30" aria-hidden />
           <div className="flex items-start gap-3">
@@ -556,7 +557,8 @@ function DetalleEquipo({ equipo: e, categorias, mantenimientos, onCerrar }) {
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-3.5 flex flex-col gap-2.5" style={{ paddingBottom: 'calc(20px + env(safe-area-inset-bottom))' }}>
+        <div className="flex-1 overflow-y-auto p-3.5 md:p-5 md:grid md:grid-cols-2 md:gap-5 md:items-start" style={{ paddingBottom: 'calc(20px + env(safe-area-inset-bottom))' }}>
+          <div className="flex flex-col gap-2.5">
           <div className="bg-white border border-[#E3E9F1] rounded-[18px] p-4 grid grid-cols-2 gap-x-4 gap-y-3">
             {datos.map(([k, v]) => (
               <div key={k} className="min-w-0">
@@ -581,6 +583,9 @@ function DetalleEquipo({ equipo: e, categorias, mantenimientos, onCerrar }) {
               </>
             ) : <div className="text-[14px] font-medium text-[#5B6B82]">Sin paciente asignado</div>}
           </div>
+          </div>
+
+          <div className="flex flex-col gap-2.5 mt-2.5 md:mt-0">
 
           <div className="flex items-baseline justify-between px-1 pt-1">
             <h4 className="m-0 text-[15px] font-extrabold text-[#0F1E36]">Mantenimientos</h4>
@@ -601,6 +606,7 @@ function DetalleEquipo({ equipo: e, categorias, mantenimientos, onCerrar }) {
               {m.observaciones_cliente && <p className="m-0 text-[13px] text-[#334259]">{m.observaciones_cliente}</p>}
             </div>
           ))}
+          </div>
         </div>
       </div>
     </div>

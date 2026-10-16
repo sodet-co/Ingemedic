@@ -11,12 +11,12 @@ export default async function ConfiguracionPage() {
     { data: roles },
     { data: categorias },
     { data: tipos },
-    { data: plantillas },
     { data: listas },
     { data: actividades },
     { data: empresa },
     { data: usuarioActual },
     { data: todosPermisos },
+    { data: plantillasActa },
   ] = await Promise.all([
     supabase.from('usuarios').select('*, rol:roles(id, nombre)').order('nombre'),
     supabase.from('roles').select('*'),
@@ -25,12 +25,14 @@ export default async function ConfiguracionPage() {
       .select('*, atributos, categoria:categorias_equipo(id, nombre, atributos_extra), lista:listas_mantenimiento(id, nombre)')
       .eq('activo', true)
       .order('nombre'),
-    supabase.from('plantillas_orden').select('*').eq('eliminado', false).order('nombre'),
     supabase.from('listas_mantenimiento').select('*').eq('activo', true).order('nombre'),
     supabase.from('actividades_lista_mantenimiento').select('*').eq('activo', true).order('orden'),
     supabase.from('configuracion_empresa').select('*').single(),
     supabase.from('usuarios').select('rol_id, roles(nombre)').eq('email', user?.email).single(),
     supabase.from('permisos').select('*'),
+    supabase.from('plantillas_acta')
+      .select('id, nombre, descripcion, bloques, es_estandar, tipo, clientes:cliente_plantillas_acta(orden, cliente:clientes(id, nombre))')
+      .eq('activo', true).order('es_estandar', { ascending: false }).order('nombre'),
   ])
 
   const superAdmin = esSuperAdmin(usuarioActual?.roles?.nombre)
@@ -44,7 +46,7 @@ export default async function ConfiguracionPage() {
       roles={roles || []}
       categorias={categorias || []}
       tipos={tipos || []}
-      plantillas={plantillas || []}
+      plantillasActa={plantillasActa || []}
       listas={listas || []}
       actividades={actividades || []}
       empresaInicial={empresa || {}}

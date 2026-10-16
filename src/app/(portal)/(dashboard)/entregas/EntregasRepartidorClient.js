@@ -5,10 +5,10 @@ import { createClient } from '@/lib/supabase'
 import { registrarBitacora } from '@/lib/bitacora'
 import { formatear, soloDia, hoyBogota, sumarDias } from '@/lib/fechas'
 import { crearEntrega, finalizarEntrega } from '@/lib/entregas'
-import FirmaPad from '@/components/entregas/FirmaPad'
+import FirmaActas from '@/components/actas/FirmaActas'
 import ConfirmDialog from '@/components/ui/ConfirmDialog'
 import {
-  Package, MapPin, Clock, User, CheckCircle2, Truck, Phone, X, Navigation, FileText, StickyNote, ChevronLeft,
+  Package, MapPin, Clock, User, CheckCircle2, Truck, Phone, Navigation, StickyNote,
 } from 'lucide-react'
 
 function nombreEquipo(eq) {
@@ -51,9 +51,7 @@ export default function EntregasRepartidorClient({ nombreRepartidor = '', entreg
   const [toast, setToast]       = useState(null)
   const [tab, setTab]           = useState('activas') // 'activas' | 'completadas'
   const [porIniciar, setPorIniciar] = useState(null)   // orden a confirmar antes de iniciar
-  const [modalRegistro, setModalRegistro] = useState(null)
-  const [paso, setPaso]         = useState(0)          // 0 = datos de recepción, 1 = firma
-  const [regForm, setRegForm]   = useState({ recibido_por: '', observaciones: '', firmas: {} })
+  const [modalRegistro, setModalRegistro] = useState(null) // entrega que se está firmando (FirmaActas)
 
   useEffect(() => {
     const t = setTimeout(() => {
@@ -144,35 +142,20 @@ export default function EntregasRepartidorClient({ nombreRepartidor = '', entreg
 
   function abrirCompletar(entrega) {
     setModalRegistro(entrega)
-    setPaso(0)
-    setRegForm({ recibido_por: entrega.recibido_por || '', observaciones: '', firmas: {} })
   }
 
-  function avanzarAFirma() {
-    if (!regForm.recibido_por?.trim()) { showToast('Escribe el nombre de quien recibe', 'error'); return }
-    setPaso(1)
-  }
-
-  async function handleCompletar() {
-    const firma = regForm.firmas.general || null
-    if (!firma) { showToast('Falta la firma de quien recibe', 'error'); return }
-    setSaving(true)
-
-    const recibidoPor = regForm.recibido_por.trim()
+  // Lo corre FirmaActas antes de guardar las actas: si falla, no se guarda nada
+  async function completarEntrega({ recibidoPor, firma, observaciones }) {
+    const entrega = modalRegistro
     const { error, erroresFirma, cambios } = await finalizarEntrega(supabase, {
-      entrega: modalRegistro, recibidoPor, firma, observaciones: regForm.observaciones, estadosEquipo,
+      entrega, recibidoPor, firma, observaciones, estadosEquipo,
     })
-    if (error) { showToast('Error: ' + error.message, 'error'); setSaving(false); return }
-    registrarBitacora({ modulo: 'entregas', accion: 'cerrar', entidad: 'entrega', entidad_id: modalRegistro.id, detalle: { codigo: modalRegistro.codigo, recibido_por: recibidoPor } })
-
+    if (error) return error
+    registrarBitacora({ modulo: 'entregas', accion: 'cerrar', entidad: 'entrega', entidad_id: entrega.id, detalle: { codigo: entrega.codigo, recibido_por: recibidoPor } })
     skipSyncUntil.current = Date.now() + 2500 // protege el estado local por 2.5s tras completar
-    setEntregas(prev => prev.map(e => e.id === modalRegistro.id ? { ...e, ...cambios } : e))
-    setSaving(false)
-    setModalRegistro(null)
-    showToast(erroresFirma > 0
-      ? `Entrega completada, pero ${erroresFirma} firma(s) no se guardaron`
-      : '¡Entrega completada!', erroresFirma > 0 ? 'error' : 'success')
-    router.refresh()
+    setEntregas(prev => prev.map(e => e.id === entrega.id ? { ...e, ...cambios } : e))
+    if (erroresFirma > 0) showToast(`Entrega completada, pero ${erroresFirma} firma(s) no se guardaron`, 'error')
+    return null
   }
 
   const primerNombre = (nombreRepartidor || '').trim().split(/\s+/)[0]
@@ -180,10 +163,6 @@ export default function EntregasRepartidorClient({ nombreRepartidor = '', entreg
   // la clase `capitalize` ponía "De" y "Septiembre" en mayúscula)
   const fechaHoyTexto = new Date().toLocaleDateString('es-CO', { timeZone: 'America/Bogota', weekday: 'long', day: 'numeric', month: 'long' })
   const fechaHoyLarga = fechaHoyTexto.charAt(0).toUpperCase() + fechaHoyTexto.slice(1)
-
-  const ordenModal     = modalRegistro?.orden
-  const equiposModal   = ordenModal?.equipos || []
-  const docsModal      = ordenModal?.plantillas || []
 
   return (
     <div className="min-h-full bg-[#F8FAFC]">
@@ -260,95 +239,13 @@ export default function EntregasRepartidorClient({ nombreRepartidor = '', entreg
         onCancelar={() => setPorIniciar(null)}
       />
 
-      {/* Completar entrega — 2 pasos: datos de recepción → firma */}
+      {/* Completar entrega: datos, revisión de los formatos y firmas (FirmaActas) */}
       {modalRegistro && (
-        <>
-          <div className="fixed inset-0 bg-black/50 z-[60]" onClick={() => !saving && setModalRegistro(null)} />
-          <div className="fixed inset-x-0 bottom-0 z-[60] bg-white rounded-t-2xl shadow-2xl h-[94dvh] flex flex-col">
-            <div className="px-4 py-3 border-b border-slate-100 flex items-center gap-2 flex-shrink-0">
-              {paso === 1 ? (
-                <button onClick={() => setPaso(0)} className="w-9 h-9 flex items-center justify-center text-slate-500 -ml-1" aria-label="Atrás">
-                  <ChevronLeft size={22} />
-                </button>
-              ) : <div className="w-2" />}
-              <div className="flex-1 min-w-0">
-                <div className="text-[16px] font-bold text-slate-800">{paso === 0 ? 'Completar entrega' : 'Firma de quien recibe'}</div>
-                <div className="text-[12px] text-slate-400">Paso {paso + 1} de 2 · {ordenModal?.codigo}</div>
-              </div>
-              <button onClick={() => setModalRegistro(null)} disabled={saving} className="w-9 h-9 flex items-center justify-center text-slate-400" aria-label="Cerrar">
-                <X size={20} />
-              </button>
-            </div>
-
-            <div className={`flex-1 overflow-y-auto p-4 ${paso === 1 ? 'flex flex-col' : 'space-y-4'}`}>
-              {paso === 0 && (
-                <>
-                  <div className="bg-slate-50 rounded-xl border border-slate-200 p-3.5">
-                    <div className="text-[14px] font-semibold text-slate-800">{ordenModal?.paciente?.nombre || ordenModal?.cliente?.nombre}</div>
-                    {ordenModal?.paciente && <div className="text-[12px] text-slate-500">Cliente: {ordenModal?.cliente?.nombre}</div>}
-                    <div className="text-[11px] font-bold uppercase tracking-[0.07em] text-slate-400 mt-3 mb-1.5">
-                      Equipos a entregar ({equiposModal.length})
-                    </div>
-                    <div className="space-y-1">
-                      {equiposModal.map(oe => (
-                        <div key={oe.id} className="flex items-center gap-2 text-[13px] text-slate-700">
-                          <Package size={14} className="text-slate-400 flex-shrink-0" />
-                          <span className="truncate">{nombreEquipo(oe.equipo)}</span>
-                          <span className="ml-auto font-mono text-[12px] font-semibold text-slate-500 flex-shrink-0">{oe.equipo?.codigo}</span>
-                        </div>
-                      ))}
-                    </div>
-                    {docsModal.length > 0 && (
-                      <div className="flex items-center gap-1.5 text-[12px] text-slate-500 mt-3 pt-3 border-t border-slate-200">
-                        <FileText size={13} /> La firma aplica a {docsModal.length} documento{docsModal.length !== 1 ? 's' : ''}
-                      </div>
-                    )}
-                  </div>
-                  <div>
-                    <label className="block text-[13px] font-semibold text-slate-600 mb-1.5">Nombre de quien recibe <span className="text-[#D81B43]">*</span></label>
-                    <input value={regForm.recibido_por} onChange={e => setRegForm(f => ({ ...f, recibido_por: e.target.value }))}
-                      placeholder="Nombre completo" autoComplete="off"
-                      className="w-full px-3.5 py-3 border border-slate-200 rounded-[10px] text-[15px] outline-none focus:border-[#1B3A6B]" />
-                  </div>
-                  <div>
-                    <label className="block text-[13px] font-semibold text-slate-600 mb-1.5">Observaciones <span className="text-slate-400 font-normal">(opcional)</span></label>
-                    <textarea value={regForm.observaciones} onChange={e => setRegForm(f => ({ ...f, observaciones: e.target.value }))}
-                      rows={3} placeholder="Ej. el equipo quedó instalado en la habitación"
-                      className="w-full px-3.5 py-3 border border-slate-200 rounded-[10px] text-[15px] outline-none focus:border-[#1B3A6B] resize-none" />
-                  </div>
-                </>
-              )}
-
-              {paso === 1 && (
-                <>
-                  <div className="text-[13px] text-slate-500 mb-3 flex-shrink-0">
-                    Firma: <span className="font-semibold text-slate-800">{regForm.recibido_por}</span>
-                    <div className="text-[12px] text-slate-400 mt-0.5">Pásale el celular para que firme con el dedo.</div>
-                  </div>
-                  <FirmaPad
-                    fullscreen
-                    onFirma={dataUrl => setRegForm(f => ({ ...f, firmas: { general: dataUrl } }))}
-                    onLimpiar={() => setRegForm(f => ({ ...f, firmas: {} }))}
-                  />
-                </>
-              )}
-            </div>
-
-            <div className="p-4 border-t border-slate-100 flex-shrink-0" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
-              {paso === 0 ? (
-                <button onClick={avanzarAFirma}
-                  className="w-full py-4 bg-[#1B3A6B] text-white rounded-[12px] text-[16px] font-bold">
-                  Continuar a la firma
-                </button>
-              ) : (
-                <button onClick={handleCompletar} disabled={saving || !regForm.firmas.general}
-                  className="w-full py-4 bg-[#0F7B55] text-white rounded-[12px] text-[16px] font-bold disabled:bg-slate-200 disabled:text-slate-400">
-                  {saving ? 'Guardando...' : '✓ Confirmar entrega'}
-                </button>
-              )}
-            </div>
-          </div>
-        </>
+        <FirmaActas ordenId={modalRegistro.orden?.id || modalRegistro.orden_id} entregaId={modalRegistro.id}
+          titulo="Completar entrega"
+          alFirmar={completarEntrega}
+          onCancelar={() => setModalRegistro(null)}
+          onHecho={() => { setModalRegistro(null); showToast('¡Entrega completada!'); router.refresh() }} />
       )}
 
       {toast && (

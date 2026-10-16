@@ -59,6 +59,152 @@ Lo que está sin resolver, ordenado por prioridad.
 
 # Entradas
 
+## 2026-10-15 — Nuevo préstamo: asistente por pasos (rediseño)
+**Qué se hizo:** el asistente sale de `OrdenesClient.js` (de ~2.100 a ~1.250
+líneas) a `components/prestamos/NuevoPrestamo.js`, rehecho con las opciones que
+eligió Sofía de la auditoría (A + C + E + F + H):
+- **A** un paso a la vez (Cliente y paciente · Equipos · Entrega · Formatos y
+  confirmación) con indicador arriba, barra de botones siempre visible y
+  resumen al final con "Editar" por sección; errores junto a cada campo.
+- **C** paciente activado por defecto (94% de los préstamos lo tienen): se busca
+  por nombre o cédula; "Paciente nuevo" pide lo obligatorio y deja "Datos para
+  los formatos" (EPS, barrio, nacimiento, correo, Dx) plegados. "Sin paciente"
+  es la excepción. Cliente con buscador y los 3 más usados como atajo.
+- **E** un solo buscador de equipos (código, serie, tipo, categoría, cualquier
+  atributo) + filtros por categoría y tipo; Enter con un código exacto (o un
+  lector de código de barras) lo agrega; carrito fijo en PC y en la barra
+  inferior en celular.
+- **F** "En oficina / A domicilio" como selector (oficina por defecto, 96% de los
+  casos); una sola fecha de entrega; inicio distinto solo para domicilio.
+- **H** borrador en localStorage mientras se llena; al volver a "Nuevo
+  préstamo" ofrece Retomar o Empezar de cero (lo que ya no esté disponible sale
+  del carrito); "Descartar" pide confirmación.
+`ControlVigencia` pasó a `components/prestamos/ControlVigencia.js`.
+**Por qué así:** cifras de 292 préstamos: 94% con paciente, 4% a domicilio, 24%
+con más de un equipo, 3 clientes concentran el 49%.
+**Archivos:** `components/prestamos/{NuevoPrestamo,ControlVigencia}.js` (nuevos),
+`ordenes/OrdenesClient.js`.
+**Verificado:** ESLint con `no-undef` sin errores en todo lo tocado hoy (encontró
+`nombreEquipo` y `equiposParaMini` borrados por error; corregidos). La página
+compila y el servidor la entrega completa. **Pendiente:** recorrerlo en
+pantalla (Chrome estaba en segundo plano y no pintaba) y crear un préstamo real
+con él. Ojo: el proyecto no tiene `no-undef` activo en ESLint.
+
+## 2026-10-15 — Detalles en ventana ancha en lugar de panel lateral
+**Qué se hizo:** los paneles laterales derechos de ~480–520px (detalle de
+Entrega, hoja de vida en Inventario, detalle de Mantenimiento y detalle de
+equipo en el portal del cliente) pasan a una ventana centrada de hasta 1080px
+(960 en el portal) con el contenido en dos columnas desde `lg`. En celular
+siguen siendo la hoja que sube desde abajo. Componente nuevo
+`components/ui/VentanaDetalle.js` (marco + `Columnas`; cierra con ESC).
+**Por qué:** pedido de Sofía: en PC amontonaban la información en un tercio de
+la pantalla. Préstamos y Clientes no se tocaron: ya usan vista dividida ancha.
+**Archivos:** `components/ui/VentanaDetalle.js` (nuevo), `entregas/EntregasClient.js`,
+`inventario/InventarioClient.js`, `mantenimientos/MantenimientosClient.js`,
+`cliente/PortalClienteClient.js`.
+**Verificado:** Entregas en Chrome a 1987px: ventana de 1080px centrada, dos
+columnas. **Pendiente:** ver en pantalla Inventario, Mantenimientos (el rol de
+prueba no tenía acceso) y el portal del cliente.
+
+## 2026-10-15 — Actas por cliente, fase 2: formatos por préstamo y firma única
+**Qué se hizo:** al crear un préstamo se eligen sus formatos (vienen marcados los
+del cliente o el estándar; el pagaré es un **anexo opcional**, nunca sugerido) y
+se capturan tipo de documento, barrio, EPS y fecha de nacimiento del paciente y
+el diagnóstico. Nuevo paso único de firma `components/actas/FirmaActas.js`:
+datos de quien recibe (o "recibe el mismo paciente"), datos del paciente que
+piden los formatos (se guardan en el paciente), insumos con lote/INVIMA, quien
+entrega, revisión de cada formato lleno y firmas de quien recibe y quien
+entrega. Guarda una fila de `actas` por formato con copia de bloques y datos
+(`lib/actas/firmar.js`). Se usa en Entregas (reemplaza el wizard viejo), en la
+vista del repartidor y al crear un préstamo en oficina (si se cancela, queda
+"Firmar acta" en el detalle). `ActasPrestamo` lista y descarga las actas en PDF
+(`lib/actas/pdf.js`, html2canvas por página) en el detalle de Préstamos y
+Entregas; las entregas anteriores siguen descargando el acta vieja.
+**Por qué así:** decisión de Sofía: siempre se pregunta qué formatos lleva el
+préstamo; el pagaré va como anexo del préstamo, no como documento de entrega.
+En entregas, completar la entrega corre antes de guardar las actas: si falla,
+no queda nada a medias.
+**Archivos:** `src/lib/actas/{firmar,pdf}.js`, `src/components/actas/{FirmaActas,ActasPrestamo}.js`,
+`ordenes/page.js`, `ordenes/OrdenesClient.js`, `entregas/EntregasClient.js`,
+`entregas/EntregasRepartidorClient.js`, `configuracion/*`.
+**SQL:** corrido el 2026-10-15: `plantillas_acta.tipo` ('entrega' | 'anexo',
+pagaré → anexo) y `ordenes_servicio.plantillas_acta uuid[]`.
+**Verificado con datos reales (desechables, restaurados):** sugerencias por
+cliente (Family 3, Solidaridad la suya, otro cliente la estándar, pagaré nunca);
+sobre ORD-2026-162 con un equipo de prueba: `cargarParaFirma` trae los formatos
+elegidos en orden, el equipo y el diagnóstico; `guardarActas` guardó 4 actas y
+se reconstruyeron (datos y firma en el renglón del responsable) y renderizaron
+(8 páginas). Se usó una orden existente para no consumir un número ORD.
+**Pendiente:** probar en pantalla con sesión: el asistente (formatos, campos
+nuevos), el modal `FirmaActas` en Entregas, repartidor y oficina, y el botón de
+PDF (html2canvas en navegador; no se pudo correr fuera de él). Sofía lo probó en
+pantalla y quedó bien.
+**Ajustes (mismo día):** quien entrega es el usuario con sesión: cargo, tipo y
+número de documento se editan en Configuración → Usuarios (`/api/usuarios`
+acepta los campos) y en la firma salen ya llenos; si faltan se piden una vez y
+quedan en su perfil. Auditoría responsive en Chrome a 390×844: la revisión de
+formatos dejaba la hoja a ~45% ilegible → botón "Ampliar" en `VistaActa` (y se
+mide antes de pintar para no mostrar la hoja gigante un instante); indicador de
+pasos en su propia línea; fila de insumo reordenada (cantidad con etiqueta).
+Sin desbordes horizontales en Configuración, detalle del préstamo, firma ni
+asistente. Visto también: en celular el detalle de un préstamo queda apretado
+bajo los filtros (ya era así; va a la auditoría del diseño de préstamos).
+**SQL:** `usuarios.tipo_documento` entregado, sin correr; sin él la firma no
+autocompleta a quien entrega.
+A futuro (pedido de Sofía): enviar
+la constancia por correo al cliente y a Ingemedic en cada entrega, y que el
+cliente consulte sus actas desde el portal.
+
+## 2026-10-15 — Actas por cliente, fase 1: motor y plantillas
+**Qué se hizo:** motor de actas por bloques (`src/lib/actas/`): `render.js`
+convierte bloques (encabezado, título, texto con `{{variables}}`, campos en
+líneas o tabla, tabla de equipos/insumos, firmas, espacio, pie, salto de página)
+en HTML por página; `contexto.js` arma las variables desde orden, paciente,
+equipos y lo capturado en la entrega (`VARIABLES` las documenta). Se cargaron 7
+plantillas transcritas de los formatos reales (`plantillas-base.js`): estándar
+Ingemedic (contrato + entrega + capacitación), pagaré y carta (aparte, sin
+cliente), Solidaridad FT-AD-60-02, ASMEDC AMD-FT-019, y Family: comodato FOMAG
+(5 págs), acta general y F-FAM-11. Asignadas a SOLIDARIDAD, ASMEDC y FAMILY
+HOMECARE SAS. Configuración → Plantillas ahora lista las actas con vista previa
+(datos de ejemplo, `VistaActa`); se quitó la lista vieja de `plantillas_orden`.
+**Por qué así:** decisión de Sofía: réplica del formato de cada cliente, acta
+para todo préstamo, editor por bloques (fase 3). Las actas firmadas guardarán
+copia de los bloques (`actas.bloques`) para que editar una plantilla no cambie
+lo ya firmado.
+**Archivos:** `src/lib/actas/{render,contexto,plantillas-base,ejemplo}.js`,
+`src/components/actas/VistaActa.js`, `configuracion/page.js`,
+`configuracion/ConfiguracionClient.js`.
+**SQL:** corrido el 2026-10-15: `plantillas_acta`, `cliente_plantillas_acta`,
+`actas` (con `autenticados_todo`), campos nuevos en `pacientes` (tipo_documento,
+barrio, fecha_nacimiento, eps), `ordenes_servicio.diagnostico`, `usuarios`
+(cargo, cedula). Plantillas cargadas por script con service_role. Logos de
+ASMEDC y Solidaridad subidos a `logos/clientes/`.
+**Verificado:** las 7 plantillas renderizadas con puppeteer y comparadas con los
+originales; todas caben en A4. No se abrió la pantalla de Configuración con
+sesión ni se corrió `next build`.
+**Corrección (mismo día):** a pedido de Sofía, todas las plantillas quedaron
+palabra por palabra como los originales, con sus errores de ortografía (p. ej.
+"deñirse", "PERNONA", "documeto", "RECECIBE", "FAMLIAR", "responsalidad"). Los
+textos de Ingemedic se generan desde las celdas del Excel (las rayas pasan a
+variables) y se comprobó por script que coinciden con el original. Se quitaron
+agregados propios (código de préstamo y NIT en el encabezado estándar, firma de
+"Entrega" en ASMEDC) y se borró `docs/COMODATO.pdf` (datos reales de una
+paciente). Única licencia: el año del comodato sale de la fecha de entrega
+(`{{anio}}`), no "2026" fijo. Las 7 filas de `plantillas_acta` se actualizaron
+con esta versión y se comprobó que coinciden con el código; capturas con logos,
+todas dentro de A4.
+**Decisión para la fase 2 (Sofía):** al crear un préstamo siempre se pregunta qué
+formatos se le asignan. Las plantillas del cliente (o la estándar) llegan
+marcadas como sugerencia, pero la persona elige. El pagaré queda sin asignar
+hasta que Sofía lo revise.
+**Pendiente:** logos de Family, fiduprevisora y FOMAG (el original es un
+escaneo; van como recuadro hasta subirlos en el editor). El acta de "entrega de
+insumo" de Family (una hoja por insumo) no se replicó: los insumos van en
+ACCESORIOS y en el F-FAM-11. Fases 2 (captura y
+firma), 3 (editor) y 4 (retirar `plantillas_orden`/`orden_plantillas` y
+`/api/documentos`). `docs/COMODATO.pdf` tiene datos reales de una paciente: no
+subirlo al repositorio.
+
 ## 2026-10-15 — Eliminar equipos: libera el código y cierra los préstamos
 **Qué se hizo:** el inventario no tenía cómo eliminar una unidad, y eliminar un
 tipo o una categoría en Configuración solo los ocultaba (`activo = false`): sus

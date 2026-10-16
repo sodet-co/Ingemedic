@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import Sidebar from '@/components/layout/Sidebar'
 import RepartidorHeader from '@/components/layout/RepartidorHeader'
 import BannerAtencion from '@/components/layout/BannerAtencion'
+import PiePanel from '@/components/layout/PiePanel'
 import { esSuperAdmin } from '@/lib/permisos'
 import { UsuarioProvider } from '@/lib/usuario-context'
 
@@ -61,6 +62,7 @@ export default async function DashboardLayout({ children }) {
           <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
             {children}
           </div>
+          <PiePanel />
         </main>
       </UsuarioProvider>
     </div>
