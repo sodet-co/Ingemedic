@@ -70,7 +70,7 @@ export default function PreviaActas({ actas, inicial = 0, titulo, descargando, o
           </div>
           {onDescargar && (
             <button onClick={onDescargar} disabled={descargando}
-              className="flex items-center gap-1.5 px-3 py-2 bg-[#1B3A6B] text-white rounded-[8px] text-[12.5px] font-semibold hover:bg-[#152d55] disabled:opacity-60 flex-shrink-0">
+              className="flex items-center gap-1.5 px-3 py-2 bg-[#1B3A6B] text-white rounded-[8px] text-[12.5px] font-semibold hover:bg-[#152D54] disabled:opacity-60 flex-shrink-0">
               {descargando ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
               <span className="hidden sm:inline">{descargando ? 'Generando…' : 'Descargar PDF'}</span>
             </button>

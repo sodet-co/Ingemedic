@@ -2,33 +2,41 @@
 import { registrarBitacora } from '@/lib/bitacora'
 import Image from 'next/image'
 import { useState, useEffect, useMemo } from 'react'
+import { useRouter } from 'next/navigation'
 import {
   Users, Lock, Tag, Cpu, Building2,
   FileText, Upload, Plus, X, Edit3, Trash2,
   Check, Save, ClipboardList, Download, CheckCircle2, Smartphone,
-  ChevronDown, ChevronRight, Search, Globe, Moon
+  ChevronDown, ChevronRight, ChevronLeft, Search, Globe, Moon, KeyRound
 } from 'lucide-react'
 import { GaleriaIconos, IconoEquipo } from '@/components/inventario/IconosEquipo'
 import SelectorTema from '@/components/layout/SelectorTema'
+import { ULTIMA_ACTUALIZACION } from '@/lib/ultima-actualizacion'
+import EncabezadoModulo from '@/components/ui/EncabezadoModulo'
+import Modal from '@/components/ui/Modal'
+import { ui } from '@/lib/ui'
 import { MODULOS_PRINCIPALES, MODULOS_CONFIGURACION, MODULOS_OCULTOS_POR_DEFECTO, puedeVerModulo } from '@/lib/permisos'
 import BuzonNovedades from '@/components/layout/BuzonNovedades'
 import { filaPortal } from '@/lib/portalClientes'
 import { equiposDeTipos } from '@/lib/equipos'
 import ModalEliminarEquipos from '@/components/inventario/ModalEliminarEquipos'
-import VistaActa from '@/components/actas/VistaActa'
+import PreviaActas from '@/components/actas/PreviaActas'
 import AsignarPlantilla from '@/components/actas/AsignarPlantilla'
+import AccesoPortal from '@/components/clientes/AccesoPortal'
 import { contextoEjemplo } from '@/lib/actas/ejemplo'
 
 const NAV_MODULO = {
   usuarios: 'configuracion.usuarios', roles: 'configuracion.roles', categorias: 'configuracion.categorias',
   tipos: 'configuracion.tipos', listas: 'configuracion.listas', empresa: 'configuracion.empresa',
   plantillas: 'configuracion.plantillas', cargue: 'configuracion.cargue', preferencias: 'configuracion.preferencias',
+  accesos: 'configuracion.accesos',
 }
 
 const NAV = [
   { id: 'usuarios',   label: 'Usuarios',               icon: Users,         grupo: 'Acceso' },
   { id: 'roles',      label: 'Roles y permisos',       icon: Lock,          grupo: 'Acceso' },
-  { id: 'portal',     label: 'Portal de clientes',     icon: Globe,         grupo: 'Acceso', soloSuperAdmin: true },
+  { id: 'accesos',    label: 'Acceso de clientes',     icon: KeyRound,      grupo: 'Acceso' },
+  { id: 'portal',     label: 'Estado del portal',      icon: Globe,         grupo: 'Acceso', soloSuperAdmin: true },
   { id: 'categorias', label: 'Categorías',              icon: Tag,           grupo: 'Inventario' },
   { id: 'tipos',      label: 'Tipos de equipo',         icon: Cpu,           grupo: 'Inventario' },
   { id: 'listas',     label: 'Listas de mantenimiento', icon: ClipboardList, grupo: 'Mantenimientos' },
@@ -45,8 +53,8 @@ const TIPOS_CAMPO = [
   { value: 'fecha',    label: 'Fecha' },
   { value: 'booleano', label: 'Sí / No' },
 ]
-const inputCls = 'w-full px-3 py-2.5 border border-slate-200 rounded-[9px] text-[13.5px] text-slate-800 outline-none focus:border-[#D81B43] bg-white transition-colors placeholder:text-slate-400'
-const labelCls = 'block text-[11px] font-bold uppercase tracking-[0.07em] text-slate-500 mb-1.5'
+const inputCls = ui.input
+const labelCls = ui.label
 
 function ResultadoCargue({ resultado }) {
   if (!resultado) return null
@@ -115,7 +123,7 @@ function AccionesCargue({ archivo, cargando, textoImportar, onImportar, onCancel
   return (
     <div className="flex items-center gap-2 mt-3">
       <button onClick={onImportar} disabled={cargando}
-        className="px-4 py-2 bg-[#D81B43] text-white rounded-[9px] text-[13px] font-semibold hover:bg-[#B0172F] disabled:opacity-50">
+        className={ui.btnPrimario}>
         {cargando ? 'Procesando...' : textoImportar}
       </button>
       <button onClick={onCancelar} disabled={cargando}
@@ -246,7 +254,9 @@ export default function ConfiguracionClient({
   actividades: actividadesIniciales = [], empresaInicial = {},
   esSuperAdmin = false, permisosDelRolActual = [], todosPermisosIniciales = [],
 }) {
+  const router = useRouter()
   const [seccion, setSeccion]         = useState('usuarios')
+  const [enSeccionMovil, setEnSeccionMovil] = useState(false) // celular: lista de secciones o una sección abierta
   const [todosPermisos, setTodosPermisos] = useState(todosPermisosIniciales ?? [])
   const [rolSeleccionadoPermisos, setRolSeleccionadoPermisos] = useState(null)
   const [guardandoPermiso, setGuardandoPermiso] = useState(null)
@@ -341,6 +351,8 @@ export default function ConfiguracionClient({
   const [vistaActa, setVistaActa] = useState(null)
   const [plantillasActa, setPlantillasActa] = useState(plantillasActaIniciales)
   const [asignando, setAsignando] = useState(null) // plantilla cuyos clientes se están editando
+  const [clienteAcceso, setClienteAcceso] = useState(null) // Acceso de clientes: el elegido
+  const [buscarAcceso, setBuscarAcceso] = useState('')
   // Tipo o categoría por eliminar: { nivel: 'tipo' | 'categoria', item }
   const [porEliminar, setPorEliminar] = useState(null)
   const [saving, setSaving]           = useState(false)
@@ -713,71 +725,72 @@ export default function ConfiguracionClient({
   // ── RENDER ────────────────────────────────────────────────
   return (
     <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
-      {/* Header */}
-      <div className="h-14 md:h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 md:px-7 flex-shrink-0">
-        <div>
-          <div className="text-[18px] font-bold text-slate-800">Configuración</div>
-          <div className="text-[12px] text-slate-400 mt-0.5">Panel de control del sistema</div>
-        </div>
-        <BuzonNovedades />
-      </div>
+      <EncabezadoModulo titulo="Configuración" subtitulo="Ajustes del sistema" ayuda="configuracion" />
 
-      {/* Mobile tabs */}
-      <div className="flex md:hidden overflow-x-auto border-b border-slate-200 bg-white flex-shrink-0">
-        <div className="flex">
-          {navVisible.map(n => {
-            const Icon = n.icon; const active = seccionActiva === n.id
-            return (
-              <button key={n.id} onClick={() => setSeccion(n.id)}
-                className={`flex items-center gap-1.5 px-4 py-3 text-[12px] font-medium whitespace-nowrap border-b-2 transition-all flex-shrink-0 ${active ? 'border-[#D81B43] text-[#D81B43]' : 'border-transparent text-slate-500'}`}>
-                <Icon size={14} />{n.label}
-              </button>
-            )
-          })}
-        </div>
-      </div>
-
-      <div className="flex-1 overflow-hidden flex flex-col md:flex-row">
-        {/* Sidebar nav */}
-        <aside className="hidden md:flex w-56 min-w-[224px] bg-white border-r border-slate-200 flex-col py-4 overflow-y-auto flex-shrink-0">
-          {GRUPOS.filter(grupo => navVisible.some(n => n.grupo === grupo)).map(grupo => (
-            <div key={grupo} className="mb-2">
-              <div className="text-[9.5px] font-bold uppercase tracking-[0.14em] text-slate-400 px-4 py-1.5">{grupo}</div>
-              {navVisible.filter(n => n.grupo === grupo).map(n => {
-                const Icon = n.icon; const active = seccionActiva === n.id
-                const tourId = n.id === 'empresa' ? 'nav-empresa'
-                  : n.id === 'categorias' ? 'nav-categorias'
-                  : n.id === 'tipos' ? 'nav-tipos'
-                  : n.id === 'listas' ? 'nav-listas'
-                  : n.id === 'usuarios' ? 'nav-usuarios'
-                  : undefined
-                return (
-                  <button key={n.id} onClick={() => setSeccion(n.id)}
-                    data-tour={tourId}
-                    className={`w-full flex items-center gap-2.5 px-4 py-2.5 text-[13px] font-medium transition-all ${active ? 'bg-[#D81B43]/5 text-[#D81B43] font-semibold border-r-2 border-[#D81B43]' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-700'}`}>
-                    <Icon size={15} className={active ? 'text-[#D81B43]' : 'text-slate-400'} />
-                    {n.label}
-                  </button>
-                )
-              })}
+      {/* PC: menú de secciones como tarjeta a la izquierda del contenido.
+          Celular: lista de secciones tipo app; al tocar una se abre su contenido
+          con una flecha para volver. */}
+      <div className="flex-1 overflow-y-auto p-3 md:p-6 pb-20 md:pb-6">
+        <div className="md:flex md:gap-5 md:items-start">
+          {!enSeccionMovil && (
+            <div className="md:hidden space-y-4">
+              {GRUPOS.filter(grupo => navVisible.some(n => n.grupo === grupo)).map(grupo => (
+                <div key={grupo}>
+                  <div className={`${ui.tituloSeccion} px-1 mb-1.5`}>{grupo}</div>
+                  <div className="bg-white rounded-xl border border-slate-200 divide-y divide-slate-100 overflow-hidden">
+                    {navVisible.filter(n => n.grupo === grupo).map(n => {
+                      const Icon = n.icon
+                      return (
+                        <button key={n.id} onClick={() => { setSeccion(n.id); setEnSeccionMovil(true) }}
+                          className="w-full flex items-center gap-3 px-4 py-3.5 text-left active:bg-slate-50">
+                          <span className="w-8 h-8 rounded-lg bg-slate-100 text-slate-500 flex items-center justify-center flex-shrink-0"><Icon size={16} /></span>
+                          <span className="flex-1 text-[14.5px] font-medium text-slate-700">{n.label}</span>
+                          <ChevronRight size={17} className="text-slate-300" />
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              ))}
             </div>
-          ))}
-        </aside>
+          )}
+          {enSeccionMovil && (
+            <button onClick={() => setEnSeccionMovil(false)}
+              className="md:hidden flex items-center gap-1 -ml-1 mb-3 text-[14px] font-semibold text-[#1B3A6B]">
+              <ChevronLeft size={18} /> Configuración
+            </button>
+          )}
 
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto p-3 md:p-6 pb-28 md:pb-6">
-          <div className="max-w-[1280px]">
+          <aside className="hidden md:block w-[224px] flex-shrink-0 sticky top-0 bg-white rounded-xl border border-slate-200 shadow-sm py-2">
+            {GRUPOS.filter(grupo => navVisible.some(n => n.grupo === grupo)).map((grupo, gi) => (
+              <div key={grupo} className={gi ? 'mt-1 pt-1 border-t border-slate-100' : ''}>
+                <div className={`${ui.tituloSeccion} px-4 pt-2.5 pb-1`}>{grupo}</div>
+                {navVisible.filter(n => n.grupo === grupo).map(n => {
+                  const Icon = n.icon; const active = seccionActiva === n.id
+                  return (
+                    <button key={n.id} onClick={() => setSeccion(n.id)}
+                      className={`w-[calc(100%-12px)] mx-1.5 flex items-center gap-2.5 px-2.5 py-2 rounded-[8px] text-[13px] transition-colors ${active ? 'bg-[#D81B43]/[0.07] text-[#D81B43] font-semibold' : 'text-slate-600 font-medium hover:bg-slate-50 hover:text-slate-800'}`}>
+                      <Icon size={15} className={active ? 'text-[#D81B43]' : 'text-slate-400'} />
+                      {n.label}
+                    </button>
+                  )
+                })}
+              </div>
+            ))}
+          </aside>
+
+          <div className={`flex-1 min-w-0 ${enSeccionMovil ? '' : 'hidden md:block'}`}>
 
             {/* USUARIOS */}
             {seccionActiva === 'usuarios' && (
               <div>
-                <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
+                <div className="flex items-end justify-between mb-5 flex-wrap gap-3">
                   <div>
-                    <h2 className="text-[20px] font-bold text-slate-800">Usuarios</h2>
+                    <h2 className={ui.tituloBloque}>Usuarios</h2>
                     <p className="text-[13px] text-slate-400 mt-0.5">Gestiona quién tiene acceso al sistema</p>
                   </div>
                   <button onClick={() => abrirModal('usuario', { rol_id: rolesAsignables[0]?.id })}
-                    className="flex items-center gap-1.5 px-4 py-2 bg-[#D81B43] text-white text-[13px] font-semibold rounded-[9px] hover:bg-[#B0172F] transition-colors">
+                    className={ui.btnPrimario}>
                     <Plus size={14} /> Nuevo usuario
                   </button>
                 </div>
@@ -860,11 +873,9 @@ export default function ConfiguracionClient({
             {/* ROLES */}
             {seccionActiva === 'roles' && (
               <div>
-                <h2 className="text-[20px] font-bold text-slate-800 mb-1">Roles y permisos</h2>
-                <p className="text-[13px] text-slate-400 mb-6">
-                  Define qué módulos puede ver cada rol. Por defecto todo está visible — solo se restringe lo que
-                  desmarques aquí. <span className="font-semibold text-slate-500">SuperAdmin</span> no aparece en esta
-                  lista: siempre tiene acceso total, sin excepción.
+                <h2 className={ui.tituloBloque}>Roles y permisos</h2>
+                <p className="text-[13px] text-slate-400 mt-0.5 mb-5">
+                  Qué módulos ve cada rol.
                 </p>
 
                 {rolesSinSuperAdmin.length === 0 ? (
@@ -932,13 +943,13 @@ export default function ConfiguracionClient({
             {/* CATEGORÍAS */}
             {seccionActiva === 'categorias' && (
               <div>
-                <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
+                <div className="flex items-end justify-between mb-5 flex-wrap gap-3">
                   <div>
-                    <h2 className="text-[20px] font-bold text-slate-800">Categorías de equipo</h2>
+                    <h2 className={ui.tituloBloque}>Categorías de equipo</h2>
                     <p className="text-[13px] text-slate-400 mt-0.5">Define columnas del tipo y de la unidad por categoría</p>
                   </div>
                   <button onClick={() => abrirModal('categoria', {})}
-                    className="flex items-center gap-1.5 px-4 py-2 bg-[#D81B43] text-white text-[13px] font-semibold rounded-[9px] hover:bg-[#B0172F] transition-colors">
+                    className={ui.btnPrimario}>
                     <Plus size={14} /> Nueva categoría
                   </button>
                 </div>
@@ -961,8 +972,8 @@ export default function ConfiguracionClient({
                           {c.descripcion && <div className="text-[12px] text-slate-400 mt-0.5">{c.descripcion}</div>}
                           <div className="text-[11.5px] text-slate-400 mt-1">
                             {tipos.filter(t => t.categoria_id === c.id).length} tipos
-                            {nT > 0 && <span className="ml-2 text-[#25A9E0]">· {nT} col. tipo</span>}
-                            {nU > 0 && <span className="ml-2 text-[#25A9E0]">· {nU} col. unidad</span>}
+                            {nT > 0 && <span className="ml-2 text-[#2EB5D4]">· {nT} col. tipo</span>}
+                            {nU > 0 && <span className="ml-2 text-[#2EB5D4]">· {nU} col. unidad</span>}
                           </div>
                         </div>
                         <div className="flex items-center gap-1.5">
@@ -987,10 +998,10 @@ export default function ConfiguracionClient({
                 !q || [t.atributos?.nombre, t.nombre].some(v => (v || '').toLowerCase().includes(q)))
               return (
               <div>
-                <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
+                <div className="flex items-end justify-between mb-5 flex-wrap gap-3">
                   <div>
-                    <h2 className="text-[20px] font-bold text-slate-800">Tipos de equipo</h2>
-                    <p className="text-[13px] text-slate-400 mt-0.5">Cada tipo es un modelo (ej. Concentrador EverFlo). Elige la categoría y crea ahí sus tipos.</p>
+                    <h2 className={ui.tituloBloque}>Tipos de equipo</h2>
+                    <p className="text-[13px] text-slate-400 mt-0.5">Modelos de equipo de cada categoría.</p>
                   </div>
                 </div>
 
@@ -1032,7 +1043,7 @@ export default function ConfiguracionClient({
                         <div className="relative w-full sm:w-[240px] sm:ml-auto">
                           <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                           <input value={buscarTipo} onChange={e => setBuscarTipo(e.target.value)} placeholder="Buscar modelo o marca..."
-                            className="w-full pl-8 pr-3 h-[36px] border border-slate-200 rounded-[8px] text-[13px] outline-none focus:border-[#D81B43] bg-white" />
+                            className="w-full pl-9 pr-4 h-[38px] border border-slate-200 rounded-[9px] text-[13px] text-slate-800 bg-white outline-none focus:border-[#D81B43] focus:ring-2 focus:ring-[#D81B43]/10 placeholder:text-slate-400" />
                         </div>
                       )}
                       <button onClick={() => abrirModal('tipo', { categoria_id: grupoActivo.categoria.id })}
@@ -1131,13 +1142,13 @@ export default function ConfiguracionClient({
             {/* LISTAS */}
             {seccionActiva === 'listas' && (
               <div>
-                <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
+                <div className="flex items-end justify-between mb-5 flex-wrap gap-3">
                   <div>
-                    <h2 className="text-[20px] font-bold text-slate-800">Listas de mantenimiento</h2>
+                    <h2 className={ui.tituloBloque}>Listas de mantenimiento</h2>
                     <p className="text-[13px] text-slate-400 mt-0.5">Crea listas con actividades y asígnalas a tipos de equipo</p>
                   </div>
                   <button onClick={() => abrirModal('lista', {})}
-                    className="flex items-center gap-1.5 px-4 py-2 bg-[#D81B43] text-white text-[13px] font-semibold rounded-[9px] hover:bg-[#B0172F] transition-colors">
+                    className={ui.btnPrimario}>
                     <Plus size={14} /> Nueva lista
                   </button>
                 </div>
@@ -1205,12 +1216,12 @@ export default function ConfiguracionClient({
             {/* EMPRESA */}
             {seccionActiva === 'empresa' && (
               <div>
-                <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
+                <div className="flex items-end justify-between mb-5 flex-wrap gap-3">
                   <div>
-                    <h2 className="text-[20px] font-bold text-slate-800">Datos de la empresa</h2>
+                    <h2 className={ui.tituloBloque}>Datos de la empresa</h2>
                     <p className="text-[13px] text-slate-400 mt-0.5">Información que aparece en los documentos generados</p>
                   </div>
-                  <button onClick={guardarEmpresa} className="flex items-center gap-1.5 px-5 py-2.5 bg-[#D81B43] text-white text-[13px] font-semibold rounded-[9px] hover:bg-[#B0172F] transition-colors">
+                  <button onClick={guardarEmpresa} className={ui.btnPrimario}>
                     <Save size={14} /> Guardar cambios
                   </button>
                 </div>
@@ -1282,8 +1293,8 @@ export default function ConfiguracionClient({
             {/* PLANTILLAS — actas de entrega por cliente (lib/actas) */}
             {seccionActiva === 'plantillas' && (
               <div>
-                <h2 className="text-[20px] font-bold text-slate-800 mb-1">Plantillas de actas</h2>
-                <p className="text-[13px] text-slate-400 mb-6">Documentos que se firman al entregar un préstamo. El cliente sin plantillas propias usa la estándar.</p>
+                <h2 className={ui.tituloBloque}>Plantillas de actas</h2>
+                <p className="text-[13px] text-slate-400 mt-0.5 mb-5">Formatos que se firman al entregar.</p>
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
                   {plantillasActa.map(p => {
                     const clientesP = (p.clientes || []).map(c => c.cliente?.nombre).filter(Boolean)
@@ -1322,8 +1333,8 @@ export default function ConfiguracionClient({
             {/* CARGUE */}
             {seccionActiva === 'cargue' && (
               <div>
-                <h2 className="text-[20px] font-bold text-slate-800 mb-1">Cargue masivo</h2>
-                <p className="text-[13px] text-slate-400 mb-6">Importa equipos y clientes desde archivos CSV</p>
+                <h2 className={ui.tituloBloque}>Cargue masivo</h2>
+                <p className="text-[13px] text-slate-400 mt-0.5 mb-5">Importa equipos y clientes desde archivos CSV</p>
                 <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
                   <CargueEquipos cats={cats} />
                   <CargueCard titulo="Clientes" tipo="clientes" sub="Importa clientes desde CSV" Icono={Users}
@@ -1333,10 +1344,51 @@ export default function ConfiguracionClient({
             )}
 
             {/* PREFERENCIAS */}
+            {/* ACCESO DE CLIENTES AL PORTAL — antes vivía dentro del detalle de cada cliente */}
+            {seccionActiva === 'accesos' && (
+              <div>
+                <div className="mb-5">
+                  <h2 className={ui.tituloBloque}>Acceso de clientes</h2>
+                  <p className={ui.subtituloBloque}>Usuario y contraseña de cada cliente para entrar al portal.</p>
+                </div>
+                <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-4 items-start">
+                  <div className={`${ui.tarjeta} overflow-hidden`}>
+                    <div className="p-3 border-b border-slate-100">
+                      <div className="relative">
+                        <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                        <input value={buscarAcceso} onChange={e => setBuscarAcceso(e.target.value)} placeholder="Buscar cliente"
+                          className="w-full pl-9 pr-3 h-[38px] border border-slate-200 rounded-[9px] text-[13px] bg-white outline-none focus:border-[#D81B43]" />
+                      </div>
+                    </div>
+                    <div className="divide-y divide-slate-100 max-h-[60vh] overflow-y-auto">
+                      {clientes.filter(c => !buscarAcceso.trim() || c.nombre.toLowerCase().includes(buscarAcceso.trim().toLowerCase())).map(c => (
+                        <button key={c.id} onClick={() => setClienteAcceso(c)}
+                          className={`w-full flex items-center gap-2.5 px-4 py-3 text-left ${clienteAcceso?.id === c.id ? 'bg-[#D81B43]/[0.06]' : 'hover:bg-slate-50'}`}>
+                          <span className={`w-2 h-2 rounded-full flex-shrink-0 ${c.auth_user_id ? 'bg-[#0F7B55]' : 'bg-slate-300'}`} />
+                          <span className="flex-1 min-w-0 truncate text-[13px] font-medium text-slate-700">{c.nombre}</span>
+                          <span className={`text-[11.5px] ${c.auth_user_id ? 'text-[#0F7B55]' : 'text-slate-400'}`}>{c.auth_user_id ? 'Con acceso' : 'Sin acceso'}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className={`${ui.tarjeta} min-h-[160px]`}>
+                    {clienteAcceso ? (
+                      <div>
+                        <div className="px-5 pt-4 text-[15px] font-bold text-slate-800">{clienteAcceso.nombre}</div>
+                        <AccesoPortal key={clienteAcceso.id} cliente={clienteAcceso} onToast={(m, t) => { showToast(m, t); router.refresh() }} />
+                      </div>
+                    ) : (
+                      <div className="h-full min-h-[160px] flex items-center justify-center text-[13px] text-slate-400 p-6 text-center">Elige un cliente</div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
             {seccionActiva === 'portal' && esSuperAdmin && (
               <div className="max-w-[860px]">
-                <h2 className="text-[20px] font-bold text-slate-800 mb-1">Portal de clientes</h2>
-                <p className="text-[13px] text-slate-400 mb-6">Acceso de los clientes a portal.ingemedic.com.co/cliente · solo SuperAdmin</p>
+                <h2 className={ui.tituloBloque}>Portal de clientes</h2>
+                <p className="text-[13px] text-slate-400 mt-0.5 mb-5">Acceso de los clientes a portal.ingemedic.com.co/cliente · solo SuperAdmin</p>
 
                 <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
                   <div className="flex items-start justify-between gap-4 flex-wrap">
@@ -1374,8 +1426,8 @@ export default function ConfiguracionClient({
 
             {seccionActiva === 'preferencias' && (
               <div className="max-w-[860px]">
-                <h2 className="text-[20px] font-bold text-slate-800 mb-1">Preferencias</h2>
-                <p className="text-[13px] text-slate-400 mb-6">Apariencia y navegación en este dispositivo</p>
+                <h2 className={ui.tituloBloque}>Preferencias</h2>
+                <p className="text-[13px] text-slate-400 mt-0.5 mb-5">Apariencia y navegación del panel</p>
 
                 <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 mb-4">
                   <div className="flex items-center gap-2 mb-1">
@@ -1383,11 +1435,11 @@ export default function ConfiguracionClient({
                     <div className="text-[14px] font-bold text-slate-700">Modo oscuro</div>
                   </div>
                   <p className="text-[12.5px] text-slate-400 mb-5">
-                    Queda guardado en tu usuario: lo verás igual en cualquier computador o celular. Las actas y los PDF siempre salen en blanco.
+                    Se guarda en tu usuario.
                   </p>
                   <SelectorTema onCambio={(t, error) => error
-                    ? showToast('Se aplicó en este navegador, pero no se pudo guardar en tu usuario: ' + error.message, 'error')
-                    : showToast(t === 'oscuro' ? 'Modo oscuro activado' : t === 'claro' ? 'Modo claro activado' : 'El tema seguirá al del dispositivo')} />
+                    ? showToast('No se pudo guardar el tema', 'error')
+                    : showToast('Tema guardado')} />
                 </div>
 
                 <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
@@ -1441,6 +1493,9 @@ export default function ConfiguracionClient({
                     </button>
                   </div>
                 </div>
+                <p className="mt-4 text-[11.5px] text-slate-400">
+                  Versión del {new Date(ULTIMA_ACTUALIZACION).toLocaleDateString('es-CO', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'America/Bogota' })}
+                </p>
               </div>
             )}
 
@@ -1448,29 +1503,26 @@ export default function ConfiguracionClient({
         </div>
       </div>
 
-      {/* ── MODALES — sin scroll interno, tamaño adaptativo ── */}
+      {/* ── MODALES ── */}
       {modal && (
-        <>
-          <div className="fixed inset-0 bg-black/40 z-40 backdrop-blur-sm" onClick={() => setModal(null)} />
-          <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center p-0 md:p-4">
-            <div className={`bg-white rounded-t-2xl md:rounded-2xl w-full flex flex-col shadow-2xl overflow-hidden
-              ${modal === 'categoria' ? 'max-w-[640px]' : modal === 'tipo' ? 'max-w-[600px]' : 'max-w-[480px]'}
-              max-h-[92dvh] md:max-h-[calc(100dvh-2rem)]`}
-              onClick={e => e.stopPropagation()}>
-
-              {/* Modal header */}
-              <div className="px-6 py-4 border-b flex items-center justify-between flex-shrink-0">
-                <h3 className="text-[16px] font-bold text-slate-800">
-                  {modal === 'usuario'   ? (form.id ? 'Editar usuario'       : 'Nuevo usuario')        :
-                   modal === 'categoria' ? (form.id ? 'Editar categoría'     : 'Nueva categoría')      :
-                   modal === 'tipo'      ? (form.id ? 'Editar tipo de equipo': 'Nuevo tipo de equipo') :
-                   modal === 'lista'     ? (form.id ? 'Editar lista'         : 'Nueva lista')          : ''}
-                </h3>
-                <button onClick={() => setModal(null)} className="text-slate-400 hover:text-slate-600 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100"><X size={16} /></button>
-              </div>
-
-              {/* Modal body — scroll solo si no cabe en pantalla */}
-              <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
+        <Modal onCerrar={() => setModal(null)} bloqueado={saving || subiendoImagen}
+          tamano={modal === 'categoria' ? 'lg' : modal === 'tipo' ? 640 : 'md'}
+          titulo={modal === 'usuario'   ? (form.id ? 'Editar usuario'        : 'Nuevo usuario')        :
+                  modal === 'categoria' ? (form.id ? 'Editar categoría'      : 'Nueva categoría')      :
+                  modal === 'tipo'      ? (form.id ? 'Editar tipo de equipo' : 'Nuevo tipo de equipo') :
+                  modal === 'lista'     ? (form.id ? 'Editar lista'          : 'Nueva lista')          : ''}
+          pie={<>
+            <button onClick={() => setModal(null)} className={ui.btnSecundario}>Cancelar</button>
+            <button onClick={
+              modal === 'usuario'   ? guardarUsuario :
+              modal === 'categoria' ? guardarCat     :
+              modal === 'tipo'      ? guardarTipo    :
+              guardarLista
+            } disabled={saving || subiendoImagen} className={ui.btnPrimario}>
+              {subiendoImagen ? 'Subiendo imagen...' : saving ? 'Guardando...' : 'Guardar'}
+            </button>
+          </>}>
+                            <div className="space-y-4">
 
                 {/* USUARIO */}
                 {modal === 'usuario' && <>
@@ -1688,7 +1740,7 @@ export default function ConfiguracionClient({
                     )
                     return (
                       <div className="border-t border-slate-100 pt-3 space-y-3">
-                        <div className="text-[11px] font-bold uppercase tracking-[0.07em] text-[#25A9E0]">Columnas del tipo — {cat.nombre}</div>
+                        <div className="text-[11px] font-bold uppercase tracking-[0.07em] text-[#2EB5D4]">Columnas del tipo — {cat.nombre}</div>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                           {campos.map(campo => (
                             <div key={campo.clave}>
@@ -1714,23 +1766,7 @@ export default function ConfiguracionClient({
                   </div>
                 </>}
               </div>
-
-              {/* Modal footer */}
-              <div className="px-6 py-4 border-t border-slate-200 flex justify-end gap-2 flex-shrink-0 bg-white">
-                <button onClick={() => setModal(null)} className="px-4 py-2.5 border border-slate-200 rounded-[9px] text-[13px] font-medium text-slate-600 hover:border-slate-300">Cancelar</button>
-                <button onClick={
-                  modal === 'usuario'   ? guardarUsuario :
-                  modal === 'categoria' ? guardarCat     :
-                  modal === 'tipo'      ? guardarTipo    :
-                  guardarLista
-                } disabled={saving || subiendoImagen}
-                  className="px-5 py-2.5 bg-[#D81B43] text-white rounded-[9px] text-[13px] font-semibold hover:bg-[#B0172F] disabled:opacity-50">
-                  {subiendoImagen ? 'Subiendo imagen...' : saving ? 'Guardando...' : 'Guardar'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </>
+        </Modal>
       )}
 
       {asignando && (
@@ -1742,23 +1778,13 @@ export default function ConfiguracionClient({
           }} />
       )}
 
-      {vistaActa && (
-        <>
-          <div className="fixed inset-0 bg-black/50 z-[60]" onClick={() => setVistaActa(null)} />
-          <div className="fixed inset-x-0 bottom-0 h-[92vh] rounded-t-2xl md:inset-y-6 md:inset-x-auto md:left-1/2 md:-translate-x-1/2 md:h-auto md:w-[860px] md:rounded-2xl bg-slate-100 z-[60] flex flex-col shadow-2xl overflow-hidden">
-            <div className="px-5 py-3.5 bg-white border-b flex items-center justify-between gap-3 flex-shrink-0">
-              <div className="min-w-0">
-                <div className="text-[14px] font-bold text-slate-800 truncate">{vistaActa.nombre}</div>
-                <div className="text-[11.5px] text-slate-400">Vista previa con datos de ejemplo</div>
-              </div>
-              <button onClick={() => setVistaActa(null)} className="text-slate-400 hover:text-slate-600 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100 flex-shrink-0"><X size={16} /></button>
-            </div>
-            <div className="flex-1 overflow-y-auto p-3 md:p-6">
-              <VistaActa bloques={vistaActa.bloques} ctx={contextoEjemplo(empresa)} />
-            </div>
-          </div>
-        </>
-      )}
+      {vistaActa && (() => {
+        const ej = contextoEjemplo(empresa)
+        return (
+          <PreviaActas titulo="Vista previa con datos de ejemplo" onCerrar={() => setVistaActa(null)}
+            actas={[{ id: vistaActa.id, nombre: vistaActa.nombre, bloques: vistaActa.bloques, datos: ej, firma_recibe: ej.firmas?.recibe, firma_entrega: ej.firmas?.entrega }]} />
+        )
+      })()}
 
       <ModalEliminarEquipos
         abierto={!!porEliminar}
@@ -1775,7 +1801,7 @@ export default function ConfiguracionClient({
       />
 
       {toast && (
-        <div className={`fixed bottom-28 md:bottom-6 right-4 md:right-6 left-4 md:left-auto text-center md:text-left z-50 px-4 py-3 rounded-[10px] text-[13px] font-medium text-white shadow-lg ${toast.tipo === 'error' ? 'bg-red-500' : 'bg-[#0F7B55]'}`}>
+        <div className={`${ui.toast} ${toast.tipo === 'error' ? 'bg-red-500' : 'bg-[#0F7B55]'}`}>
           {toast.msg}
         </div>
       )}

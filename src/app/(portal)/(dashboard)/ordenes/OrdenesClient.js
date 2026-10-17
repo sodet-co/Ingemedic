@@ -10,10 +10,11 @@ import ConfirmDialog from '@/components/ui/ConfirmDialog'
 import LimpiarFiltros from '@/components/ui/LimpiarFiltros'
 import ModalDevolucion from '@/components/entregas/ModalDevolucion'
 import Paginador from '@/components/ui/Paginador'
-import { devolverEquipo as devolverEquipoLib, cambiarEquipo as cambiarEquipoLib } from '@/lib/prestamos'
+import { devolverEquipo as devolverEquipoLib, cambiarEquipo as cambiarEquipoLib, cerrarEquiposAbiertos } from '@/lib/prestamos'
 import ModalCambioEquipo from '@/components/prestamos/ModalCambioEquipo'
-import { liberarEquipos } from '@/lib/mantenimientos'
-import BuzonNovedades from '@/components/layout/BuzonNovedades'
+import EncabezadoModulo from '@/components/ui/EncabezadoModulo'
+import VentanaDetalle, { EncabezadoDetalle } from '@/components/ui/VentanaDetalle'
+import { ui } from '@/lib/ui'
 import ActasPrestamo from '@/components/actas/ActasPrestamo'
 import ControlVigencia from '@/components/prestamos/ControlVigencia'
 import NuevoPrestamo from '@/components/prestamos/NuevoPrestamo'
@@ -37,7 +38,7 @@ const ESTADO_STYLES = {
   'Borrador':   { bg: '#F1F5F9', color: '#64748B', dot: '#94A3B8' },
   'Programada': { bg: '#EFF6FF', color: '#1D4ED8', dot: '#3B82F6' },
   'En reparto': { bg: '#FFFBEB', color: '#B45309', dot: '#F59E0B' },
-  'Entregada':  { bg: '#E8F7FB', color: '#0E86A0', dot: '#25A9E0' },
+  'Entregada':  { bg: '#E8F7FB', color: '#0E86A0', dot: '#2EB5D4' },
   'Finalizada': { bg: '#ECFDF5', color: '#0F7B55', dot: '#0F7B55' },
   'Cancelada':  { bg: '#F1F5F9', color: '#94A3B8', dot: '#94A3B8' },
 }
@@ -65,7 +66,8 @@ function estaIncompleta(orden) {
     (!orden.repartidor_id || !orden.fecha_entrega)
 }
 
-const inputCls = 'w-full px-3 py-2.5 border border-slate-200 rounded-[9px] text-[13.5px] text-slate-800 outline-none focus:border-[#D81B43] bg-white transition-colors placeholder:text-slate-400'
+const inputCls = ui.input
+const nombreTipoEq = t => t?.atributos?.nombre || t?.nombre || null
 
 // Una orden solo se marca "Vencida" mientras sigue en curso — una vez Finalizada
 // o Cancelada la vigencia ya no significa nada (el préstamo terminó).
@@ -164,6 +166,7 @@ export default function OrdenesClient({
   const [filtroCliente, setFiltroCliente]             = useState('')
   const [filtroMarca, setFiltroMarca]                 = useState('')
   const [filtroCategoria, setFiltroCategoria]         = useState('')
+  const [filtroPaciente, setFiltroPaciente]           = useState('')
   // Filtro que llega desde el Panel de Atención / Buzón del dashboard
   // (?atencion=prestamos_vencidos|prestamos_por_vencer). Arranca vacío
   // SIEMPRE (server y cliente deben renderizar lo mismo en el primer
@@ -260,8 +263,12 @@ export default function OrdenesClient({
     const activos = new Set(clientes.map(c => c.nombre))
     return [...new Set(ordenesPorTab.map(o => o.cliente?.nombre).filter(n => n && activos.has(n)))].sort()
   }, [ordenesPorTab, clientes])
-  const opcionesMarca      = useMemo(() => [...new Set(ordenesPorTab.flatMap(o => (o.equipos || []).map(oe => oe.equipo?.tipo_equipo?.nombre).filter(Boolean)))].sort(), [ordenesPorTab])
   const opcionesCategoria  = useMemo(() => [...new Set(ordenesPorTab.flatMap(o => (o.equipos || []).map(oe => oe.equipo?.tipo_equipo?.categoria?.nombre).filter(Boolean)))].sort(), [ordenesPorTab])
+  // El tipo se elige dentro de una categoría: así la lista no es eterna
+  const opcionesMarca      = useMemo(() => !filtroCategoria ? [] : [...new Set(ordenesPorTab.flatMap(o => (o.equipos || [])
+    .filter(oe => oe.equipo?.tipo_equipo?.categoria?.nombre === filtroCategoria)
+    .map(oe => nombreTipoEq(oe.equipo?.tipo_equipo)).filter(Boolean)))].sort(), [ordenesPorTab, filtroCategoria])
+  const opcionesPaciente   = useMemo(() => [...new Set(ordenesPorTab.map(o => o.paciente?.nombre).filter(Boolean))].sort(), [ordenesPorTab])
 
   const ordenesFiltradas = useMemo(() => {
     return ordenes.filter(o => {
@@ -278,13 +285,14 @@ export default function OrdenesClient({
       if (filtroEstadoDetalle && o.estado?.nombre !== filtroEstadoDetalle) return false
       if (filtroCliente      && o.cliente?.nombre !== filtroCliente)        return false
       if (filtroMarca) {
-        const tiene = (o.equipos || []).some(oe => oe.equipo?.tipo_equipo?.nombre === filtroMarca)
+        const tiene = (o.equipos || []).some(oe => nombreTipoEq(oe.equipo?.tipo_equipo) === filtroMarca)
         if (!tiene) return false
       }
       if (filtroCategoria) {
         const tiene = (o.equipos || []).some(oe => oe.equipo?.tipo_equipo?.categoria?.nombre === filtroCategoria)
         if (!tiene) return false
       }
+      if (filtroPaciente && !o.paciente?.nombre?.toLowerCase().includes(filtroPaciente.toLowerCase())) return false
       if (filtroAtencion === 'prestamos_vencidos' && !estaVencida(o)) return false
       if (filtroAtencion === 'prestamos_por_vencer') {
         const dias = diasParaVencer(o)
@@ -292,7 +300,7 @@ export default function OrdenesClient({
       }
       return true
     })
-  }, [ordenes, search, tabPrincipal, filtroEstadoDetalle, filtroCliente, filtroMarca, filtroCategoria, filtroAtencion])
+  }, [ordenes, search, tabPrincipal, filtroEstadoDetalle, filtroCliente, filtroMarca, filtroCategoria, filtroPaciente, filtroAtencion])
 
   const { itemsOrdenados: ordenesOrdenadas, config: configOrdenes, solicitarOrden: solicitarOrdenOrdenes } = useOrdenable(ordenesFiltradas)
   const paginacionOrdenes = usePaginacion(ordenesOrdenadas, 20)
@@ -327,13 +335,11 @@ export default function OrdenesClient({
       .update({ estado_id: transicion.id }).eq('id', orden.id)
     if (error) { showToast('Error: ' + error.message, 'error'); return }
 
-    // Al finalizar la orden, los equipos vuelven a "Disponible" y se desvinculan del paciente/cliente
-    // (los que están en mantenimiento siguen así — ver lib/mantenimientos.js)
+    // Al finalizar, los equipos que seguían en el préstamo se marcan devueltos y
+    // vuelven a "Disponible" (los que están en mantenimiento siguen así)
     let errorLiberar = null
     if (transicion.nombre === 'Finalizada') {
-      const idsEquipos = (orden.equipos || []).map(oe => oe.equipo_id || oe.equipo?.id).filter(Boolean)
-      const estadoDisponible = (estadosEquipo || []).find(e => e.nombre === 'Disponible')
-      ;({ error: errorLiberar } = await liberarEquipos(supabase, idsEquipos, estadoDisponible?.id))
+      ;({ error: errorLiberar } = await cerrarEquiposAbiertos({ supabase, ordenId: orden.id, nota: 'Préstamo finalizado' }))
     }
 
     const nuevoEstado = { id: transicion.id, nombre: transicion.nombre }
@@ -342,6 +348,7 @@ export default function OrdenesClient({
     setModalConfirm(null)
     if (errorLiberar) showToast('La orden se finalizó, pero no se pudo liberar algún equipo: ' + errorLiberar.message, 'error')
     else showToast(transicion.nombre === 'Finalizada' ? 'Orden finalizada — equipos liberados' : `Orden → ${transicion.nombre}`)
+    router.refresh()
   }
 
   // ── GUARDAR FECHA ENTREGA ────────────────────────────────
@@ -479,14 +486,9 @@ export default function OrdenesClient({
       await q
     }
 
-    // Libera los equipos de esta orden que aún no se hayan devuelto
+    // Cierra y libera los equipos que aún no se hayan devuelto
     // (los que están en mantenimiento siguen así — ver lib/mantenimientos.js)
-    const estadoDisponible = (estadosEquipo || []).find(e => e.nombre === 'Disponible')
-    const idsALiberar = (drawer.equipos || [])
-      .filter(oe => !oe.fecha_devolucion)
-      .map(oe => oe.equipo_id || oe.equipo?.id)
-      .filter(Boolean)
-    const { error: errLiberar } = await liberarEquipos(supabase, idsALiberar, estadoDisponible?.id)
+    const { error: errLiberar } = await cerrarEquiposAbiertos({ supabase, ordenId: drawer.id, nota: 'Préstamo cancelado' })
 
     registrarBitacora({ modulo: 'ordenes', accion: 'cancelar', entidad: 'préstamo', entidad_id: drawer.id, detalle: { codigo: drawer.codigo } })
 
@@ -521,16 +523,12 @@ export default function OrdenesClient({
   return (
     <div className="flex flex-col h-full overflow-hidden">
 
-      {/* Topbar */}
-      <div className="h-14 md:h-16 md:bg-white md:border-b md:border-slate-200 flex items-center px-4 md:px-7 flex-shrink-0">
-        <div>
-          <div className="text-[18px] font-bold text-slate-800">Préstamos</div>
-          <div className="text-[12px] text-slate-400 mt-0.5">Gestión de préstamos de equipos biomédicos</div>
-        </div>
-        <div className="ml-auto flex items-center gap-2">
-          <BuzonNovedades />
-        </div>
-      </div>
+      <EncabezadoModulo titulo="Préstamos" subtitulo="Equipos prestados a clientes y pacientes" ayuda="prestamos"
+        acciones={vista === 'lista' && (
+          <button onClick={iniciarNuevoPrestamo} className={`${ui.btnPrimario} max-md:hidden`}>
+            <Plus size={14} strokeWidth={2.5} /> Nuevo préstamo
+          </button>
+        )} />
 
       {/* FAB móvil */}
       {vista === 'lista' && (
@@ -542,19 +540,19 @@ export default function OrdenesClient({
 
       <div className="flex-1 overflow-hidden flex flex-col">
       {vista === 'lista' && (
-        <div className="flex-1 overflow-hidden flex flex-col p-3 md:p-6 pb-28 md:pb-6">
+        <div className="flex-1 overflow-hidden flex flex-col p-3 md:p-6">
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col flex-1 min-h-0">
 
           {/* FRANJA 1 — Filtros, SIEMPRE fija, nunca cambia con la selección */}
           <div className="p-3 md:p-6 pb-3 md:pb-4 flex-shrink-0 border-b border-slate-200">
             <div className="flex flex-col gap-2 md:gap-3">
-              {/* Fila 1 — búsqueda, pestañas, conteo y acción principal */}
+              {/* Fila 1 — búsqueda, pestañas y conteo ("Nuevo préstamo" está en el encabezado) */}
               <div className="flex flex-col gap-2 md:flex-row md:items-center md:gap-3">
                 <div className="relative w-full md:w-[340px] md:flex-shrink-0">
                   <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                   <input value={search} onChange={e => setSearch(e.target.value)}
                     placeholder="Buscar por código o cliente..."
-                    className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-[9px] text-[13px] outline-none focus:border-[#D81B43] bg-white" />
+                    className="w-full pl-9 pr-4 h-[38px] border border-slate-200 rounded-[9px] text-[13px] text-slate-800 bg-white outline-none focus:border-[#D81B43] focus:ring-2 focus:ring-[#D81B43]/10 placeholder:text-slate-400" />
                 </div>
                 <div className="flex items-center gap-2 md:gap-3 md:flex-1 min-w-0">
                   <div className="flex items-center gap-2 overflow-x-auto flex-1 min-w-0">
@@ -575,41 +573,39 @@ export default function OrdenesClient({
                     ))}
                   </div>
                   <LimpiarFiltros
-                    activo={!!(search || filtroEstadoDetalle || filtroCliente || filtroMarca || filtroCategoria || filtroAtencion)}
-                    onLimpiar={() => { setSearch(''); setFiltroEstadoDetalle(''); setFiltroCliente(''); setFiltroMarca(''); setFiltroCategoria(''); setFiltroAtencion('') }} />
-                  {!drawer && (
-                    <div className="hidden md:block text-[12px] text-slate-400 flex-shrink-0">
+                    activo={!!(search || filtroEstadoDetalle || filtroCliente || filtroMarca || filtroCategoria || filtroPaciente || filtroAtencion)}
+                    onLimpiar={() => { setSearch(''); setFiltroEstadoDetalle(''); setFiltroCliente(''); setFiltroMarca(''); setFiltroCategoria(''); setFiltroPaciente(''); setFiltroAtencion('') }} />
+                  {(
+                    <div className="hidden md:block text-[12px] text-slate-400 flex-shrink-0 ml-auto">
                       {ordenesFiltradas.length} préstamo{ordenesFiltradas.length !== 1 ? 's' : ''}
                     </div>
                   )}
-                  <button onClick={iniciarNuevoPrestamo}
-                    className="hidden md:flex items-center gap-1.5 px-4 h-[38px] bg-[#D81B43] text-white text-[13px] font-semibold rounded-[9px] hover:bg-[#B0172F] transition-colors flex-shrink-0 whitespace-nowrap">
-                    <Plus size={14} strokeWidth={2.5} /> Nuevo préstamo
-                  </button>
                 </div>
               </div>
 
-              {/* Fila 2 — panel de filtros */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                  <select value={filtroEstadoDetalle} onChange={e => setFiltroEstadoDetalle(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-[9px] text-[12.5px] text-slate-700 outline-none focus:border-[#D81B43] bg-white h-[38px]">
+              {/* Fila 2 — filtros: categoría antes que tipo (el tipo depende de ella) */}
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+                  <select value={filtroEstadoDetalle} onChange={e => setFiltroEstadoDetalle(e.target.value)} className="w-full px-3 border border-slate-200 rounded-[9px] text-[12.5px] text-slate-700 outline-none focus:border-[#D81B43] bg-white h-[38px] disabled:bg-slate-50 disabled:text-slate-400">
                     <option value="">Estado</option>
                     {opcionesEstado.map(e => <option key={e} value={e}>{e}</option>)}
                   </select>
-                  <select value={filtroCliente} onChange={e => setFiltroCliente(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-[9px] text-[12.5px] text-slate-700 outline-none focus:border-[#D81B43] bg-white h-[38px]">
+                  <select value={filtroCliente} onChange={e => setFiltroCliente(e.target.value)} className="w-full px-3 border border-slate-200 rounded-[9px] text-[12.5px] text-slate-700 outline-none focus:border-[#D81B43] bg-white h-[38px] disabled:bg-slate-50 disabled:text-slate-400">
                     <option value="">Cliente</option>
                     {opcionesCliente.map(c => <option key={c} value={c}>{c}</option>)}
                   </select>
-                  <select value={filtroMarca} onChange={e => setFiltroMarca(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-[9px] text-[12.5px] text-slate-700 outline-none focus:border-[#D81B43] bg-white h-[38px]">
-                    <option value="">Tipo de equipo</option>
-                    {opcionesMarca.map(m => <option key={m} value={m}>{m}</option>)}
-                  </select>
-                  <select value={filtroCategoria} onChange={e => setFiltroCategoria(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-[9px] text-[12.5px] text-slate-700 outline-none focus:border-[#D81B43] bg-white h-[38px]">
+                  <div className="relative">
+                    <input value={filtroPaciente} onChange={e => setFiltroPaciente(e.target.value)} list="filtro-pacientes"
+                      placeholder="Paciente" className="w-full px-3 border border-slate-200 rounded-[9px] text-[12.5px] text-slate-700 outline-none focus:border-[#D81B43] bg-white h-[38px] disabled:bg-slate-50 disabled:text-slate-400 placeholder:text-slate-700" />
+                    <datalist id="filtro-pacientes">{opcionesPaciente.map(p => <option key={p} value={p} />)}</datalist>
+                  </div>
+                  <select value={filtroCategoria} onChange={e => { setFiltroCategoria(e.target.value); setFiltroMarca('') }} className="w-full px-3 border border-slate-200 rounded-[9px] text-[12.5px] text-slate-700 outline-none focus:border-[#D81B43] bg-white h-[38px] disabled:bg-slate-50 disabled:text-slate-400">
                     <option value="">Categoría</option>
                     {opcionesCategoria.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                  <select value={filtroMarca} onChange={e => setFiltroMarca(e.target.value)} disabled={!filtroCategoria}
+                    title={filtroCategoria ? undefined : 'Elige primero la categoría'} className="w-full px-3 border border-slate-200 rounded-[9px] text-[12.5px] text-slate-700 outline-none focus:border-[#D81B43] bg-white h-[38px] disabled:bg-slate-50 disabled:text-slate-400">
+                    <option value="">{filtroCategoria ? 'Tipo de equipo' : 'Tipo (elige categoría)'}</option>
+                    {opcionesMarca.map(m => <option key={m} value={m}>{m}</option>)}
                   </select>
                 </div>
 
@@ -626,51 +622,31 @@ export default function OrdenesClient({
               </div>
             </div>
 
-          {/* FRANJA 2 — aquí ocurre toda la transición: lista + panel */}
+          {/* FRANJA 2 — lista (el detalle se abre en ventana) */}
           <div className="flex flex-1 overflow-hidden flex-col md:flex-row">
 
-            {/* Columna lista — SIEMPRE montada; solo cambia de ancho (100% ↔ 380px) según haya o no detalle abierto */}
-            <div className={`${drawer ? 'hidden md:flex' : 'flex'} flex-col overflow-hidden transition-all duration-300 w-full ${drawer ? 'md:w-[380px] md:flex-shrink-0 md:border-r md:border-slate-200' : ''}`}>
+            {/* Columna lista */}
+            <div className="flex flex-col overflow-hidden w-full">
 
               {/* Lista/tabla — un solo contenedor de scroll; adentro cambia cómo se pinta cada fila según el ancho disponible */}
-              <div ref={listaScrollRef} className="flex-1 overflow-y-auto px-3 md:px-6 pt-3 md:pt-6 pb-28 md:pb-6">
+              <div ref={listaScrollRef} className="flex-1 overflow-y-auto px-3 md:px-6 pt-3 md:pt-6 pb-20 md:pb-6">
               {ordenesFiltradas.length === 0 ? (
                 <div className="text-center py-16 text-slate-400">
                     <FileText className="w-12 h-12 mx-auto mb-3 opacity-20" />
                     <div className="font-semibold mb-1">
-                      {search || filtroEstadoDetalle || filtroCliente || filtroMarca ? 'Sin resultados' : (
+                      {search || filtroEstadoDetalle || filtroCliente || filtroMarca || filtroCategoria || filtroPaciente ? 'Sin resultados' : (
                         tabPrincipal === 'todos'    ? 'Sin préstamos registrados' :
                         tabPrincipal === 'en_curso' ? 'Sin préstamos en curso' :
                         'Sin préstamos en historial'
                       )}
                     </div>
                     <div className="text-[13px]">
-                      {search || filtroEstadoDetalle || filtroCliente || filtroMarca ? 'Intenta con otros filtros' :
+                      {search || filtroEstadoDetalle || filtroCliente || filtroMarca || filtroCategoria || filtroPaciente ? 'Intenta con otros filtros' :
                        tabPrincipal === 'todos'    ? 'Usa "Nuevo préstamo" para registrar uno' :
                        tabPrincipal === 'en_curso' ? 'Usa "Nuevo préstamo" para registrar uno' :
                        'Los préstamos finalizados aparecerán aquí'}
                     </div>
                   </div>
-              ) : drawer ? (
-                /* Lista compacta — solo se ve cuando la columna está angosta (detalle abierto).
-                   Usa la MISMA página que la tabla (ordenesPagina), no la lista completa:
-                   antes, al abrir un préstamo se mostraban todos y se perdía la página. */
-                <div className="-mx-3 md:-mx-6">
-                  {ordenesPagina.map(o => {
-                    const retrasada = estaRetrasada(o)
-                    return (
-                      <div key={o.id} onClick={() => abrirDrawer(o)}
-                        className={`px-4 py-3 border-b border-slate-100 cursor-pointer transition-colors ${drawer?.id === o.id ? 'bg-[#FFF0F3] border-l-[3px] border-l-[#D81B43]' : 'hover:bg-slate-50'}`}>
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="font-mono text-[12px] font-bold text-slate-700">{o.codigo || '—'}</span>
-                          <EstadoBadge orden={o} retrasada={retrasada} />
-                        </div>
-                        <div className="text-[12.5px] font-semibold text-slate-700 truncate mt-0.5">{o.cliente?.nombre || '—'}</div>
-                      </div>
-                    )
-                  })}
-                  <Paginador {...paginacionOrdenes} compacto />
-                </div>
               ) : (
                 <>
                   {/* Cards móvil */}
@@ -817,26 +793,16 @@ export default function OrdenesClient({
               </div>
             </div>
 
-            {/* Panel de detalle — aparece a la derecha sin reemplazar la columna de lista */}
+          {/* Detalle en ventana ancha, igual que Entregas, Inventario y Clientes */}
           {drawer && (
-            <div className="flex flex-col flex-1 overflow-hidden animate-panel-detalle">
-              {/* Header — blanco como Clientes */}
-              <div className="px-6 py-4 border-b border-slate-200 flex items-start justify-between flex-shrink-0">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-[#D81B43]/10 flex items-center justify-center text-[15px] font-bold text-[#D81B43] flex-shrink-0">
-                    {drawer.cliente?.nombre?.charAt(0)?.toUpperCase() || '?'}
-                  </div>
-                  <div>
-                    <div className="text-[15px] font-bold text-slate-800 leading-tight">{drawer.cliente?.nombre || '—'}</div>
-                    <div className="font-mono text-[11.5px] text-slate-400 mt-0.5">{drawer.codigo}</div>
-                  </div>
-                </div>
-                <button onClick={() => setDrawer(null)} title="Cerrar (ESC)" className="text-slate-400 hover:text-slate-600 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100">
-                  <X size={16} />
-                </button>
-              </div>
+            <VentanaDetalle onCerrar={() => setDrawer(null)} ancho={860}>
+            <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+              <EncabezadoDetalle icono={drawer.cliente?.nombre?.charAt(0)?.toUpperCase() || '?'}
+                etiqueta={<span className="font-mono">{drawer.codigo}</span>} titulo={drawer.cliente?.nombre || '—'}
+                subtitulo={drawer.paciente?.nombre ? `Paciente: ${drawer.paciente.nombre}` : undefined}
+                onCerrar={() => setDrawer(null)} />
 
-              <div className="flex-1 overflow-y-auto divide-y divide-slate-100 pb-28 md:pb-6">
+              <div className="flex-1 overflow-y-auto divide-y divide-slate-100 pb-4">
 
                 {/* Estado + timeline + acción */}
                 <div className="p-5">
@@ -927,7 +893,7 @@ export default function OrdenesClient({
                 {/* Repartidor — editable */}
                 <div className="p-5">
                   <div className="flex items-center justify-between mb-3">
-                    <div className="text-[9.5px] font-bold uppercase tracking-[0.12em] text-slate-400">Repartidor</div>
+                    <div className="text-[10.5px] font-bold uppercase tracking-[0.1em] text-slate-400">Repartidor</div>
                     {puedeEdRep && !editRepartidor && (
                       <button onClick={() => { setEditRepartidor(true); setNuevoRepartidor(drawer.repartidor_id || '') }}
                         className="flex items-center gap-1 text-[11.5px] text-[#D81B43] font-semibold hover:underline">
@@ -971,7 +937,7 @@ export default function OrdenesClient({
                 {['Borrador', 'Programada'].includes(drawerEstado) && (
                   <div className="p-5">
                     <div className="flex items-center justify-between mb-3">
-                      <div className="text-[9.5px] font-bold uppercase tracking-[0.12em] text-slate-400">Fecha y hora de entrega</div>
+                      <div className="text-[10.5px] font-bold uppercase tracking-[0.1em] text-slate-400">Fecha y hora de entrega</div>
                       {!editFecha && (
                         <button onClick={() => { setEditFecha(true); setNuevaFecha(drawer.fecha_entrega ? paraInput(drawer.fecha_entrega) : '') }}
                           className="flex items-center gap-1 text-[11.5px] text-[#D81B43] font-semibold hover:underline">
@@ -1011,7 +977,7 @@ export default function OrdenesClient({
                 {!['Finalizada', 'Cancelada'].includes(drawerEstado) && (
                   <div className="p-5">
                     <div className="flex items-center justify-between mb-3">
-                      <div className="text-[9.5px] font-bold uppercase tracking-[0.12em] text-slate-400">Vigencia del préstamo</div>
+                      <div className="text-[10.5px] font-bold uppercase tracking-[0.1em] text-slate-400">Vigencia del préstamo</div>
                       {!editVigencia && (
                         <button onClick={() => { setEditVigencia(true); setNuevaVigencia(drawer.fecha_vigencia || null) }}
                           className="flex items-center gap-1 text-[11.5px] text-[#D81B43] font-semibold hover:underline">
@@ -1045,7 +1011,7 @@ export default function OrdenesClient({
 
                 {/* Datos generales */}
                 <div className="p-5">
-                  <div className="text-[9.5px] font-bold uppercase tracking-[0.12em] text-slate-400 mb-3">Detalles</div>
+                  <div className="text-[10.5px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-3">Detalles</div>
                   <div className="grid grid-cols-2 gap-3">
                     {[
                       { label: 'Cliente',        value: drawer.cliente?.nombre },
@@ -1076,7 +1042,7 @@ export default function OrdenesClient({
 
                 {/* Equipos — en grilla con ícono, mismo estilo que Cliente/Paciente */}
                 <div className="p-5">
-                  <div className="text-[9.5px] font-bold uppercase tracking-[0.12em] text-slate-400 mb-3">
+                  <div className="text-[10.5px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-3">
                     Equipos ({drawer.equipos?.length || 0})
                   </div>
                   {!drawer.equipos?.length
@@ -1137,11 +1103,12 @@ export default function OrdenesClient({
 
                 {/* Actas firmadas (lib/actas) */}
                 <div className="p-5">
-                  <div className="text-[9.5px] font-bold uppercase tracking-[0.12em] text-slate-400 mb-3">Actas</div>
+                  <div className="text-[10.5px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-3">Actas</div>
                   <ActasPrestamo key={drawer.id} ordenId={drawer.id} ordenCodigo={drawer.codigo} onToast={showToast} />
                 </div>
               </div>
             </div>
+            </VentanaDetalle>
           )}
           </div>
         </div>
@@ -1159,41 +1126,17 @@ export default function OrdenesClient({
       </div>
 
 
-      {/* ── MODAL CONFIRMACIÓN CAMBIO ESTADO ── */}
-      {modalConfirm && (
-        <>
-          <div className="fixed inset-0 bg-black/50 z-[60] backdrop-blur-sm" />
-          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-            <div className="bg-white rounded-2xl w-full max-w-[380px] p-6 shadow-2xl">
-              <div className="w-12 h-12 rounded-full bg-[#D81B43]/10 flex items-center justify-center mx-auto mb-4">
-                <AlertTriangle size={22} className="text-[#D81B43]" />
-              </div>
-              <h3 className="text-[16px] font-bold text-slate-800 mb-2 text-center">Cambiar estado</h3>
-              <p className="text-[13px] text-slate-500 text-center mb-1">
-                <span className="font-semibold text-slate-700">{modalConfirm.orden.codigo}</span>
-              </p>
-              <p className="text-[13px] text-center text-slate-400 mb-2">
-                {modalConfirm.orden.estado?.nombre} → <span className="font-bold text-[#D81B43]">{modalConfirm.transicion.nombre}</span>
-              </p>
-              {modalConfirm.transicion.nombre === 'Programada' && !modalConfirm.orden.fecha_entrega && (
-                <div className="text-[12px] text-[#B45309] bg-[#FFFBEB] px-3 py-2 rounded-[8px] mb-4 text-center">
-                  No hay fecha de entrega programada
-                </div>
-              )}
-              <div className="flex gap-2 mt-4">
-                <button onClick={() => avanzarEstado(modalConfirm.orden, modalConfirm.transicion)}
-                  className="flex-1 py-2.5 bg-[#D81B43] text-white rounded-[9px] text-[13px] font-semibold hover:bg-[#B0172F]">
-                  Confirmar
-                </button>
-                <button onClick={() => setModalConfirm(null)}
-                  className="flex-1 py-2.5 bg-slate-100 text-slate-600 rounded-[9px] text-[13px] font-semibold hover:bg-slate-200">
-                  Cancelar
-                </button>
-              </div>
-            </div>
-          </div>
-        </>
-      )}
+      {/* ── CONFIRMACIÓN CAMBIO DE ESTADO ── */}
+      <ConfirmDialog
+        abierto={!!modalConfirm}
+        titulo={modalConfirm ? `Pasar ${modalConfirm.orden.codigo} a ${modalConfirm.transicion.nombre}` : ''}
+        mensaje={modalConfirm?.transicion.nombre === 'Finalizada'
+          ? 'Los equipos que siguen en el préstamo se marcan como devueltos y quedan disponibles.'
+          : `${modalConfirm?.orden.estado?.nombre || ''} → ${modalConfirm?.transicion.nombre || ''}`}
+        textoConfirmar={modalConfirm ? `Sí, ${modalConfirm.transicion.nombre.toLowerCase()}` : 'Confirmar'}
+        onConfirmar={() => avanzarEstado(modalConfirm.orden, modalConfirm.transicion)}
+        onCancelar={() => setModalConfirm(null)}
+      />
 
       <ModalDevolucion
         abierto={!!modalDevolucion}
@@ -1229,7 +1172,7 @@ export default function OrdenesClient({
       />
 
       {toast && (
-        <div className={`fixed bottom-28 md:bottom-6 right-4 md:right-6 left-4 md:left-auto text-center md:text-left z-[70] px-4 py-3 rounded-[10px] text-[13px] font-medium text-white shadow-lg ${toast.tipo === 'error' ? 'bg-red-500' : 'bg-[#0F7B55]'}`}>
+        <div className={`${ui.toast} ${toast.tipo === 'error' ? 'bg-red-500' : 'bg-[#0F7B55]'}`}>
           {toast.msg}
         </div>
       )}

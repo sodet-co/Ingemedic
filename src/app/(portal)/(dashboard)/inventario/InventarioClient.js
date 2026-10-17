@@ -10,10 +10,14 @@ import { IconoEquipo, GaleriaIconos } from '@/components/inventario/IconosEquipo
 import { IconoTipo } from '@/components/inventario/IconoTipo'
 import Paginador from '@/components/ui/Paginador'
 import { formatear, hoyBogota } from '@/lib/fechas'
-import { consecutivoCodigos, claveCodigo, porMasReciente, esCampoCodigo, atributosConCodigo } from '@/lib/equipos'
+import { consecutivoCodigos, claveCodigo, esCampoCodigo, atributosConCodigo } from '@/lib/equipos'
 import ModalEliminarEquipos from '@/components/inventario/ModalEliminarEquipos'
-import VentanaDetalle, { Columnas } from '@/components/ui/VentanaDetalle'
-import BuzonNovedades from '@/components/layout/BuzonNovedades'
+import VentanaDetalle, { Columnas, EncabezadoDetalle } from '@/components/ui/VentanaDetalle'
+import EncabezadoModulo from '@/components/ui/EncabezadoModulo'
+import Modal from '@/components/ui/Modal'
+import ConfirmDialog from '@/components/ui/ConfirmDialog'
+import { ui } from '@/lib/ui'
+import { describirBitacora } from '@/lib/bitacora-texto'
 import { useOrdenable } from '@/hooks/useOrdenable'
 import { usePaginacion } from '@/hooks/usePaginacion'
 
@@ -40,12 +44,12 @@ const ESTADO_STYLES = {
   'Reservado': { bg: '#FFFBEB', color: '#B45309', dot: '#F59E0B' },
   'En préstamo': { bg: '#E8F7FB', color: '#0E86A0', dot: '#2EB5D4' },
   'En mantenimiento': { bg: '#FFFBEB', color: '#B45309', dot: '#F59E0B' },
-  'Con novedad': { bg: '#FEF2F2', color: '#C0392B', dot: '#C0392B' },
+  'Con novedad': { bg: '#FEF2F2', color: '#D81B43', dot: '#D81B43' },
   'Baja': { bg: '#F1F5F9', color: '#64748B', dot: '#94A3B8' },
 }
 
-const inputCls = 'w-full px-3 py-2.5 border border-slate-200 rounded-[9px] text-[13.5px] text-slate-800 outline-none focus:border-[#D81B43] bg-white transition-colors placeholder:text-slate-400'
-const labelCls = 'block text-[11px] font-bold uppercase tracking-[0.07em] text-slate-500 mb-1.5'
+const inputCls = ui.input
+const labelCls = ui.label
 
 function formatearValor(valor, tipo) {
   if (!valor && valor !== 0) return '—'
@@ -58,7 +62,7 @@ function formatearValor(valor, tipo) {
 // o "Disponible" con un préstamo o un mantenimiento abierto.
 const ESTADOS_AUTOMATICOS = ['En préstamo', 'Reservado', 'En mantenimiento']
 
-export default function InventarioClient({ categorias: catsIniciales, tipos: tiposIniciales, equipos: equiposBD, estados }) {
+export default function InventarioClient({ categorias: catsIniciales, tipos: tiposIniciales, equipos: equiposBD, estados, actividad = [] }) {
   const router = useRouter()
   const supabase = createClient()
 
@@ -171,26 +175,6 @@ export default function InventarioClient({ categorias: catsIniciales, tipos: tip
     setToast({ msg, tipo })
     setTimeout(() => setToast(null), 3000)
   }
-
-  // Últimos 5 códigos usados en todo el inventario (más recientes primero;
-  // en un empate de fecha —cargue masivo— gana el número mayor).
-  const ultimosCodigos = useMemo(() => {
-    const nombreCat = Object.fromEntries(categorias.map(c => [c.id, c.nombre]))
-    return equipos
-      .filter(e => e.codigo)
-      .sort(porMasReciente)
-      .slice(0, 5)
-      .map(e => ({
-        id: e.id,
-        codigo: e.codigo.trim(),
-        equipo: e.tipo_equipo?.atributos?.nombre || e.tipo_equipo?.nombre || '—',
-        marca: e.tipo_equipo?.atributos?.nombre ? e.tipo_equipo?.nombre : null,
-        categoria: nombreCat[e.tipo_equipo?.categoria_id] || '—',
-        estado: e.estado?.nombre || null,
-        serie: e.atributos?.serie || null,
-        fecha: e.fecha_creacion,
-      }))
-  }, [equipos, categorias])
 
   const stats = useMemo(() => {
     let base = equipos
@@ -366,7 +350,10 @@ export default function InventarioClient({ categorias: catsIniciales, tipos: tip
     showToast('Equipo actualizado')
     setSaving(false)
     setModalEditar(false)
-    setDrawer(null)
+    // El detalle sigue abierto con los datos nuevos (la edición es en la misma ventana)
+    setDrawer(d => d && ({ ...d, codigo, estado_id: formEditar.estado_id || null,
+      estado: estados.find(e => e.id === formEditar.estado_id) || d.estado,
+      atributos: atributosConCodigo(formEditar.atributos, codigo, camposUnidad) }))
     router.refresh()
   }
 
@@ -690,13 +677,12 @@ export default function InventarioClient({ categorias: catsIniciales, tipos: tip
         else exportar('completo')
       }}
       disabled={exportando}
-      className="hidden md:flex items-center gap-1.5 px-3 h-[38px] text-[13px] font-medium text-slate-600 border border-slate-200 rounded-[9px] hover:border-slate-300 transition-all disabled:opacity-50 flex-shrink-0 whitespace-nowrap bg-white">
+      className={ui.btnSecundario}>
       <Download size={13} /> {exportando ? 'Exportando…' : 'Exportar Excel'}
     </button>
   )
-  // Botón que abre/cierra "Actividad reciente" — va junto a Exportar Excel en
-  // la franja de filtros de cada vista.
-  const botonActividad = ultimosCodigos.length > 0 ? (
+  // Botón que abre/cierra "Actividad reciente" (mini bitácora del inventario)
+  const botonActividad = actividad.length > 0 ? (
     <button type="button" onClick={() => setVerActividad(v => !v)} title="Actividad reciente"
       className={`flex items-center gap-1.5 px-3 h-[38px] text-[13px] font-medium border rounded-[9px] transition-all flex-shrink-0 whitespace-nowrap ${
         verActividad ? 'border-[#1B3A6B] bg-[#1B3A6B]/5 text-[#1B3A6B]' : 'border-slate-200 text-slate-600 hover:border-slate-300 bg-white'
@@ -705,103 +691,53 @@ export default function InventarioClient({ categorias: catsIniciales, tipos: tip
     </button>
   ) : null
 
-  // "Actividad reciente": cerrada por defecto. Al abrirla, los 5 últimos
-  // registrados; el primero (el más reciente) con su info completa.
+  // "Actividad reciente": últimos movimientos del inventario en la bitácora
+  // (equipos creados, editados, eliminados…), con la misma frase que la Bitácora.
   // enColumna = versión angosta de la columna derecha (lg+).
   function renderActividad(enColumna) {
-    if (!ultimosCodigos.length) return null
-    const [ult, ...resto] = ultimosCodigos
-    const est = ESTADO_STYLES[ult.estado] || {}
+    if (!actividad.length) return null
     return (
       <div className={`bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden ${enColumna ? '' : 'mb-4'}`}>
-        <div className="flex items-center gap-2 px-3 md:px-4 py-2.5">
+        <div className="flex items-center gap-2 px-4 py-2.5 border-b border-slate-100">
           <Clock size={14} className="text-slate-400" />
-          <span className="text-[12px] font-bold uppercase tracking-[0.07em] text-slate-500">Actividad reciente</span>
+          <span className={ui.tituloSeccion}>Actividad reciente</span>
+          <a href="/bitacora" className="ml-auto text-[12px] font-semibold text-[#1B3A6B] hover:underline">Ver todo</a>
           <button type="button" onClick={() => setVerActividad(false)} aria-label="Cerrar"
-            className="ml-auto w-7 h-7 flex items-center justify-center rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-100">
+            className="w-7 h-7 flex items-center justify-center rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-100">
             <X size={15} />
           </button>
         </div>
-
-        {(
-          <div className="px-3 pb-3">
-            <div className="border border-slate-200 rounded-lg overflow-hidden">
-              {/* Más reciente — info completa */}
-              <div className="px-3 py-2.5 border-b border-slate-100">
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                  <span className="font-mono text-[15px] font-extrabold text-slate-800">{ult.codigo}</span>
-                  {ult.estado && (
-                    <span className="text-[11px] font-bold px-2 py-0.5 rounded-full" style={{ background: est.bg, color: est.color }}>{ult.estado}</span>
-                  )}
-                </div>
-                <div className={`grid grid-cols-2 ${enColumna ? '' : 'md:grid-cols-5'} gap-x-4 gap-y-1.5 mt-2 text-[12px]`}>
-                  {[
-                    ['Equipo', ult.equipo],
-                    ['Marca', ult.marca],
-                    ['Categoría', ult.categoria],
-                    ['Serie', ult.serie],
-                    ['Registrado', ult.fecha ? formatear(ult.fecha, { hour: '2-digit', minute: '2-digit' }) : null],
-                  ].map(([k, v]) => (
-                    <div key={k} className={`min-w-0 ${k === 'Registrado' ? `col-span-2 ${enColumna ? '' : 'md:col-span-1'}` : ''}`}>
-                      <div className="text-[10px] font-semibold uppercase text-slate-400">{k}</div>
-                      <div className="text-slate-700 font-medium truncate">{v || '—'}</div>
-                    </div>
-                  ))}
-                </div>
+        <div className="divide-y divide-slate-100 max-h-[420px] overflow-y-auto">
+          {actividad.map(r => (
+            <div key={r.id} className="px-4 py-2.5">
+              <div className="text-[12.5px] text-slate-700 leading-snug">{describirBitacora(r)}</div>
+              <div className="text-[11px] text-slate-400 mt-0.5">
+                {r.usuario?.nombre || '—'} · {formatear(r.fecha, { year: undefined, hour: '2-digit', minute: '2-digit' })}
               </div>
-              {/* Los otros 4 */}
-              {resto.map(u => (
-                <div key={u.id} className="flex items-center gap-2.5 px-3 py-2 border-b border-slate-100 last:border-0">
-                  <span className={`font-mono text-[12.5px] font-bold text-slate-700 flex-shrink-0 truncate ${enColumna ? 'w-[84px]' : 'w-[96px]'}`}>{u.codigo}</span>
-                  <div className="min-w-0 flex-1">
-                    <div className="text-[12px] text-slate-600 truncate">{u.equipo}{u.marca ? ` · ${u.marca}` : ''}</div>
-                    <div className="text-[10.5px] text-slate-400 truncate">{u.categoria} · {u.fecha ? formatear(u.fecha, { year: undefined }) : '—'}</div>
-                  </div>
-                </div>
-              ))}
             </div>
-          </div>
-        )}
+          ))}
+        </div>
       </div>
     )
   }
 
-  const claseBotonNuevo = 'hidden md:flex items-center gap-1.5 px-4 h-[38px] bg-[#D81B43] text-white text-[13px] font-semibold rounded-[9px] hover:bg-[#B0172F] transition-colors flex-shrink-0 whitespace-nowrap'
-
   return (
     <div className="flex flex-col h-full overflow-hidden">
 
-      {/* Topbar */}
-      <div className="h-14 md:h-16 md:bg-white md:border-b md:border-slate-200 flex items-center px-4 md:px-7 flex-shrink-0 flex-wrap gap-2">
-        <div className="flex items-center gap-2 text-sm text-slate-600 md:text-slate-400 flex-wrap">
-          {vista !== 'categorias' && (
-            <button onClick={volver}
-              className="md:hidden w-7 h-7 flex items-center justify-center rounded-full hover:bg-slate-200 transition-colors text-slate-700 font-bold text-base">
-              ←
-            </button>
-          )}
-          <button onClick={() => { setVista('categorias'); setCatActual(null); setTipoActual(null) }}
-            className="text-[18px] font-bold text-slate-800 md:text-sm md:font-medium md:text-slate-400 md:hover:text-slate-700 transition-colors">Inventario</button>
-          {catActual && <>
-            <span>/</span>
-            <button onClick={() => { setVista('tipos'); setTipoActual(null) }}
-              className="hover:text-slate-700 transition-colors">{catActual.nombre}</button>
-          </>}
-          {tipoActual && <>
-            <span>/</span>
-            <span className="text-slate-700 font-semibold">{nombreTipo(tipoActual)}</span>
-          </>}
-        </div>
-        <div className="ml-auto flex items-center gap-2 flex-wrap">
-          <BuzonNovedades />
-          {vista !== 'categorias' && (
-            <button onClick={volver}
-              className="hidden md:flex items-center gap-1.5 px-3 py-2 text-[13px] font-medium text-slate-500 border border-slate-200 rounded-[9px] hover:border-slate-300 transition-all">
-              ← Volver
-            </button>
-          )}
-        </div>
-      </div>
+      <EncabezadoModulo titulo="Inventario" ayuda="inventario"
+        volver={vista !== 'categorias' ? volver : undefined}
+        subtitulo="Categorías, tipos y unidades"
+        migas={vista !== 'categorias' ? [
+          { label: 'Todas', onClick: () => { setVista('categorias'); setCatActual(null); setTipoActual(null) } },
+          ...(catActual ? [{ label: catActual.nombre, onClick: tipoActual ? () => { setVista('tipos'); setTipoActual(null) } : undefined }] : []),
+          ...(tipoActual ? [{ label: nombreTipo(tipoActual) }] : []),
+        ] : undefined}
+        acciones={<div className="hidden md:flex items-center gap-2">
+          {botonExportar}
+          {botonActividad}
+          {vista === 'tipos' && <button onClick={abrirModalTipo} className={ui.btnPrimario}><Plus size={14} strokeWidth={2.5} /> Nuevo tipo</button>}
+          {vista === 'unidades' && <button onClick={abrirModalNueva} className={ui.btnPrimario}><Plus size={14} strokeWidth={2.5} /> Nueva unidad</button>}
+        </div>} />
 
       {/* FAB móvil — solo en vista tipos o unidades */}
       {vista === 'tipos' && (
@@ -817,9 +753,9 @@ export default function InventarioClient({ categorias: catsIniciales, tipos: tip
         </button>
       )}
 
-      <div className="flex-1 overflow-y-auto p-3 md:p-6 pb-28 md:pb-6">
+      <div className="flex-1 overflow-y-auto p-3 md:p-6 pb-20 md:pb-6">
 
-        {/* Stats — desktop: grid 4 cols / móvil: chips en scroll horizontal */}
+        {/* Stats — PC: 4 tarjetas / celular: 2 */}
         {(() => {
           const statsItems = [
             { label: 'Total equipos', value: stats.total, color: '#1E293B' },
@@ -838,12 +774,12 @@ export default function InventarioClient({ categorias: catsIniciales, tipos: tip
                   </div>
                 ))}
               </div>
-              {/* Móvil: scroll horizontal */}
-              <div className="md:hidden flex gap-2 overflow-x-auto pb-1 mb-4 -mx-3 px-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                {statsItems.map(s => (
-                  <div key={s.label} className="flex-shrink-0 bg-white border border-slate-200 rounded-full px-3 py-1.5 flex items-center gap-2 shadow-sm">
-                    <span className="text-[15px] font-extrabold tabular-nums leading-none" style={{ color: s.color }}>{s.value}</span>
-                    <span className="text-[11px] text-slate-400 whitespace-nowrap">{s.label}</span>
+              {/* Celular: solo los dos que importan, sin scroll lateral */}
+              <div className="md:hidden grid grid-cols-2 gap-2 mb-4">
+                {statsItems.filter(s => ['Disponibles', 'En préstamo'].includes(s.label)).map(s => (
+                  <div key={s.label} className="bg-white border border-slate-200 rounded-xl px-3 py-2.5 shadow-sm">
+                    <div className="text-[20px] font-extrabold tabular-nums leading-none" style={{ color: s.color }}>{s.value}</div>
+                    <div className="text-[11.5px] text-slate-400 mt-1">{s.label}</div>
                   </div>
                 ))}
               </div>
@@ -873,14 +809,12 @@ export default function InventarioClient({ categorias: catsIniciales, tipos: tip
                   <input
                     value={buscarCategoria} onChange={e => setBuscarCategoria(e.target.value)}
                     placeholder="Buscar categoría..."
-                    className="w-full pl-8 pr-4 py-2 border border-slate-200 rounded-[9px] text-[13px] outline-none focus:border-[#D81B43] bg-white h-[38px]" />
+                    className="w-full pl-9 pr-4 h-[38px] border border-slate-200 rounded-[9px] text-[13px] text-slate-800 bg-white outline-none focus:border-[#D81B43] focus:ring-2 focus:ring-[#D81B43]/10 placeholder:text-slate-400" />
                 </div>
                 <LimpiarFiltros activo={!!buscarCategoria} onLimpiar={() => setBuscarCategoria('')} />
                 <div className="hidden md:block text-[12px] text-slate-400 flex-shrink-0 ml-auto">
                   {categoriasFiltradas.length} categoría{categoriasFiltradas.length !== 1 ? 's' : ''}
                 </div>
-                {botonExportar}
-                {botonActividad}
               </div>
             )}
             <div className="grid grid-cols-1 sm:grid-cols-[repeat(auto-fill,minmax(230px,1fr))] gap-4">
@@ -929,8 +863,8 @@ export default function InventarioClient({ categorias: catsIniciales, tipos: tip
         {/* VISTA TIPOS */}
         {vista === 'tipos' && (
           <div>
-            {/* La franja se muestra aunque no haya tipos, para no perder "Nuevo tipo" */}
-            <div className={`${tiposDeCat.length === 0 ? 'hidden md:flex' : 'flex'} flex-wrap items-center gap-2 md:gap-3 mb-4`}>
+            {/* "Nuevo tipo" está en el encabezado (y en el botón flotante del celular) */}
+            <div className={`${tiposDeCat.length === 0 ? 'hidden' : 'flex'} flex-wrap items-center gap-2 md:gap-3 mb-4`}>
               {tiposDeCat.length > 0 && (<>
                 {/* Buscador de tipo (marca) */}
                 <div className="relative flex-1 min-w-[160px] md:max-w-[220px]">
@@ -938,7 +872,7 @@ export default function InventarioClient({ categorias: catsIniciales, tipos: tip
                   <input
                     value={search} onChange={e => setSearch(e.target.value)}
                     placeholder="Buscar tipo..."
-                    className="w-full pl-8 pr-4 py-2 border border-slate-200 rounded-[9px] text-[13px] outline-none focus:border-[#D81B43] bg-white h-[38px]" />
+                    className="w-full pl-9 pr-4 h-[38px] border border-slate-200 rounded-[9px] text-[13px] text-slate-800 bg-white outline-none focus:border-[#D81B43] focus:ring-2 focus:ring-[#D81B43]/10 placeholder:text-slate-400" />
                 </div>
                 {/* Buscador de unidad (código / serie) */}
                 <div className="relative flex-1 min-w-[180px] md:max-w-[260px]">
@@ -947,7 +881,7 @@ export default function InventarioClient({ categorias: catsIniciales, tipos: tip
                     value={buscarUnidad} onChange={e => setBuscarUnidad(e.target.value)}
                     onBlur={() => setTimeout(() => setBuscarUnidad(''), 200)}
                     placeholder="Buscar por código o serie..."
-                    className="w-full pl-8 pr-4 py-2 border border-slate-200 rounded-[9px] text-[13px] outline-none focus:border-[#D81B43] bg-white h-[38px]" />
+                    className="w-full pl-9 pr-4 h-[38px] border border-slate-200 rounded-[9px] text-[13px] text-slate-800 bg-white outline-none focus:border-[#D81B43] focus:ring-2 focus:ring-[#D81B43]/10 placeholder:text-slate-400" />
                   {resultadosUnidad.length > 0 && (
                     <div className="absolute z-20 left-0 top-full mt-1 w-full min-w-[260px] bg-white border border-slate-200 rounded-[9px] shadow-lg overflow-hidden">
                       {resultadosUnidad.slice(0, 8).map(eq => {
@@ -996,13 +930,6 @@ export default function InventarioClient({ categorias: catsIniciales, tipos: tip
                   {tiposFiltrados.length} tipo{tiposFiltrados.length !== 1 ? 's' : ''}
                 </div>
               </>)}
-              <div className={`flex items-center gap-2 md:gap-3 ${tiposDeCat.length === 0 ? 'ml-auto' : ''}`}>
-                {botonExportar}
-                {botonActividad}
-                <button onClick={abrirModalTipo} className={claseBotonNuevo}>
-                  <Plus size={14} strokeWidth={2.5} /> Nuevo tipo
-                </button>
-              </div>
             </div>
             {tiposDeCat.length === 0 && (
               <div className="text-center py-12 text-slate-400">
@@ -1057,18 +984,13 @@ export default function InventarioClient({ categorias: catsIniciales, tipos: tip
               <div className="relative flex-1 md:flex-none md:w-[340px]">
                 <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar..."
-                  className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-[9px] text-[13px] outline-none focus:border-[#D81B43] bg-white" />
+                  className="w-full pl-9 pr-4 h-[38px] border border-slate-200 rounded-[9px] text-[13px] text-slate-800 bg-white outline-none focus:border-[#D81B43] focus:ring-2 focus:ring-[#D81B43]/10 placeholder:text-slate-400" />
               </div>
               <LimpiarFiltros activo={!!search || !!filtroEstado || Object.values(filtrosCampos).some(Boolean)}
                 onLimpiar={() => { setSearch(''); setFiltroEstado(''); setFiltrosCampos({}) }} />
               <div className="text-[12px] text-slate-400 ml-auto flex-shrink-0">
                 {unidadesDeTipo.length} unidad{unidadesDeTipo.length !== 1 ? 'es' : ''}
               </div>
-              {botonExportar}
-              {botonActividad}
-              <button onClick={abrirModalNueva} className={claseBotonNuevo}>
-                <Plus size={14} strokeWidth={2.5} /> Nueva unidad
-              </button>
             </div>
             <div className="bg-white border border-slate-200 rounded-xl p-3 md:p-4 mb-4 shadow-sm">
               <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
@@ -1267,25 +1189,76 @@ export default function InventarioClient({ categorias: catsIniciales, tipos: tip
 
       {/* ── HOJA DE VIDA (ventana ancha; en celular, hoja desde abajo) ── */}
       {drawer && (
-        <VentanaDetalle onCerrar={() => setDrawer(null)}>
-            <div className="px-6 py-4 border-b border-slate-200 flex items-start justify-between flex-shrink-0">
-              <div>
-                <div className="text-[16px] font-bold text-slate-800">
-                  {drawer.codigo || 'Equipo'}
-                  {tipoActual && <span className="text-slate-400 font-normal ml-2">— {nombreTipo(tipoActual)}</span>}
-                </div>
-                <div className="text-[12px] text-slate-400 mt-0.5">{catActual?.nombre}</div>
-              </div>
-              <button onClick={() => setDrawer(null)} className="text-slate-400 hover:text-slate-600 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100">
-                <X size={16} />
-              </button>
-            </div>
+        <VentanaDetalle onCerrar={() => { setDrawer(null); setModalEditar(false) }}>
+            <EncabezadoDetalle icono={<Package size={18} />} etiqueta={catActual?.nombre}
+              titulo={<span className="font-mono">{drawer.codigo || 'Equipo'}</span>}
+              subtitulo={tipoActual ? nombreTipo(tipoActual) : undefined}
+              onCerrar={() => { setDrawer(null); setModalEditar(false) }} />
 
-            <Columnas izquierda={
+            <Columnas izquierda={modalEditar ? (
+              <div className="p-6">
+                <div className={`${ui.tituloSeccion} mb-4`}>Editar equipo</div>
+                              <div className="space-y-4">
+                <div>
+                  <label className={labelCls}>Código de inventario <span className="text-[#D81B43]">*</span></label>
+                  <input value={formEditar.codigo}
+                    onChange={e => { setFormEditar(f => ({ ...f, codigo: e.target.value })); setFormDirty(true) }}
+                    className={inputCls} />
+                  <p className="text-[11.5px] text-slate-500 mt-1.5">Si lo cambias, el anterior queda libre.</p>
+                </div>
+                <div>
+                  <label className={labelCls}>Estado</label>
+                  {(() => {
+                    const actual = estados.find(e => e.id === drawer?.estado_id)
+                    const bloqueado = ESTADOS_AUTOMATICOS.includes(actual?.nombre)
+                    return (
+                      <>
+                        <select value={formEditar.estado_id} disabled={bloqueado}
+                          onChange={e => { setFormEditar(f => ({ ...f, estado_id: e.target.value })); setFormDirty(true) }}
+                          className={`${inputCls} disabled:bg-slate-50 disabled:text-slate-500`}>
+                          {estados
+                            .filter(e => !ESTADOS_AUTOMATICOS.includes(e.nombre) || e.id === drawer?.estado_id)
+                            .map(e => <option key={e.id} value={e.id}>{e.nombre}</option>)}
+                        </select>
+                        <p className="text-[11.5px] text-slate-500 mt-1.5">
+                          {bloqueado
+                            ? actual?.nombre === 'En mantenimiento'
+                              ? 'Cambia solo con el mantenimiento.'
+                              : 'Cambia solo con el préstamo.'
+                            : null}
+                        </p>
+                      </>
+                    )
+                  })()}
+                </div>
+                {camposUnidadExtra.length > 0 && (
+                  <div className="space-y-3">
+                    <div className="text-[11px] font-bold uppercase tracking-[0.07em] text-slate-400">Columnas de la unidad</div>
+                    {camposUnidadExtra.map(campo => (
+                      <div key={campo.clave}>
+                        <label className={labelCls}>{campo.nombre}</label>
+                        {renderCampo(campo, formEditar.atributos, atrs => {
+                          setFormEditar(f => ({ ...f, atributos: atrs }))
+                          setFormDirty(true)
+                        })}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div className="border-t border-slate-100 pt-4">
+                  <label className={labelCls}>Motivo de cambio <span className="text-[#D81B43]">*</span></label>
+                  <textarea value={formEditar.motivo}
+                    onChange={e => { setFormEditar(f => ({ ...f, motivo: e.target.value })); setFormDirty(true) }}
+                    placeholder="Describe el asunto de la corrección..." rows={3}
+                    className={`${inputCls} resize-none`} />
+                </div>
+              </div>
+              </div>
+            ) : (
               <div className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 gap-6">
                 {camposTipo.length > 0 && (
                   <div>
-                    <div className="text-[9.5px] font-bold uppercase tracking-[0.12em] text-slate-400 mb-3">Información del equipo</div>
+                    <div className="text-[10.5px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-3">Información del equipo</div>
                     <div className="space-y-2.5">
                       {camposTipo.map(c => (
                         <div key={c.clave} className="flex justify-between text-[12.5px]">
@@ -1297,7 +1270,7 @@ export default function InventarioClient({ categorias: catsIniciales, tipos: tip
                   </div>
                 )}
                 <div>
-                  <div className="text-[9.5px] font-bold uppercase tracking-[0.12em] text-slate-400 mb-3">Estado y adquisición</div>
+                  <div className="text-[10.5px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-3">Estado y adquisición</div>
                   <div className="space-y-2.5">
                     <div className="flex justify-between text-[12.5px]">
                       <span className="text-slate-400">Estado</span>
@@ -1317,7 +1290,7 @@ export default function InventarioClient({ categorias: catsIniciales, tipos: tip
                 </div>
               </div>
 
-            } derecha={
+            )} derecha={
               <div className="p-6">
                 <div className="text-[13px] font-bold text-slate-700 mb-4">Hoja de vida · Línea de tiempo</div>
                 {(() => {
@@ -1412,13 +1385,16 @@ export default function InventarioClient({ categorias: catsIniciales, tipos: tip
 
             <div className="px-4 pt-3 border-t border-slate-200 flex flex-col sm:flex-row gap-2 flex-shrink-0"
               style={{ paddingBottom: 'max(12px, env(safe-area-inset-bottom, 12px))' }}>
+              {modalEditar ? (<>
+                <button onClick={() => setModalEliminar(true)} className={ui.btnPeligro}><Trash2 size={13} /> Eliminar equipo</button>
+                <div className="sm:ml-auto flex gap-2">
+                  <button onClick={intentarCerrarEditar} className={ui.btnSecundario}>Cancelar</button>
+                  <button onClick={guardarEdicion} disabled={saving} className={ui.btnPrimario}>{saving ? 'Guardando...' : 'Guardar cambios'}</button>
+                </div>
+              </>) : (<>
               <button onClick={abrirEditar}
-                className="flex items-center justify-center gap-1.5 px-4 py-2.5 border border-slate-200 rounded-[9px] text-[13px] font-medium text-slate-600 hover:border-slate-300 transition-all">
+                className={ui.btnSecundario}>
                 <Edit3 size={13} /> Editar ficha
-              </button>
-              <button onClick={() => setModalEliminar(true)}
-                className="flex items-center justify-center gap-1.5 px-4 py-2.5 border border-slate-200 rounded-[9px] text-[13px] font-medium text-slate-500 hover:border-red-200 hover:text-[#D81B43] hover:bg-red-50 transition-all">
-                <Trash2 size={13} /> Eliminar
               </button>
               <button onClick={() => generarHojaVidaPDF(drawer)} disabled={pdfGenerando}
                 className="flex items-center justify-center gap-1.5 px-4 py-2.5 bg-[#1B3A6B] text-white rounded-[9px] text-[13px] font-semibold hover:bg-[#152D54] transition-colors sm:ml-auto disabled:opacity-70 disabled:cursor-not-allowed">
@@ -1426,6 +1402,7 @@ export default function InventarioClient({ categorias: catsIniciales, tipos: tip
                   ? <><Loader2 size={13} className="animate-spin" /> Generando PDF…</>
                   : <><FileText size={13} /> Hoja de vida PDF</>}
               </button>
+              </>)}
             </div>
         </VentanaDetalle>
       )}
@@ -1434,7 +1411,7 @@ export default function InventarioClient({ categorias: catsIniciales, tipos: tip
       <ModalEliminarEquipos
         abierto={modalEliminar && !!drawer}
         titulo={`Eliminar equipo ${drawer?.codigo || ''}`}
-        descripcion="El equipo sale del inventario y de todas las listas. Si es un equipo real que deja de prestarse, usa mejor el estado «Baja» en Editar ficha: conserva su código."
+        descripcion="El equipo sale del inventario. Si solo deja de prestarse, mejor ponlo en «Baja»."
         cargarEquipos={async () => [{ id: drawer.id, codigo: drawer.codigo }]}
         onCancelar={() => setModalEliminar(false)}
         onHecho={({ prestamos, ordenes, motivo }) => {
@@ -1452,127 +1429,26 @@ export default function InventarioClient({ categorias: catsIniciales, tipos: tip
         }}
       />
 
-      {/* ── MODAL EDITAR FICHA ── */}
-      {modalEditar && (
-        <>
-          <div className="fixed inset-0 bg-black/40 z-40 backdrop-blur-sm" onClick={intentarCerrarEditar} />
-          <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center p-0 md:p-4">
-            <div className="bg-white rounded-t-2xl md:rounded-2xl w-full max-w-[540px] max-h-[90vh] flex flex-col shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
-              <div className="px-6 py-4 border-b flex items-center justify-between flex-shrink-0">
-                <h3 className="text-[15px] font-bold text-slate-800">Editar equipo</h3>
-                <button onClick={intentarCerrarEditar} className="text-slate-400 hover:text-slate-600 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100"><X size={16} /></button>
-              </div>
-              <div className="mx-6 mt-4 flex items-center gap-2 px-3 py-2.5 bg-amber-50 border border-amber-200 rounded-[8px]">
-                <AlertTriangle size={14} className="text-amber-500 flex-shrink-0" />
-                <span className="text-[12px] text-amber-700">Los cambios quedan registrados en la bitácora con fecha y usuario</span>
-              </div>
-              <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
-                <div>
-                  <label className={labelCls}>Código de inventario <span className="text-[#D81B43]">*</span></label>
-                  <input value={formEditar.codigo}
-                    onChange={e => { setFormEditar(f => ({ ...f, codigo: e.target.value })); setFormDirty(true) }}
-                    className={inputCls} />
-                  <p className="text-[11.5px] text-slate-500 mt-1.5">Identifica la unidad en todo el sistema. Si lo cambias, el anterior queda libre.</p>
-                </div>
-                <div>
-                  <label className={labelCls}>Estado</label>
-                  {(() => {
-                    const actual = estados.find(e => e.id === drawer?.estado_id)
-                    const bloqueado = ESTADOS_AUTOMATICOS.includes(actual?.nombre)
-                    return (
-                      <>
-                        <select value={formEditar.estado_id} disabled={bloqueado}
-                          onChange={e => { setFormEditar(f => ({ ...f, estado_id: e.target.value })); setFormDirty(true) }}
-                          className={`${inputCls} disabled:bg-slate-50 disabled:text-slate-500`}>
-                          {estados
-                            .filter(e => !ESTADOS_AUTOMATICOS.includes(e.nombre) || e.id === drawer?.estado_id)
-                            .map(e => <option key={e.id} value={e.id}>{e.nombre}</option>)}
-                        </select>
-                        <p className="text-[11.5px] text-slate-500 mt-1.5">
-                          {bloqueado
-                            ? actual?.nombre === 'En mantenimiento'
-                              ? 'Lo maneja Mantenimientos: cambia al cerrar el mantenimiento.'
-                              : 'Lo maneja Préstamos: cambia al devolver, finalizar o cancelar el préstamo.'
-                            : 'En préstamo, Reservado y En mantenimiento los ponen los módulos, no se eligen a mano.'}
-                        </p>
-                      </>
-                    )
-                  })()}
-                </div>
-                {camposUnidadExtra.length > 0 && (
-                  <div className="space-y-3">
-                    <div className="text-[11px] font-bold uppercase tracking-[0.07em] text-slate-400">Columnas de la unidad</div>
-                    {camposUnidadExtra.map(campo => (
-                      <div key={campo.clave}>
-                        <label className={labelCls}>{campo.nombre}</label>
-                        {renderCampo(campo, formEditar.atributos, atrs => {
-                          setFormEditar(f => ({ ...f, atributos: atrs }))
-                          setFormDirty(true)
-                        })}
-                      </div>
-                    ))}
-                  </div>
-                )}
-                <div className="border-t border-slate-100 pt-4">
-                  <label className={labelCls}>Motivo de cambio <span className="text-[#D81B43]">*</span></label>
-                  <textarea value={formEditar.motivo}
-                    onChange={e => { setFormEditar(f => ({ ...f, motivo: e.target.value })); setFormDirty(true) }}
-                    placeholder="Describe el asunto de la corrección..." rows={3}
-                    className="w-full px-3 py-2.5 border border-slate-200 rounded-[9px] text-[13.5px] text-slate-800 outline-none focus:border-[#D81B43] resize-none placeholder:text-slate-400" />
-                </div>
-              </div>
-              <div className="px-6 py-4 border-t border-slate-200 flex justify-end gap-2 flex-shrink-0">
-                <button onClick={intentarCerrarEditar} className="px-4 py-2.5 border border-slate-200 rounded-[9px] text-[13px] font-medium text-slate-600 hover:border-slate-300">Cancelar</button>
-                <button onClick={guardarEdicion} disabled={saving}
-                  className="px-5 py-2.5 bg-[#D81B43] text-white rounded-[9px] text-[13px] font-semibold hover:bg-[#B0172F] disabled:opacity-50">
-                  {saving ? 'Guardando...' : 'Guardar cambios'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </>
-      )}
 
-      {/* ── MODAL CONFIRMAR SALIR ── */}
-      {modalSalir && (
-        <>
-          <div className="fixed inset-0 bg-black/50 z-[60] backdrop-blur-sm" />
-          <div className="fixed inset-0 z-[60] flex items-end md:items-center justify-center p-0 md:p-4">
-            <div className="bg-white rounded-t-2xl md:rounded-2xl w-full max-w-[360px] p-6 shadow-2xl text-center">
-              <div className="w-12 h-12 rounded-full bg-red-50 flex items-center justify-center mx-auto mb-4">
-                <AlertTriangle size={22} className="text-[#D81B43]" />
-              </div>
-              <h3 className="text-[16px] font-bold text-slate-800 mb-2">¿Seguro quieres salir?</h3>
-              <p className="text-[13px] text-slate-400 mb-6">Se perderán los cambios que hiciste si sales</p>
-              <div className="flex gap-2">
-                <button onClick={() => { setModalSalir(false); setModalEditar(false) }}
-                  className="flex-1 py-2.5 border border-[#D81B43] text-[#D81B43] rounded-[9px] text-[13px] font-semibold hover:bg-red-50 transition-colors">
-                  Sí, quiero salir
-                </button>
-                <button onClick={() => setModalSalir(false)}
-                  className="flex-1 py-2.5 bg-slate-100 text-slate-600 rounded-[9px] text-[13px] font-semibold hover:bg-slate-200 transition-colors">
-                  No, quedarme
-                </button>
-              </div>
-            </div>
-          </div>
-        </>
-      )}
+      {/* ── CONFIRMAR SALIR SIN GUARDAR ── */}
+      <ConfirmDialog abierto={modalSalir} tipo="peligro"
+        titulo="¿Salir sin guardar?" mensaje="Se perderán los cambios que hiciste."
+        textoConfirmar="Sí, salir" textoCancelar="Seguir editando"
+        onConfirmar={() => { setModalSalir(false); setModalEditar(false) }}
+        onCancelar={() => setModalSalir(false)} />
 
       {/* ── MODAL NUEVO TIPO ── */}
       {modalTipo && (
-        <>
-          <div className="fixed inset-0 bg-black/30 z-40 backdrop-blur-sm" onClick={() => setModalTipo(false)} />
-          <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center p-0 md:p-4">
-            <div className="bg-white rounded-t-2xl md:rounded-2xl w-full max-w-[560px] max-h-[90vh] flex flex-col shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
-              <div className="px-6 py-4 border-b flex items-center justify-between flex-shrink-0">
-                <div>
-                  <h3 className="text-[15px] font-bold text-slate-800">Nuevo tipo de equipo</h3>
-                  <div className="text-[12px] text-slate-400 mt-0.5">{catActual?.nombre}</div>
-                </div>
-                <button onClick={() => setModalTipo(false)} className="text-slate-400 hover:text-slate-600 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100"><X size={16} /></button>
-              </div>
-              <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+        <Modal onCerrar={() => setModalTipo(false)} titulo="Nuevo tipo de equipo" subtitulo={catActual?.nombre} tamano={560} z="z-50"
+          pie={<>
+                <button onClick={() => setModalTipo(false)} className={ui.btnSecundario}>Cancelar</button>
+                <button onClick={guardarTipo} disabled={saving}
+                  className={ui.btnPrimario}>
+                  {saving ? 'Guardando...' : 'Guardar tipo'}
+                </button>
+          </>}>
+
+              <div className="space-y-5">
                 {camposTipo.length === 0 ? (
                   <div className="text-center py-8 text-slate-400">
                     <div className="text-[13px]">Esta categoría no tiene columnas del tipo configuradas.</div>
@@ -1596,35 +1472,24 @@ export default function InventarioClient({ categorias: catsIniciales, tipos: tip
                   </>
                 )}
               </div>
-              <div className="px-6 py-4 border-t border-slate-200 flex justify-end gap-2 flex-shrink-0">
-                <button onClick={() => setModalTipo(false)} className="px-4 py-2.5 border border-slate-200 rounded-[9px] text-[13px] font-medium text-slate-600 hover:border-slate-300">Cancelar</button>
-                <button onClick={guardarTipo} disabled={saving}
-                  className="px-5 py-2.5 bg-[#D81B43] text-white rounded-[9px] text-[13px] font-semibold hover:bg-[#B0172F] disabled:opacity-50">
-                  {saving ? 'Guardando...' : 'Guardar tipo'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </>
+        </Modal>
       )}
 
       {/* ── MODAL NUEVA UNIDAD ── */}
       {modalNueva && (
-        <>
-          <div className="fixed inset-0 bg-black/30 z-40 backdrop-blur-sm" onClick={() => setModalNueva(false)} />
-          <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center p-0 md:p-4">
-            <div className="bg-white rounded-t-2xl md:rounded-2xl w-full max-w-[720px] max-h-[90vh] flex flex-col shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
-              <div className="px-6 py-4 border-b flex items-center justify-between flex-shrink-0">
-                <div>
-                  <h3 className="text-[15px] font-bold text-slate-800">Nueva unidad</h3>
-                  <div className="text-[12px] text-slate-400 mt-0.5">{nombreTipo(tipoActual)} · {catActual?.nombre}</div>
-                </div>
-                <button onClick={() => setModalNueva(false)} className="text-slate-400 hover:text-slate-600 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100"><X size={16} /></button>
-              </div>
-              <div className="flex-1 overflow-y-auto p-6 md:p-8">
+        <Modal onCerrar={() => setModalNueva(false)} titulo="Nueva unidad" subtitulo={<>{nombreTipo(tipoActual)} · {catActual?.nombre}</>} tamano={720} z="z-50"
+          pie={<>
+                <button onClick={() => setModalNueva(false)} className={ui.btnSecundario}>Cancelar</button>
+                <button onClick={guardarUnidad} disabled={saving}
+                  className={ui.btnPrimario}>
+                  {saving ? 'Guardando...' : 'Guardar unidad'}
+                </button>
+          </>}>
+
+              <div className="">
                 {camposTipo.length > 0 && (
                   <div className="bg-slate-50 rounded-[10px] border border-slate-200 p-4 mb-6">
-                    <div className="text-[10.5px] font-bold uppercase tracking-[0.08em] text-slate-400 mb-3">Columnas del tipo</div>
+                    <div className="text-[10.5px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-3">Columnas del tipo</div>
                     <div className="grid grid-cols-2 gap-3">
                       {camposTipo.map(campo => (
                         <div key={campo.clave}>
@@ -1713,20 +1578,11 @@ export default function InventarioClient({ categorias: catsIniciales, tipos: tip
                   </div>
                 </div>
               </div>
-              <div className="px-6 py-4 border-t border-slate-200 flex justify-end gap-2 flex-shrink-0">
-                <button onClick={() => setModalNueva(false)} className="px-4 py-2.5 border border-slate-200 rounded-[9px] text-[13px] font-medium text-slate-600 hover:border-slate-300">Cancelar</button>
-                <button onClick={guardarUnidad} disabled={saving}
-                  className="px-5 py-2.5 bg-[#D81B43] text-white rounded-[9px] text-[13px] font-semibold hover:bg-[#B0172F] disabled:opacity-50">
-                  {saving ? 'Guardando...' : 'Guardar unidad'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </>
+        </Modal>
       )}
 
       {toast && (
-        <div className={`fixed bottom-28 md:bottom-6 right-4 md:right-6 z-[60] px-4 py-3 rounded-[10px] text-[13px] font-medium text-white shadow-lg ${toast.tipo === 'error' ? 'bg-red-500' : 'bg-[#0F7B55]'}`}>
+        <div className={`${ui.toast} ${toast.tipo === 'error' ? 'bg-red-500' : 'bg-[#0F7B55]'}`}>
           {toast.msg}
         </div>
       )}

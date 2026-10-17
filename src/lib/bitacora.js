@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase'
  * para no registrar acciones que en realidad fallaron).
  *
  * @param {Object} params
- * @param {string} params.modulo    - 'clientes' | 'inventario' | 'ordenes' | 'entregas' | 'mantenimientos' | 'servicios' | 'configuracion' | 'auth'
+ * @param {string} params.modulo    - 'clientes' | 'inventario' | 'ordenes' | 'entregas' | 'mantenimientos' | 'configuracion' | 'auth'
  * @param {string} params.accion   - 'crear' | 'editar' | 'eliminar' | 'activar' | 'desactivar' | 'cerrar' | 'avanzar' | 'login' | 'logout'
  * @param {string} params.entidad  - nombre legible de la entidad afectada, ej. 'cliente', 'equipo', 'orden de servicio'
  * @param {string} [params.entidad_id] - uuid del registro afectado

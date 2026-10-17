@@ -16,7 +16,7 @@ function generarClave(largo = 10) {
   return Array.from(bytes, b => ALFABETO[b % ALFABETO.length]).join('')
 }
 
-// Sección "Acceso al portal" del panel de un cliente: crea la cuenta con la
+// Acceso de un cliente al portal (Configuración → Acceso de clientes): crea la cuenta con la
 // que el cliente entra a portal.ingemedic.com.co/cliente, le cambia la
 // contraseña o se la quita. Todo pasa por /api/clientes/acceso (service_role).
 export default function AccesoPortal({ cliente, onToast }) {
@@ -117,8 +117,7 @@ export default function AccesoPortal({ cliente, onToast }) {
   }
 
   return (
-    <div className="p-6 border-b border-slate-100">
-      <div className="text-[9.5px] font-bold uppercase tracking-[0.12em] text-slate-400 mb-3">Acceso al portal</div>
+    <div className="px-5 pt-3 pb-5">
 
       {cargando ? (
         <div className="flex items-center gap-2 text-[12.5px] text-slate-400"><Loader2 size={13} className="animate-spin" /> Consultando…</div>

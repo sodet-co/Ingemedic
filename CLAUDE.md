@@ -79,19 +79,22 @@ portal. **Al agregar un módulo al panel, sumarlo a `RUTAS_PORTAL` en
 **Estados en español, sin tildes en las claves de código:**
 `Disponible`, `Reservado`, `En préstamo`, `Finalizada`, `Cancelada`.
 
-**Paleta:** azul `#1B3A6B` · rojo `#D81B43` (el real; hay 72 hex
-distintos regados en el código, se están unificando) · cian `#2EB5D4` ·
-fondo `#F8FAFC` · verde `#0F7B55`.
+**Paleta:** azul `#1B3A6B` · rojo `#D81B43` · cian `#2EB5D4` · fondo
+`#F8FAFC` · verde `#0F7B55` · ámbar `#B45309`. Ver `docs/diseno.md`.
 
-**Responsividad — patrón ya establecido, respetarlo:**
-- Topbar `h-14 md:h-16 px-4 md:px-7`
-- Contenido `p-3 md:p-6 pb-28 md:pb-6` — el `pb-28` despeja la nav móvil
+**Diseño — guía completa en `docs/diseno.md`, respetarla:**
+- Encabezado de módulo: `<EncabezadoModulo>` (incluye ayuda `?` y novedades)
+- Contenido `p-3 md:p-6 pb-20 md:pb-6` — la nav móvil ya la reserva el layout
+  (`--mobile-nav-space`); no volver a sumar `pb-28`
+- Ventanas: `<Modal>` para formularios, `<VentanaDetalle>` + `<EncabezadoDetalle>`
+  para detalles, `<ConfirmDialog>` para confirmar
+- Botones, campos, rótulos y toasts: clases de `src/lib/ui.js` (`ui.btnPrimario`,
+  `ui.input`, `ui.toast`…), no clases escritas a mano
 - Tablas: `hidden md:block` en desktop, cards en móvil
-- Drawers: `fixed inset-x-0 bottom-0 h-[92vh] rounded-t-2xl` en móvil
-- Toasts: `fixed bottom-28 md:bottom-6 right-4 md:right-6 z-50`
 
 **Reutilizar antes de crear.** Ya existen y deben usarse:
-`ModalDevolucion`, `ConfirmDialog`, `Skeleton`, `usePaginacion`,
+`Modal`, `VentanaDetalle`, `EncabezadoModulo`, `ModalDevolucion`,
+`ConfirmDialog`, `Skeleton`, `usePaginacion`,
 `<Paginador />`, `IconoTipo`, `devolverEquipo()` en `lib/prestamos.js`,
 `traerTodosLosEquipos` (evita el límite de 1000 filas de Supabase).
 

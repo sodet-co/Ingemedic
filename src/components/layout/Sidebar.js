@@ -6,12 +6,6 @@ import { useState, useEffect, useRef, useLayoutEffect } from 'react'
 import { createClient } from '@/lib/supabase'
 import { registrarBitacora } from '@/lib/bitacora'
 import { moduloDeRuta, puedeVerModulo } from '@/lib/permisos'
-import { ULTIMA_ACTUALIZACION } from '@/lib/ultima-actualizacion'
-
-function formatearFechaActualizacion(iso) {
-  const fecha = new Date(iso)
-  return fecha.toLocaleDateString('es-CO', { day: 'numeric', month: 'short', year: 'numeric' })
-}
 
 const NAV = [
   {
@@ -28,7 +22,6 @@ const NAV = [
       { href: '/ordenes',        label: 'Préstamos',           icon: 'file',   tour: 'nav-ordenes'        },
       { href: '/clientes',       label: 'Clientes',            icon: 'users'                              },
       { href: '/mantenimientos', label: 'Mantenimientos',      icon: 'tool',   tour: 'nav-mantenimientos' },
-      { href: '/servicios',      label: 'Servicios prestados', icon: 'pulse'                              },
     ]
   },
   {
@@ -237,6 +230,7 @@ export default function Sidebar({ usuario, empresa, permisos = [], esSuperAdmin 
       {/* ── DESKTOP SIDEBAR ── */}
       <aside className="hidden md:flex w-56 min-w-[224px] flex-col h-screen overflow-y-auto flex-shrink-0 bg-white border-r border-slate-200">
         <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-center">
+          <div className="siempre-claro bg-white rounded-xl px-2 py-1">
           {empresa?.logo_url ? (
             <Image src={empresa.logo_url} alt={empresa.razon_social || 'Logo'} width={300} height={100}
               className="object-contain" style={{ width: 'auto', height: '80px' }} priority />
@@ -244,12 +238,13 @@ export default function Sidebar({ usuario, empresa, permisos = [], esSuperAdmin 
             <Image src="/logo.png" alt="Ingemedic" width={300} height={100}
               className="object-contain" style={{ width: 'auto', height: '80px' }} priority />
           )}
+          </div>
         </div>
 
         <nav className="flex-1 py-3 overflow-y-auto">
           {navFiltrada.map(group => (
             <div key={group.label} className="mb-3">
-              <div className="text-[9.5px] font-bold tracking-[0.14em] uppercase text-slate-400 px-4 py-1.5">
+              <div className="text-[10.5px] font-bold tracking-[0.1em] uppercase text-slate-400 px-5 pt-1 pb-1.5">
                 {group.label}
               </div>
               {group.items.map(item => {
@@ -258,12 +253,12 @@ export default function Sidebar({ usuario, empresa, permisos = [], esSuperAdmin 
                 return (
                   <Link key={item.href} href={item.href}
                     data-tour={item.tour}
-                    className={`flex items-center gap-2.5 px-4 py-2.5 text-[13px] font-medium transition-all border-r-[3px] ${
+                    className={`mx-2 flex items-center gap-2.5 px-3 py-2 rounded-[8px] text-[13px] transition-colors ${
                       active
-                        ? 'text-[#E53935] bg-[#E53935]/5 border-r-[#E53935]'
-                        : 'text-slate-500 border-r-transparent hover:bg-slate-50 hover:text-slate-700'
+                        ? 'text-[#D81B43] bg-[#D81B43]/[0.07] font-semibold'
+                        : 'text-slate-600 font-medium hover:bg-slate-50 hover:text-slate-800'
                     }`}>
-                    <span className={`w-[18px] flex-shrink-0 flex items-center justify-center ${active ? 'text-[#E53935]' : 'text-slate-400'}`}>
+                    <span className={`w-[18px] flex-shrink-0 flex items-center justify-center ${active ? 'text-[#D81B43]' : 'text-slate-400'}`}>
                       {ICONS[item.icon]}
                     </span>
                     {item.label}
@@ -290,7 +285,7 @@ export default function Sidebar({ usuario, empresa, permisos = [], esSuperAdmin 
 
         <div className="px-4 py-3 border-t border-slate-100">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-full bg-[#E53935] flex items-center justify-center text-[12px] font-bold text-white flex-shrink-0">
+            <div className="w-8 h-8 rounded-full bg-[#D81B43] flex items-center justify-center text-[12px] font-bold text-white flex-shrink-0">
               {usuario?.nombre?.charAt(0) || 'U'}
             </div>
             <div className="flex-1 min-w-0">
@@ -307,7 +302,7 @@ export default function Sidebar({ usuario, empresa, permisos = [], esSuperAdmin 
       {/* ── MOBILE: HEADER FIJO ARRIBA — logo/nombre + cerrar sesión (ya no flota sobre el contenido) ── */}
       <header className="fixed top-0 left-0 right-0 z-40 md:hidden h-12 flex items-center justify-between px-3 border-b border-slate-200 bg-white/95 backdrop-blur-sm">
         <div className="flex items-center gap-2 min-w-0">
-          <div className="w-6 h-6 rounded-full bg-[#E53935] flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0">
+          <div className="w-6 h-6 rounded-full bg-[#D81B43] flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0">
             {usuario?.nombre?.charAt(0) || 'U'}
           </div>
           <div className="min-w-0 leading-none">
@@ -316,9 +311,6 @@ export default function Sidebar({ usuario, empresa, permisos = [], esSuperAdmin 
           </div>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
-          <div className="text-[8px] text-slate-300 whitespace-nowrap">
-            Act: {formatearFechaActualizacion(ULTIMA_ACTUALIZACION)}
-          </div>
           <button
             onClick={() => setConfirmSalir(true)}
             className="w-7 h-7 rounded-full flex items-center justify-center text-slate-500 hover:text-slate-700 hover:bg-slate-100 transition-colors flex-shrink-0">
@@ -334,7 +326,7 @@ export default function Sidebar({ usuario, empresa, permisos = [], esSuperAdmin 
             {totalPaginas > 1 && (
               <button
                 onClick={() => setPaginaBarra(p => (p - 1 + totalPaginas) % totalPaginas)}
-                className="flex-shrink-0 w-8 h-12 flex items-center justify-center text-slate-300 active:text-[#E53935] transition-colors">
+                className="flex-shrink-0 w-8 h-12 flex items-center justify-center text-slate-300 active:text-[#D81B43] transition-colors">
                 {ICONS.chevronL}
               </button>
             )}
@@ -345,10 +337,10 @@ export default function Sidebar({ usuario, empresa, permisos = [], esSuperAdmin 
                   <Link key={item.href} href={item.href}
                     data-tour={item.tour}
                     className={`flex flex-col items-center justify-center gap-1 rounded-[12px] px-2 py-1.5 text-[9.5px] font-semibold transition-all min-w-0 ${
-                      active ? 'text-[#E53935]' : 'text-slate-500'
+                      active ? 'text-[#D81B43]' : 'text-slate-500'
                     }`}>
                     <span className={`flex items-center justify-center w-8 h-8 rounded-full transition-all ${
-                      active ? 'bg-[#E53935]/10 text-[#E53935]' : 'bg-slate-50 text-slate-500'
+                      active ? 'bg-[#D81B43]/10 text-[#D81B43]' : 'bg-slate-50 text-slate-500'
                     }`}>
                       {ICONS[item.icon]}
                     </span>
@@ -360,7 +352,7 @@ export default function Sidebar({ usuario, empresa, permisos = [], esSuperAdmin 
             {totalPaginas > 1 && (
               <button
                 onClick={() => setPaginaBarra(p => (p + 1) % totalPaginas)}
-                className="flex-shrink-0 w-8 h-12 flex items-center justify-center text-slate-300 active:text-[#E53935] transition-colors">
+                className="flex-shrink-0 w-8 h-12 flex items-center justify-center text-slate-300 active:text-[#D81B43] transition-colors">
                 {ICONS.chevronR}
               </button>
             )}
@@ -369,7 +361,7 @@ export default function Sidebar({ usuario, empresa, permisos = [], esSuperAdmin 
             <div className="flex items-center justify-center gap-1 pb-1.5">
               {Array.from({ length: totalPaginas }).map((_, i) => (
                 <div key={i} className="h-1 rounded-full transition-all"
-                  style={{ width: i === paginaBarra ? 12 : 4, background: i === paginaBarra ? '#E53935' : '#E2E8F0' }} />
+                  style={{ width: i === paginaBarra ? 12 : 4, background: i === paginaBarra ? '#D81B43' : '#E2E8F0' }} />
               ))}
             </div>
           )}
@@ -385,11 +377,9 @@ export default function Sidebar({ usuario, empresa, permisos = [], esSuperAdmin 
 
           {/* Panel de módulos — reemplaza al botón en su misma posición aproximada */}
           {panelAbierto && (
-            <div ref={panelRef} className="fixed z-50 md:hidden w-[248px] rounded-[24px] shadow-2xl"
+            <div ref={panelRef} className="fixed z-50 md:hidden w-[248px] rounded-[24px] shadow-2xl bg-white/95 border border-slate-200"
               style={{
-                background: 'rgba(255,255,255,0.96)',
                 backdropFilter: 'blur(16px)',
-                border: '1px solid rgba(0,0,0,0.07)',
                 right:  panelAbreHaciaIzquierda ? panelRightClamped : undefined,
                 left:   !panelAbreHaciaIzquierda ? 8 : undefined,
                 bottom: panelBottomClamped,
@@ -403,11 +393,11 @@ export default function Sidebar({ usuario, empresa, permisos = [], esSuperAdmin 
                         onClick={() => { setPanelAbierto(false); setPanelPage('main') }}
                         className="flex flex-col items-center justify-center gap-1 rounded-[14px] py-2.5 active:bg-slate-100 transition-colors">
                         <span className={`flex items-center justify-center w-9 h-9 rounded-full ${
-                          active ? 'bg-[#E53935]/12 text-[#E53935]' : 'bg-slate-100 text-slate-600'
+                          active ? 'bg-[#D81B43]/12 text-[#D81B43]' : 'bg-slate-100 text-slate-600'
                         }`}>
                           {ICONS[item.icon]}
                         </span>
-                        <span className={`text-[9px] font-medium text-center leading-tight ${active ? 'text-[#E53935]' : 'text-slate-500'}`}>
+                        <span className={`text-[9px] font-medium text-center leading-tight ${active ? 'text-[#D81B43]' : 'text-slate-500'}`}>
                           {item.label.split(' ')[0]}
                         </span>
                       </Link>
@@ -436,11 +426,11 @@ export default function Sidebar({ usuario, empresa, permisos = [], esSuperAdmin 
                           onClick={() => { setPanelAbierto(false); setPanelPage('main') }}
                           className="flex flex-col items-center justify-center gap-1 rounded-[14px] py-2.5 active:bg-slate-100 transition-colors">
                           <span className={`flex items-center justify-center w-9 h-9 rounded-full ${
-                            active ? 'bg-[#E53935]/12 text-[#E53935]' : 'bg-slate-100 text-slate-600'
+                            active ? 'bg-[#D81B43]/12 text-[#D81B43]' : 'bg-slate-100 text-slate-600'
                           }`}>
                             {ICONS[item.icon]}
                           </span>
-                          <span className={`text-[9px] font-medium text-center leading-tight ${active ? 'text-[#E53935]' : 'text-slate-500'}`}>
+                          <span className={`text-[9px] font-medium text-center leading-tight ${active ? 'text-[#D81B43]' : 'text-slate-500'}`}>
                             {item.label.split(' ')[0]}
                           </span>
                         </Link>

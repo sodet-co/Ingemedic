@@ -59,6 +59,100 @@ Lo que está sin resolver, ordenado por prioridad.
 
 # Entradas
 
+## 2026-10-17 — Ajustes tras la revisión: Clientes, Configuración, textos
+**Qué se hizo:**
+- **Textos**: ayudas y avisos cortos y generales (sin detalles internos ni de
+  permisos). "Tu sesión expiró. Vuelve a ingresar." en vez de explicar las 8 horas.
+- **Clientes**: Clientes/Pacientes como selector segmentado (ya no pegado al
+  encabezado). Detalle con datos bloqueados y botón "Editar" en la misma ventana
+  (ya no un pop-up encima); "Desactivar cliente" solo dentro de la edición.
+  Pestañas: En préstamo y Línea de tiempo (sin "Órdenes"). Línea de tiempo en
+  palabras ("Se prestó Cama hospitalaria a Ana Pérez"), paginada. Equipos en
+  préstamo paginados; grupos plegados si son muchos. "Devolver equipos": vista de
+  búsqueda con selección múltiple y confirmación con espera de 5 s
+  (`ui/ConfirmarConEspera.js`). Informe PDF rehecho (equipos, pacientes, línea de
+  tiempo) y nuevo Excel (`/api/exportar/cliente`), con los mismos datos
+  (`lib/informeCliente.js`).
+- **Acceso al portal** sale del detalle del cliente: Configuración → Acceso de
+  clientes (módulo de permisos `configuracion.accesos`). "Portal de clientes"
+  (bloqueo general) pasa a llamarse "Estado del portal".
+- **Inventario**: "Editar ficha" edita en la misma hoja de vida; "Eliminar" solo
+  dentro de la edición. "Actividad reciente" es ahora una mini bitácora del
+  inventario. En celular, solo 2 indicadores (Disponibles, En préstamo).
+- **Préstamos**: filtros Categoría → Tipo (el tipo se habilita al elegir la
+  categoría) y nuevo filtro por paciente. En celular salía dos veces "Nuevo
+  préstamo": `ui.btn*` trae `inline-flex` y le ganaba a `hidden`; ahora se oculta
+  con `max-md:hidden`.
+- **Configuración**: sin centrar el bloque (dejaba un vacío enorme junto al menú
+  en pantallas anchas). En celular, lista de secciones tipo app.
+**SQL:** ocultar "Acceso de clientes" al Operador — entregado, pendiente de correr.
+**Pendiente:** revisión en pantalla (Chrome minimizado y luego sin internet); el
+Excel y el PDF del informe no se descargaron en una prueba real.
+
+## 2026-10-16 — Homologación de diseño, ayuda (?) y fuera Servicios prestados
+**Qué se hizo:**
+- **Sistema de diseño** (`lib/ui.js`, guía en `docs/diseno.md`): clases únicas para
+  botones, campos, rótulos, chips, toast y tonos de estado. Componentes nuevos:
+  `EncabezadoModulo` (encabezado de todos los módulos), `Modal` (ventana
+  estándar), `EncabezadoDetalle` (en `VentanaDetalle`), `Ayuda`.
+- **Ayuda "?"** en el encabezado de cada módulo y en la vista del repartidor:
+  guía corta por módulo en `lib/ayuda.js` (base para el manual; campo `video`
+  para enlazar cada video cuando exista).
+- **Detalles**: Préstamos, Clientes y Pacientes dejan el panel lateral que
+  encogía la lista y abren en `VentanaDetalle` como Entregas e Inventario.
+  Encabezados de detalle blancos en todos (Entregas lo tenía rojo).
+- **Ventanas** pasadas a `Modal`: formularios de cliente/paciente, Configuración
+  (usuario, categoría, tipo, lista), Inventario (editar, nuevo tipo, nueva
+  unidad), "Ver y empezar" de Entregas, Devolución, Asignar plantilla.
+  Confirmaciones copiadas a mano → `ConfirmDialog` (botones: Cancelar | Acción).
+  Vista previa de plantillas → `PreviaActas`.
+- **Configuración**: el menú de secciones es una tarjeta dentro del contenido
+  (antes, segunda columna pegada al menú principal); en celular, un selector.
+- **Acción principal y Exportar** en el encabezado del módulo, no en la franja
+  de filtros. Buscadores de 38px iguales; foco rojo en todos los campos.
+- **Espacio inferior en celular**: `pb-28` se sumaba a lo que ya reserva el
+  layout para la barra (y en listas iba dos veces). Ahora `pb-20` solo donde hay
+  scroll.
+- **Color**: `#E53935` (menú) → `#D81B43`; `#C0392B`, `#25A9E0`, `#152d55` unificados.
+  Menú lateral con ítems en pastilla, como el de Configuración.
+- **iPhone**: campos a 16px en celular (regla en `globals.css`).
+- **Modo oscuro**: estados en `style={{}}` corregidos por atributo; logo sobre
+  pastilla blanca.
+- "Act:" sale del encabezado móvil; la versión está al final de Preferencias.
+- **Servicios prestados eliminado** (página, menú, permisos y rutas): la tabla no
+  existía y no se va a usar.
+**Archivos:** `lib/ui.js`, `lib/ayuda.js`, `components/ui/{Modal,EncabezadoModulo,Ayuda,VentanaDetalle,ConfirmDialog}.js`,
+los `*Client.js` de todos los módulos, `Sidebar.js`, `ModalDevolucion.js`,
+`AsignarPlantilla.js`, `ModalCambioEquipo.js`, `globals.css`, `tema-oscuro.css`,
+`permisos.js`, `sitio.js`, `docs/diseno.md`, `CLAUDE.md`.
+**SQL:** opcional, limpiar los permisos huérfanos de `servicios_prestados`
+(`DELETE FROM permisos WHERE modulo = 'servicios_prestados';`) — no afecta si quedan.
+**Pendiente:**
+- Revisión visual con la ventana de Chrome a la vista: se verificó que las 8
+  rutas compilan y responden 200 con sesión, no se vieron en pantalla.
+- Mantenimientos (apagado) no se homologó.
+- Tarjetas internas aún con padding p-4/p-5/p-6 según el módulo; los
+  archivos de 1.700+ líneas siguen sin partir.
+
+## 2026-10-16 — Auditoría: finalizar/cancelar préstamo dejaba equipos colgados
+**Qué se hizo:** "Finalizar" (préstamo de varios equipos) y "Cancelar" en Préstamos
+liberaban con `liberarEquipos` sin cerrar las filas de `orden_equipos`, y
+Finalizar liberaba **todos** los equipos que alguna vez pasaron por la orden
+(también los ya devueltos o cambiados, que pueden estar prestados a otro
+cliente: les borraba cliente/paciente y los ponía Disponibles). Ahora ambos usan
+`cerrarEquiposAbiertos` (`lib/prestamos.js`): cierra solo las filas abiertas y
+libera solo esos equipos. Clientes → En préstamo ya no cuenta órdenes
+Finalizadas/Canceladas (el comentario lo decía; el código no).
+**Por qué:** la auditoría encontró 18 filas abiertas en órdenes Finalizadas o
+Canceladas (ORD-2026-209 de ASMEDC mostraba 3 equipos duplicados; RL1550 de
+FOMAG en dos órdenes finalizadas; el resto, del cliente JUAN PRUEBAS).
+**Archivos:** `lib/prestamos.js`, `ordenes/OrdenesClient.js`, `clientes/ClientesClient.js`.
+**SQL:** cierre de esas filas con respaldo `bkp_orden_equipos_20261016` — entregado, pendiente de correr.
+**Pendiente:** probar Finalizar y Cancelar con un préstamo desechable; borrar el
+respaldo cuando se confirme. Otros hallazgos de la auditoría (Servicios prestados
+sin tabla, zoom de iPhone en formularios, código sin uso) quedaron como
+recomendaciones, sin aplicar.
+
 ## 2026-10-16 — Rol Operador, modo oscuro, inicio de entregas, equipos del cliente y tipos
 **Qué se hizo:**
 - **Rol Operador** (por debajo de Administrador): ve los módulos de operación,

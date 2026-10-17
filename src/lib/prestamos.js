@@ -38,6 +38,27 @@ export async function devolverEquipo({ supabase, ordenEquipoId, equipoId, ordenI
   return { error: null, todosDevueltos }
 }
 
+// Cierra lo que siga abierto de un préstamo al finalizarlo o cancelarlo de una
+// vez: marca la devolución en las filas de orden_equipos sin fecha_devolucion y
+// libera SOLO esos equipos. Antes se liberaban todos los equipos que alguna vez
+// pasaron por la orden (también los ya devueltos o cambiados, que pueden estar
+// prestados a otro cliente) y las filas quedaban abiertas: el equipo seguía
+// contando "en préstamo" para el cliente viejo. Se consulta la BD, no la
+// pantalla, para no depender de una lista desactualizada.
+export async function cerrarEquiposAbiertos({ supabase, ordenId, nota }) {
+  const { data: abiertos, error } = await supabase.from('orden_equipos')
+    .select('id, equipo_id').eq('orden_id', ordenId).is('fecha_devolucion', null)
+  if (error) return { error }
+  if (!abiertos?.length) return { error: null }
+  const { error: errCerrar } = await supabase.from('orden_equipos')
+    .update({ fecha_devolucion: new Date().toISOString(), observaciones_devolucion: nota })
+    .in('id', abiertos.map(a => a.id))
+  if (errCerrar) return { error: errCerrar }
+  const { data: estadoDisponible } = await supabase
+    .from('estados_equipo').select('id').eq('nombre', 'Disponible').maybeSingle()
+  return liberarEquipos(supabase, abiertos.map(a => a.equipo_id), estadoDisponible?.id)
+}
+
 // Cambia un equipo de un préstamo por otro disponible (normalmente del mismo
 // tipo, ej. un cilindro por otro), sin tener que devolverlo y prestar de nuevo.
 //  - Antes de la entrega (Borrador/Programada/En reparto) el equipo no ha salido:

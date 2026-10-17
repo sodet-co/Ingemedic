@@ -17,6 +17,7 @@ import { formatear, formatearSoloFecha, hoyBogota } from '@/lib/fechas'
 import BuzonNovedades from '@/components/layout/BuzonNovedades'
 import { prestamoActivo, estadoSegunPrestamo, SELECT_MANTENIMIENTO } from '@/lib/mantenimientos'
 import SelectorEquipos, { EstadoEquipoBadge } from '@/components/mantenimientos/SelectorEquipos'
+import { ui } from '@/lib/ui'
 
 const ESTADOS = {
   Abierto: '9c71ba4d-e82d-4714-b2fb-4cc242cd47be',
@@ -699,7 +700,7 @@ export default function MantenimientosClient({ mantenimientosIniciales, equipos,
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input value={search} onChange={e => setSearch(e.target.value)}
               placeholder="Buscar por código, inventario, serie, equipo, paciente o técnico..."
-              className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-[9px] text-[13px] outline-none focus:border-[#D81B43] bg-white" />
+              className="w-full pl-9 pr-4 h-[38px] border border-slate-200 rounded-[9px] text-[13px] text-slate-800 bg-white outline-none focus:border-[#D81B43] focus:ring-2 focus:ring-[#D81B43]/10 placeholder:text-slate-400" />
           </div>
           <LimpiarFiltros activo={!!(search || filtroEstado)}
             onLimpiar={() => { setSearch(''); setFiltroEstado('') }} />
@@ -711,7 +712,7 @@ export default function MantenimientosClient({ mantenimientosIniciales, equipos,
         </div>
 
         {/* Cards móvil */}
-        <div className="flex-1 overflow-y-auto pb-28 md:hidden space-y-2">
+        <div className="flex-1 overflow-y-auto pb-20 md:hidden space-y-2">
           {filtrados.length === 0 && (
             <div className="text-center py-16 text-slate-400">
               <Wrench className="w-12 h-12 mx-auto mb-3 opacity-20" />
@@ -915,7 +916,7 @@ export default function MantenimientosClient({ mantenimientosIniciales, equipos,
 
               {/* Detalles */}
               <div className="p-5">
-                <div className="text-[9.5px] font-bold uppercase tracking-[0.12em] text-slate-400 mb-3">Detalles</div>
+                <div className="text-[10.5px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-3">Detalles</div>
                 <div className="grid grid-cols-2 gap-3">
                   {[
                     { label: 'Técnico', value: drawer.tecnico || '—' },
@@ -941,7 +942,7 @@ export default function MantenimientosClient({ mantenimientosIniciales, equipos,
               {drawer.actividades?.length > 0 && (
                 <div className="p-5">
                   <div className="flex items-center justify-between mb-3">
-                    <div className="text-[9.5px] font-bold uppercase tracking-[0.12em] text-slate-400">
+                    <div className="text-[10.5px] font-bold uppercase tracking-[0.1em] text-slate-400">
                       Checklist ({drawer.actividades.filter(a => a.completado).length}/{drawer.actividades.length})
                     </div>
                     {/* Barra progreso */}
@@ -974,7 +975,7 @@ export default function MantenimientosClient({ mantenimientosIniciales, equipos,
               {/* Actividades texto (si fue cerrado con texto libre) */}
               {drawer.actividades_texto && (
                 <div className="p-5">
-                  <div className="text-[9.5px] font-bold uppercase tracking-[0.12em] text-slate-400 mb-3">Resumen de actividades</div>
+                  <div className="text-[10.5px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-3">Resumen de actividades</div>
                   <div className="text-[13px] text-slate-600 whitespace-pre-line leading-relaxed">{drawer.actividades_texto}</div>
                 </div>
               )}
@@ -995,7 +996,7 @@ export default function MantenimientosClient({ mantenimientosIniciales, equipos,
               onClick={e => e.stopPropagation()}>
               <div className="px-5 md:px-6 py-4 border-b flex items-center justify-between flex-shrink-0">
                 <div>
-                  <h3 className="text-[15px] font-bold text-slate-800">Nuevo mantenimiento</h3>
+                  <h3 className="text-[16px] font-bold text-slate-800">Nuevo mantenimiento</h3>
                   <div className="text-[12px] text-slate-400 mt-0.5">Selecciona uno o varios equipos — se abre un mantenimiento por equipo</div>
                 </div>
                 <button onClick={() => intentarCerrarModal()} aria-label="Cerrar"
@@ -1099,7 +1100,7 @@ export default function MantenimientosClient({ mantenimientosIniciales, equipos,
                 </div>
                 <button onClick={() => intentarCerrarModal()} className="ml-auto sm:ml-0 px-4 py-2.5 border border-slate-200 rounded-[9px] text-[13px] font-medium text-slate-600 hover:border-slate-300">Cancelar</button>
                 <button onClick={crearMantenimiento} disabled={saving || seleccionados.length === 0}
-                  className="px-5 py-2.5 bg-[#D81B43] text-white rounded-[9px] text-[13px] font-semibold hover:bg-[#B0172F] disabled:opacity-50 disabled:cursor-not-allowed">
+                  className={ui.btnPrimario}>
                   {saving ? 'Abriendo...' : seleccionados.length > 1 ? `Abrir ${seleccionados.length} mantenimientos` : 'Abrir mantenimiento'}
                 </button>
               </div>
@@ -1241,9 +1242,9 @@ export default function MantenimientosClient({ mantenimientosIniciales, equipos,
                 )}
               </div>
               <div className="px-6 py-4 border-t border-slate-200 flex justify-end gap-2 flex-shrink-0 bg-white">
-                <button onClick={() => setModalCierre(null)} className="px-4 py-2.5 border border-slate-200 rounded-[9px] text-[13px] font-medium text-slate-600">Cancelar</button>
+                <button onClick={() => setModalCierre(null)} className={ui.btnSecundario}>Cancelar</button>
                 <button onClick={cerrarMantenimiento} disabled={saving || prestamoCierre.cargando || prestamoCierre.error}
-                  className="px-5 py-2.5 bg-[#D81B43] text-white rounded-[9px] text-[13px] font-semibold hover:bg-[#B0172F] disabled:opacity-50">
+                  className={ui.btnPrimario}>
                   {saving ? 'Guardando...' : '✓ Cerrar mantenimiento'}
                 </button>
               </div>

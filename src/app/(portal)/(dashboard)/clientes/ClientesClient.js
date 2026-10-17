@@ -15,8 +15,11 @@ import ModalDevolucion from '@/components/entregas/ModalDevolucion'
 import Paginador from '@/components/ui/Paginador'
 import { Box } from '@/components/ui/Skeleton'
 import { IconoTipo } from '@/components/inventario/IconoTipo'
-import BuzonNovedades from '@/components/layout/BuzonNovedades'
-import AccesoPortal from '@/components/clientes/AccesoPortal'
+import EncabezadoModulo from '@/components/ui/EncabezadoModulo'
+import VentanaDetalle, { EncabezadoDetalle } from '@/components/ui/VentanaDetalle'
+import Modal from '@/components/ui/Modal'
+import { ui } from '@/lib/ui'
+import { armarInforme } from '@/lib/informeCliente'
 import EquiposDelCliente from '@/components/clientes/EquiposDelCliente'
 import { useOrdenable } from '@/hooks/useOrdenable'
 import { usePaginacion } from '@/hooks/usePaginacion'
@@ -27,8 +30,8 @@ import { buscarCedulaDuplicada, mensajeCedulaDuplicada, esErrorCedulaDuplicada, 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
 const LOGO_URL = `${SUPABASE_URL}/storage/v1/object/public/logos/logo-ingemedic.png`
 
-const inputCls = 'w-full px-3 py-2.5 border border-slate-200 rounded-[9px] text-[13.5px] text-slate-800 outline-none focus:border-[#D81B43] bg-white transition-colors placeholder:text-slate-400'
-const labelCls = 'block text-[11px] font-bold uppercase tracking-[0.07em] text-slate-500 mb-1.5'
+const inputCls = ui.input
+const labelCls = ui.label
 
 const TIPO_STYLES = {
   'Jurídica': { bg: '#E8F7FB', color: '#0E86A0', icon: <Building2 size={14} /> },
@@ -122,7 +125,8 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
   const [confirmarSalir, setConfirmarSalir] = useState(false)
   const [municipiosFiltrados, setMunicipiosFiltrados] = useState([])
   const [historial, setHistorial] = useState({ loading: false, ordenes: [], entregas: [] })
-  const [tabHoja, setTabHoja] = useState('prestamo') // 'prestamo' | 'ordenes' | 'linea'
+  const [tabHoja, setTabHoja] = useState('prestamo') // 'prestamo' | 'linea'
+  const [editando, setEditando] = useState(null) // 'cliente' | 'paciente': editando los datos dentro del detalle
   const [pdfGenerando, setPdfGenerando] = useState(false)
   const [exportando, setExportando] = useState(false)
 
@@ -163,10 +167,11 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
   }
 
   // Cierra cualquiera de los dos modales (cliente o paciente) — comparten formDirty y el ConfirmDialog de salir
-  function cerrarModal() { setModal(false); setModalPaciente(false); setFormDirty(false) }
+  function cerrarModal() { setModal(false); setModalPaciente(false); setEditando(null); setFormDirty(false) }
   function intentarCerrarModal() { if (formDirty) setConfirmarSalir(true); else cerrarModal() }
 
-  function abrirModal(cliente = null) {
+  // enLinea: editar dentro del detalle (los datos se desbloquean ahí mismo)
+  function abrirModal(cliente = null, enLinea = false) {
     setFormDirty(false)
     if (cliente) {
       setForm({
@@ -187,11 +192,11 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
       setForm({ tipo_persona: '', nombre: '', nit_cc: '', digito_verificacion: '', direccion: '', telefono: '', email: '', departamento_id: '', municipio_id: '' })
       setMunicipiosFiltrados([])
     }
-    setModal(true)
+    if (enLinea) setEditando('cliente'); else setModal(true)
   }
 
   // Sin argumento abre "Nuevo paciente"; con un paciente abre el mismo modal en modo edición
-  function abrirModalPaciente(paciente = null) {
+  function abrirModalPaciente(paciente = null, enLinea = false) {
     setFormDirty(false)
     setFormPaciente(paciente
       ? {
@@ -204,7 +209,7 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
           correo:    paciente.correo || '',
         }
       : { nombre: '', cedula: '', direccion: '', ciudad: '', telefono: '', correo: '' })
-    setModalPaciente(true)
+    if (enLinea) setEditando('paciente'); else setModalPaciente(true)
   }
 
   async function guardarPaciente() {
@@ -261,6 +266,7 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
   async function abrirDrawer(cliente) {
     setDrawer(cliente)
     setTabHoja('prestamo')
+    setEditando(null)
     setHistorial({ loading: true, ordenes: [], entregas: [] })
 
     const [{ data: ordenes }, { data: entregas }] = await Promise.all([
@@ -268,8 +274,9 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
         id, codigo, fecha_creacion, fecha_vigencia, observaciones,
         tipo:tipos_orden(id, nombre),
         estado:estados_orden(id, nombre),
+        paciente:pacientes(nombre),
         equipos:orden_equipos(
-          id, fecha_entrega, fecha_devolucion,
+          id, fecha_entrega, fecha_devolucion, observaciones_devolucion,
           equipo:equipos(id, codigo, tipo_equipo:tipos_equipo(id, nombre, atributos), paciente_actual:pacientes(nombre))
         )
       `).eq('cliente_id', cliente.id).order('fecha_creacion', { ascending: false }),
@@ -319,6 +326,7 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
   const equiposEnPrestamo = useMemo(() => {
     const lista = []
     for (const orden of historial.ordenes) {
+      if (['Finalizada', 'Cancelada'].includes(orden.estado?.nombre)) continue
       for (const oe of orden.equipos || []) {
         if (oe.fecha_entrega && !oe.fecha_devolucion) {
           lista.push({ ...oe, orden })
@@ -329,41 +337,50 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
   }, [historial.ordenes])
 
   // ── LÍNEA DE TIEMPO — cliente creado + órdenes + entregas, todo en un solo hilo cronológico ──
+  // Línea de tiempo en palabras ("Se prestó Cama hospitalaria a Ana Pérez"), sin
+  // códigos de préstamo: la misma que sale en el PDF y el Excel.
+  const informe = useMemo(() => armarInforme(historial.ordenes, { esCliente: true }), [historial.ordenes])
   const lineaTiempo = useMemo(() => {
     if (!drawer) return []
-    const eventos = []
-
-    if (drawer.fecha_creacion) {
-      eventos.push({ fecha: drawer.fecha_creacion, tipo: 'cliente', label: 'Cliente registrado en el sistema' })
-    }
-    for (const o of historial.ordenes) {
-      eventos.push({ fecha: o.fecha_creacion, tipo: 'orden', label: `Orden ${o.codigo} creada · ${o.tipo?.nombre || '—'}`, sub: o.estado?.nombre })
-    }
+    const ev = [...informe.eventos]
     for (const en of historial.entregas) {
-      const fecha = en.fecha_completada || en.fecha_asignacion
-      eventos.push({
-        fecha,
-        tipo: en.tipo === 'devolucion' ? 'devolucion' : 'entrega',
-        label: `${en.tipo === 'devolucion' ? 'Devolución' : 'Entrega'} ${en.codigo} · OS ${en.orden?.codigo || '—'}`,
-        sub: en.recibido_por ? `Recibido por ${en.recibido_por}` : en.estado?.nombre,
-      })
+      if (en.estado?.nombre === 'Completada' && en.fecha_completada) {
+        ev.push({ tipo: 'entrega', fecha: en.fecha_completada, texto: `Entrega a domicilio${en.recibido_por ? `, recibió ${en.recibido_por}` : ''}` })
+      }
     }
-    return eventos
-      .filter(ev => ev.fecha)
-      .sort((a, b) => new Date(b.fecha) - new Date(a.fecha))
-  }, [drawer, historial])
+    if (drawer.fecha_creacion) ev.push({ tipo: 'cliente', fecha: drawer.fecha_creacion, texto: 'Cliente registrado' })
+    return ev.sort((x, y) => new Date(y.fecha) - new Date(x.fecha))
+  }, [drawer, historial.entregas, informe])
+  const pagLinea = usePaginacion(lineaTiempo, 15)
+
+  // Devolver varios equipos a la vez desde el detalle del cliente
+  async function devolverVarios(items) {
+    const fecha = hoyBogota()
+    let errores = 0
+    for (const oe of items) {
+      const { error } = await devolverEquipoLib({ supabase, ordenEquipoId: oe.id, equipoId: oe.equipo?.id, ordenId: oe.orden?.id, fechaDevolucion: fecha, observaciones: null })
+      if (error) errores++
+    }
+    const ok = items.length - errores
+    if (ok) registrarBitacora({ modulo: 'clientes', accion: 'editar', entidad: 'préstamo', entidad_id: drawer.id, detalle: { descripcion: `Devolvió ${ok} equipo${ok !== 1 ? 's' : ''} de ${drawer.nombre}` } })
+    showToast(errores ? `${ok} devueltos, ${errores} con error` : `${ok} equipo${ok !== 1 ? 's' : ''} devuelto${ok !== 1 ? 's' : ''}`, errores ? 'error' : 'success')
+    await abrirDrawer(drawer)
+    router.refresh()
+    return !errores
+  }
 
   const ICONO_EVENTO = {
     cliente: { icon: <UserPlus size={13} />, color: '#64748B', bg: '#F1F5F9' },
     orden: { icon: <FileText size={13} />, color: '#1B3A6B', bg: '#E8EEF9' },
-    entrega: { icon: <ArrowUpRight size={13} />, color: '#0F7B55', bg: '#E7F6EF' },
+    prestamo: { icon: <ArrowUpRight size={13} />, color: '#0E86A0', bg: '#E8F7FB' },
+    cambio: { icon: <FileText size={13} />, color: '#1B3A6B', bg: '#E8EEF9' },
+    entrega: { icon: <Truck size={13} />, color: '#0F7B55', bg: '#E7F6EF' },
     devolucion: { icon: <ArrowDownLeft size={13} />, color: '#B45309', bg: '#FEF3E2' },
   }
 
-  // ── EXPORTAR HOJA DE VIDA A PDF (Cliente o Paciente) ──
-  // Mismo patrón visual/técnico que generarHojaVidaPDF del equipo en InventarioClient.js
-  // (logo + franja azul + línea de tiempo vía html2canvas+jsPDF) — trae el historial COMPLETO
-  // de préstamos (activos y devueltos), no solo los activos que ya se ven en pantalla.
+  // ── INFORME EN PDF (Cliente o Paciente) ──
+  // Resumen, equipos que tiene ahora, pacientes asociados y línea de tiempo en
+  // palabras (lib/informeCliente.js, igual que el Excel). html2canvas + jsPDF.
   async function generarHojaVidaClientePaciente(seleccionado, tipo) {
     setPdfGenerando(true)
     try {
@@ -373,11 +390,12 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
       const { data: ordenes, error } = await supabase
         .from('ordenes_servicio')
         .select(`
-          id, codigo, fecha_creacion,
+          id, fecha_creacion,
+          estado:estados_orden(nombre),
           cliente:clientes(nombre),
           paciente:pacientes(nombre),
           equipos:orden_equipos(fecha_entrega, fecha_devolucion, observaciones_devolucion,
-            equipo:equipos(codigo, tipo_equipo:tipos_equipo(nombre))
+            equipo:equipos(codigo, tipo_equipo:tipos_equipo(nombre, atributos))
           )
         `)
         .eq(campoFiltro, seleccionado.id)
@@ -396,7 +414,7 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
       try { logoB64 = await toB64(LOGO_URL) } catch { /* sin logo */ }
 
       const fechaHoy = formatear(new Date().toISOString(), { month: 'long' })
-      const titulo   = esCliente ? 'HOJA DE VIDA DEL CLIENTE' : 'HOJA DE VIDA DEL PACIENTE'
+      const titulo   = esCliente ? 'INFORME DEL CLIENTE' : 'INFORME DEL PACIENTE'
       const inicial  = (seleccionado.nombre || '?').charAt(0).toUpperCase()
 
       const infoRows = esCliente
@@ -418,61 +436,35 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
         `<div><div style="font-size:10px;color:#94A3B8">${k}</div><div style="font-size:12.5px;color:#0F172A;margin-top:2px">${v}</div></div>`
       ).join('')
 
-      // Cada préstamo de equipo genera hasta 2 eventos: entrega y (si ya ocurrió) devolución
-      const eventosH = []
-      ;(ordenes || []).forEach(orden => {
-        ;(orden.equipos || []).forEach(oe => {
-          const equipoNombre = oe.equipo?.tipo_equipo?.nombre || 'Equipo'
-          const codigo       = oe.equipo?.codigo || '—'
-          const contraparte  = esCliente ? orden.paciente?.nombre : orden.cliente?.nombre
-          const activo       = !oe.fecha_devolucion
-          eventosH.push({
-            fecha:    oe.fecha_entrega ? new Date(oe.fecha_entrega) : new Date(orden.fecha_creacion),
-            titulo:   `Préstamo — ${equipoNombre} (${codigo})`,
-            badge:    activo
-              ? { text: 'Activo', bg: '#E8F7FB', color: '#0E7490' }
-              : { text: 'Completado', bg: '#ECFDF5', color: '#0F7B55' },
-            detalle:  [contraparte ? (esCliente ? `Paciente: ${contraparte}` : `Cliente: ${contraparte}`) : null, `Orden: ${orden.codigo}`].filter(Boolean).join('  ·  '),
-            dotColor: activo ? '#0E86A0' : '#0F7B55',
-          })
-          if (oe.fecha_devolucion) eventosH.push({
-            fecha:    new Date(oe.fecha_devolucion),
-            titulo:   `Devolución — ${equipoNombre} (${codigo})`,
-            badge:    { text: 'Devuelto', bg: '#ECFDF5', color: '#0F7B55' },
-            detalle:  [`Orden: ${orden.codigo}`, oe.observaciones_devolucion || null].filter(Boolean).join('  ·  '),
-            dotColor: '#0F7B55',
-          })
-        })
-      })
-      eventosH.sort((a, b) => b.fecha - a.fecha)
-
-      const timelineHTML = eventosH.length === 0
-        ? '<div style="font-size:13px;color:#94A3B8">Sin actividad registrada</div>'
-        : eventosH.map((ev, idx) => {
-            const isLast = idx === eventosH.length - 1
-            const dia    = formatear(ev.fecha, { year: undefined })
-            const anio   = formatear(ev.fecha, { day: undefined, month: undefined })
-            return `
-              <div style="display:flex;gap:14px;padding-bottom:${isLast ? '0' : '16px'};border-bottom:${isLast ? 'none' : '0.5px solid #F1F5F9'};margin-bottom:${isLast ? '0' : '16px'}">
-                <div style="width:78px;flex-shrink:0;text-align:right;padding-top:2px">
-                  <div style="font-size:15px;font-weight:700;color:#1B3A6B;line-height:1.2">${dia}</div>
-                  <div style="font-size:11px;font-weight:700;color:#64748B">${anio}</div>
-                </div>
-                <div style="width:1.5px;background:#E2E8F0;position:relative;flex-shrink:0">
-                  <div style="width:11px;height:11px;border-radius:50%;background:${ev.dotColor};border:2px solid #fff;box-shadow:0 0 0 2px ${ev.dotColor}55;position:absolute;left:50%;top:4px;transform:translateX(-50%)"></div>
-                </div>
-                <div style="flex:1;padding-top:2px">
-                  <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-                    <span style="font-size:13.5px;font-weight:700;color:#0F172A">${ev.titulo}</span>
-                    <table style="display:inline-table;border-collapse:collapse;vertical-align:middle"><tr><td style="background:${ev.badge.bg};border-radius:20px;padding:0 10px;height:20px;color:${ev.badge.color};font-size:11px;font-weight:700;white-space:nowrap;vertical-align:middle;line-height:normal">${ev.badge.text}</td></tr></table>
-                  </div>
-                  ${ev.detalle ? `<div style="font-size:12px;color:#64748B;margin-top:4px">${ev.detalle}</div>` : ''}
-                </div>
-              </div>`
+      const inf = armarInforme(ordenes || [], { esCliente })
+      const esc = v => String(v ?? '').replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))
+      const seccion = t => `<div style="background:#F1F5F9;padding:6px 10px;font-size:10.5px;font-weight:700;color:#334155;letter-spacing:.04em;margin:22px 0 10px">${t}</div>`
+      const tabla = (cols, filas) => filas.length === 0
+        ? '<div style="font-size:12px;color:#94A3B8;padding:4px 2px">Sin registros</div>'
+        : `<table style="width:100%;border-collapse:collapse;font-size:11.5px">
+            <tr>${cols.map(c => `<th style="text-align:left;padding:6px 8px;color:#64748B;font-size:10px;font-weight:700;border-bottom:1px solid #E2E8F0">${c}</th>`).join('')}</tr>
+            ${filas.map((f, i) => `<tr style="background:${i % 2 ? '#F8FAFC' : '#fff'}">${f.map((v, j) => `<td style="padding:6px 8px;color:#0F172A;${j === 0 ? 'font-family:monospace;font-weight:700' : ''}">${esc(v)}</td>`).join('')}</tr>`).join('')}
+          </table>`
+      const kpis = [['Equipos en préstamo', inf.activos.length], ...(esCliente ? [['Pacientes', inf.pacientes.filter(x => x.nombre !== 'Sin paciente').length]] : []), ['Préstamos registrados', inf.totalPrestamos]]
+      const kpisHTML = `<div style="display:flex;gap:10px">${kpis.map(([k, v]) =>
+        `<div style="flex:1;border:1px solid #E2E8F0;border-radius:8px;padding:10px 12px"><div style="font-size:10px;color:#94A3B8;font-weight:700;text-transform:uppercase">${k}</div><div style="font-size:20px;font-weight:800;color:#1B3A6B">${v}</div></div>`).join('')}</div>`
+      const equiposHTML = tabla(['Código', 'Equipo', esCliente ? 'Paciente' : 'Cliente', 'Desde'],
+        inf.activos.map(x => [x.codigo, x.tipo, (esCliente ? x.paciente : x.cliente) || '—', formatear(x.desde)]))
+      const pacientesHTML = esCliente ? tabla(['Paciente', 'Equipos'], inf.pacientes.map(x => [x.nombre, x.equipos])).replace(/font-family:monospace;font-weight:700/g, 'font-weight:600') : ''
+      const timelineHTML = inf.eventos.length === 0
+        ? '<div style="font-size:12px;color:#94A3B8">Sin actividad registrada</div>'
+        : inf.eventos.map(ev => {
+            const color = ev.tipo === 'prestamo' ? '#0E86A0' : ev.tipo === 'devolucion' ? '#0F7B55' : '#1B3A6B'
+            return `<div style="display:flex;gap:12px;padding:7px 0;border-bottom:0.5px solid #F1F5F9">
+              <div style="width:86px;flex-shrink:0;font-size:11.5px;font-weight:700;color:#64748B">${formatear(ev.fecha)}</div>
+              <div style="width:8px;height:8px;border-radius:50%;background:${color};margin-top:4px;flex-shrink:0"></div>
+              <div style="flex:1"><div style="font-size:12.5px;font-weight:600;color:#0F172A">${esc(ev.texto)}</div>
+              ${ev.detalle ? `<div style="font-size:11px;color:#64748B;margin-top:2px">${esc(ev.detalle)}</div>` : ''}</div>
+            </div>`
           }).join('')
 
       const html = `
-        <div style="max-width:680px;background:#fff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">
+        <div style="max-width:720px;background:#fff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">
           <div style="display:flex;align-items:stretch">
             <div style="flex:1;padding:20px 24px;display:flex;align-items:center">
               ${logoB64 ? `<img src="${logoB64}" style="height:56px;width:auto;object-fit:contain">` : ''}
@@ -483,24 +475,21 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
               <div style="color:#7C93BE;font-size:10px;margin-top:10px">Generado: ${fechaHoy}</div>
             </div>
           </div>
-          <div style="padding:20px 24px;display:flex;gap:20px">
-            <div style="width:130px;flex-shrink:0;display:flex;flex-direction:column;align-items:flex-start">
-              <div style="width:64px;height:64px;border-radius:50%;background:#F1F5F9;color:#475569;display:flex;align-items:center;justify-content:center;font-size:26px;font-weight:700">${inicial}</div>
-              <div style="font-size:14px;font-weight:700;color:#0F172A;margin-top:10px;line-height:1.3">${seleccionado.nombre}</div>
+          <div style="padding:20px 24px 28px">
+            <div style="display:flex;align-items:center;gap:14px">
+              <div style="width:52px;height:52px;border-radius:50%;background:#F1F5F9;color:#475569;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:700">${inicial}</div>
+              <div style="font-size:17px;font-weight:700;color:#0F172A">${esc(seleccionado.nombre)}</div>
             </div>
-            <div style="flex:1;display:flex;flex-direction:column;gap:10px">
-              <div style="background:#F1F5F9;padding:6px 10px;font-size:10.5px;font-weight:700;color:#334155;letter-spacing:.04em">${esCliente ? 'INFORMACIÓN DEL CLIENTE' : 'INFORMACIÓN DEL PACIENTE'}</div>
-              <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:0 2px">${identificacionHTML}</div>
-            </div>
-          </div>
-          <div style="padding:0 24px 24px">
-            <div style="background:#F1F5F9;padding:6px 10px;font-size:10.5px;font-weight:700;color:#334155;letter-spacing:.04em;margin-bottom:14px">HISTORIAL — LÍNEA DE TIEMPO</div>
-            ${timelineHTML}
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px">${identificacionHTML}</div>
+            <div style="margin-top:18px">${kpisHTML}</div>
+            ${seccion('EQUIPOS EN PRÉSTAMO')}${equiposHTML}
+            ${esCliente ? seccion('PACIENTES') + pacientesHTML : ''}
+            ${seccion('LÍNEA DE TIEMPO')}${timelineHTML}
           </div>
         </div>`
 
       const contenedor = document.createElement('div')
-      contenedor.style.cssText = 'position:fixed;top:0;left:-680px;width:680px;pointer-events:none'
+      contenedor.style.cssText = 'position:fixed;top:0;left:-720px;width:720px;pointer-events:none'
       contenedor.innerHTML     = html
       document.body.appendChild(contenedor)
 
@@ -531,7 +520,7 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
           pageNum++
         }
 
-        pdf.save(`HojaDeVida_${(seleccionado.nombre || tipo).replace(/\s+/g, '_')}.pdf`)
+        pdf.save(`Informe_${(seleccionado.nombre || tipo).replace(/\s+/g, '_')}.pdf`)
         showToast('PDF generado')
       } finally {
         document.body.removeChild(contenedor)
@@ -760,26 +749,177 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
     }
   }, [clientes, conteoEquiposPorCliente])
 
-  // El Excel trae clientes y pacientes, por eso va en la franja de filtros de ambas pestañas
+  // El Excel trae clientes y pacientes, por eso está en el encabezado de las dos pestañas
   const botonExportar = (
-    <button onClick={exportarExcel} disabled={exportando}
-      className="hidden md:flex items-center gap-1.5 px-3 h-[38px] text-[13px] font-medium text-slate-600 border border-slate-200 rounded-[9px] hover:border-slate-300 transition-all disabled:opacity-50 flex-shrink-0 whitespace-nowrap">
+    <button onClick={exportarExcel} disabled={exportando} className={ui.btnSecundario}>
       <Download size={13} /> {exportando ? 'Exportando…' : 'Exportar Excel'}
     </button>
   )
 
+  // Formularios de cliente y paciente: el modal de "Nuevo" y la edición dentro del detalle
+  const camposCliente = (
+    <div className="space-y-4" onChange={() => setFormDirty(true)}>
+                {/* Tipo persona */}
+                <div>
+                  <label className={labelCls}>Tipo de persona <span className="text-[#D81B43]">*</span></label>
+                  <div className="grid grid-cols-2 gap-3">
+                    {['Jurídica', 'Natural'].map(tipo => (
+                      <button key={tipo} type="button"
+                        onClick={() => setForm(f => ({ ...f, tipo_persona: tipo, ...(tipo === 'Natural' ? { digito_verificacion: '' } : {}) }))}
+                        className={`flex items-center gap-2 px-4 py-3 rounded-[9px] border-2 text-[13px] font-semibold transition-all ${form.tipo_persona === tipo
+                          ? 'border-[#D81B43] bg-[#D81B43]/5 text-[#D81B43]'
+                          : 'border-slate-200 text-slate-500 hover:border-slate-300'
+                          }`}>
+                        {tipo === 'Jurídica' ? <Building2 size={15} /> : <User size={15} />}
+                        Persona {tipo}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Nombre */}
+                <div>
+                  <label className={labelCls}>Nombre / Razón social <span className="text-[#D81B43]">*</span></label>
+                  <input value={form.nombre || ''} onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))}
+                    placeholder="Nombre completo o razón social" className={inputCls} />
+                </div>
+
+                {/* NIT / CC */}
+                <div className={`grid gap-3 ${form.tipo_persona !== 'Natural' ? 'grid-cols-3' : 'grid-cols-1'}`}>
+                  <div className={form.tipo_persona !== 'Natural' ? 'col-span-2' : ''}>
+                    <label className={labelCls}>{form.tipo_persona === 'Natural' ? 'CC' : 'NIT'}</label>
+                    <input value={form.nit_cc || ''}
+                      onChange={e => setForm(f => ({ ...f, nit_cc: e.target.value.replace(/[^0-9]/g, '') }))}
+                      placeholder={form.tipo_persona === 'Natural' ? '1234567890' : '900123456'}
+                      inputMode="numeric" className={inputCls} />
+                  </div>
+                  {form.tipo_persona !== 'Natural' && (
+                    <div>
+                      <label className={labelCls}>Dígito verif.</label>
+                      <input value={form.digito_verificacion || ''}
+                        onChange={e => setForm(f => ({ ...f, digito_verificacion: e.target.value.replace(/[^0-9]/g, '') }))}
+                        placeholder="5" maxLength={1} inputMode="numeric" className={inputCls} />
+                    </div>
+                  )}
+                </div>
+
+                {/* Contacto */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className={labelCls}>Teléfono</label>
+                    <div className="flex">
+                      <span className="inline-flex items-center px-3 border border-r-0 border-slate-200 rounded-l-[9px] text-[13px] text-slate-500 bg-slate-50 select-none whitespace-nowrap">+57</span>
+                      <input value={form.telefono || ''}
+                        onChange={e => setForm(f => ({ ...f, telefono: e.target.value.replace(/\D/g, '').slice(0, 12) }))}
+                        placeholder="3001234567" inputMode="numeric"
+                        className={`${inputCls} rounded-l-none border-l-0`} />
+                    </div>
+                  </div>
+                  <div>
+                    <label className={labelCls}>Email</label>
+                    <input value={form.email || ''} onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
+                      type="email" placeholder="correo@empresa.com"
+                      className={inputCls + (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim()) ? ' !border-red-300 focus:!border-red-400' : '')} />
+                    {form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim()) && (
+                      <p className="text-[11px] text-red-400 mt-1">Formato inválido</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Ubicación */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className={labelCls}>Departamento</label>
+                    <select value={form.departamento_id || ''} onChange={e => onChangeDepartamento(e.target.value)} className={inputCls}>
+                      <option value="">Seleccionar...</option>
+                      {departamentos.map(d => <option key={d.id} value={d.id}>{d.nombre}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className={labelCls}>Municipio</label>
+                    <select value={form.municipio_id || ''} onChange={e => setForm(f => ({ ...f, municipio_id: e.target.value }))}
+                      disabled={!form.departamento_id} className={inputCls + (!form.departamento_id ? ' opacity-50' : '')}>
+                      <option value="">Seleccionar...</option>
+                      {municipiosFiltrados.map(m => <option key={m.id} value={m.id}>{m.nombre}</option>)}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Dirección */}
+                <div>
+                  <label className={labelCls}>Dirección</label>
+                  <input value={form.direccion || ''} onChange={e => setForm(f => ({ ...f, direccion: e.target.value }))}
+                    placeholder="Calle 10 # 5-20" className={inputCls} />
+                </div>
+              </div>
+  )
+  const camposPaciente = (
+    <div className="space-y-4" onChange={() => setFormDirty(true)}>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className={labelCls}>Nombre <span className="text-[#D81B43]">*</span></label>
+                    <input value={formPaciente.nombre || ''} onChange={e => setFormPaciente(f => ({ ...f, nombre: e.target.value }))}
+                      placeholder="Nombre completo" className={inputCls} />
+                  </div>
+                  <div>
+                    <label className={labelCls}>Cédula</label>
+                    <input value={formPaciente.cedula || ''}
+                      onChange={e => setFormPaciente(f => ({ ...f, cedula: e.target.value.replace(/[^0-9]/g, '') }))}
+                      placeholder="1234567890" inputMode="numeric" className={inputCls} />
+                  </div>
+                </div>
+
+                <div>
+                  <label className={labelCls}>Dirección <span className="text-[#D81B43]">*</span></label>
+                  <input value={formPaciente.direccion || ''} onChange={e => setFormPaciente(f => ({ ...f, direccion: e.target.value }))}
+                    placeholder="Calle 10 # 5-20" className={inputCls} />
+                </div>
+
+                <div>
+                  <label className={labelCls}>Ciudad</label>
+                  <input value={formPaciente.ciudad || ''} onChange={e => setFormPaciente(f => ({ ...f, ciudad: e.target.value }))}
+                    placeholder="Valledupar" className={inputCls} />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className={labelCls}>Teléfono</label>
+                    <div className="flex">
+                      <span className="inline-flex items-center px-3 border border-r-0 border-slate-200 rounded-l-[9px] text-[13px] text-slate-500 bg-slate-50 select-none whitespace-nowrap">+57</span>
+                      <input value={formPaciente.telefono || ''}
+                        onChange={e => setFormPaciente(f => ({ ...f, telefono: e.target.value.replace(/\D/g, '').slice(0, 12) }))}
+                        placeholder="3001234567" inputMode="numeric"
+                        className={`${inputCls} rounded-l-none border-l-0`} />
+                    </div>
+                  </div>
+                  <div>
+                    <label className={labelCls}>Correo</label>
+                    <input value={formPaciente.correo || ''} onChange={e => setFormPaciente(f => ({ ...f, correo: e.target.value }))}
+                      type="email" placeholder="correo@ejemplo.com"
+                      className={inputCls + (formPaciente.correo && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formPaciente.correo.trim()) ? ' !border-red-300 focus:!border-red-400' : '')} />
+                    {formPaciente.correo && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formPaciente.correo.trim()) && (
+                      <p className="text-[11px] text-red-400 mt-1">Formato inválido</p>
+                    )}
+                  </div>
+                </div>
+
+                {!formPaciente.id && (
+                  <p className="text-[11.5px] text-slate-400">
+                    También puedes registrar pacientes al crear un préstamo, desde el paso de datos del paciente.
+                  </p>
+                )}
+              </div>
+  )
+
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      {/* Topbar */}
-      <div className="h-14 md:h-16 md:bg-white md:border-b md:border-slate-200 flex items-center px-4 md:px-7 flex-shrink-0">
-        <div>
-          <div className="text-[18px] font-bold text-slate-800">Clientes</div>
-          <div className="text-[12px] text-slate-400 mt-0.5">Gestión de clientes, arrendatarios y pacientes</div>
-        </div>
-        <div className="ml-auto flex items-center gap-2">
-          <BuzonNovedades />
-        </div>
-      </div>
+      <EncabezadoModulo titulo="Clientes" subtitulo="Clientes y pacientes" ayuda="clientes"
+        acciones={<div className="hidden md:flex items-center gap-2">
+          {botonExportar}
+          <button onClick={() => tabActiva === 'clientes' ? abrirModal() : abrirModalPaciente()} className={ui.btnPrimario}>
+            <Plus size={14} strokeWidth={2.5} /> {tabActiva === 'clientes' ? 'Nuevo cliente' : 'Nuevo paciente'}
+          </button>
+        </div>} />
 
       {/* FAB móvil — crea cliente o paciente según la pestaña activa */}
       <button onClick={() => tabActiva === 'clientes' ? abrirModal() : abrirModalPaciente()}
@@ -787,20 +927,20 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
         <Plus size={22} strokeWidth={2.5} />
       </button>
 
-      {/* Pestañas Clientes / Pacientes */}
-      <div className="flex gap-1 border-b border-slate-200 px-4 md:px-7 flex-shrink-0 bg-white">
-        <button onClick={() => setTabActiva('clientes')}
-          className={`flex items-center gap-1.5 px-3 py-2.5 text-[13px] font-semibold border-b-2 transition-all ${tabActiva === 'clientes' ? 'border-[#D81B43] text-[#D81B43]' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
-          <Building2 size={14} /> Clientes ({clientes.length})
-        </button>
-        <button onClick={() => setTabActiva('pacientes')}
-          className={`flex items-center gap-1.5 px-3 py-2.5 text-[13px] font-semibold border-b-2 transition-all ${tabActiva === 'pacientes' ? 'border-[#D81B43] text-[#D81B43]' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
-          <HeartPulse size={14} /> Pacientes ({pacientes.length})
-        </button>
+      {/* Clientes / Pacientes: selector segmentado dentro del contenido */}
+      <div className="px-3 md:px-6 pt-3 md:pt-5 flex-shrink-0">
+        <div className="inline-flex bg-slate-200/70 rounded-[10px] p-1 gap-1">
+          {[['clientes', 'Clientes', Building2, clientes.length], ['pacientes', 'Pacientes', HeartPulse, pacientes.length]].map(([id, label, Icono, n]) => (
+            <button key={id} onClick={() => setTabActiva(id)}
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-[8px] text-[13px] font-semibold transition-colors ${tabActiva === id ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+              <Icono size={14} /> {label} <span className="text-[11.5px] font-medium text-slate-400 tabular-nums">{n}</span>
+            </button>
+          ))}
+        </div>
       </div>
 
       {tabActiva === 'clientes' && (
-      <div className="flex-1 overflow-hidden flex flex-col p-3 md:p-6 pb-28 md:pb-6">
+      <div className="flex-1 overflow-hidden flex flex-col p-3 md:p-6 pt-3 md:pt-4">
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col flex-1 min-h-0">
 
           {/* FRANJA 1 — Filtros, SIEMPRE fija, nunca cambia con la selección */}
@@ -810,7 +950,7 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
                   <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                   <input value={search} onChange={e => setSearch(e.target.value)}
                     placeholder="Buscar por nombre, NIT, email o teléfono..."
-                    className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-[9px] text-[13px] outline-none focus:border-[#D81B43] bg-white" />
+                    className="w-full pl-9 pr-4 h-[38px] border border-slate-200 rounded-[9px] text-[13px] text-slate-800 bg-white outline-none focus:border-[#D81B43] focus:ring-2 focus:ring-[#D81B43]/10 placeholder:text-slate-400" />
                 </div>
                 <div className="flex items-center gap-2 md:gap-3 md:flex-1 min-w-0">
                   <div className="flex items-center gap-2 overflow-x-auto flex-1 min-w-0">
@@ -830,55 +970,29 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
                   </div>
                   <LimpiarFiltros activo={!!search || filtroCliente !== 'todos'}
                     onLimpiar={() => { setSearch(''); setFiltroCliente('todos') }} />
-                  {!drawer && (
-                    <div className="hidden md:block text-[12px] text-slate-400 flex-shrink-0">
+                  {(
+                    <div className="hidden md:block text-[12px] text-slate-400 flex-shrink-0 ml-auto">
                       {clientesFiltrados.length} cliente{clientesFiltrados.length !== 1 ? 's' : ''}
                     </div>
                   )}
-                  {botonExportar}
-                  <button onClick={() => abrirModal()}
-                    className="hidden md:flex items-center gap-1.5 px-4 h-[38px] bg-[#D81B43] text-white text-[13px] font-semibold rounded-[9px] hover:bg-[#B0172F] transition-colors flex-shrink-0 whitespace-nowrap">
-                    <Plus size={14} strokeWidth={2.5} /> Nuevo cliente
-                  </button>
                 </div>
               </div>
             </div>
 
-          {/* FRANJA 2 — aquí ocurre toda la transición: lista + panel */}
+          {/* FRANJA 2 — lista (el detalle se abre en ventana) */}
           <div className="flex flex-1 overflow-hidden flex-col md:flex-row">
 
-            {/* Columna lista — SIEMPRE montada; solo cambia de ancho (100% ↔ 380px) según haya o no detalle abierto */}
-            <div className={`${drawer ? 'hidden md:flex' : 'flex'} flex-col overflow-hidden transition-all duration-300 w-full ${drawer ? 'md:w-[380px] md:flex-shrink-0 md:border-r md:border-slate-200' : ''}`}>
+            {/* Columna lista */}
+            <div className="flex flex-col overflow-hidden w-full">
 
               {/* Lista/tabla — un solo contenedor de scroll; adentro cambia cómo se pinta cada fila según el ancho disponible */}
-              <div className="flex-1 overflow-y-auto px-3 md:px-6 pt-3 md:pt-6 pb-28 md:pb-6">
+              <div className="flex-1 overflow-y-auto px-3 md:px-6 pt-3 md:pt-6 pb-20 md:pb-6">
               {clientesFiltrados.length === 0 ? (
                 <div className="text-center py-16 text-slate-400">
                     <Building2 className="w-12 h-12 mx-auto mb-3 opacity-20" />
                     <div className="font-semibold mb-1">{search || filtroCliente !== 'todos' ? 'Sin resultados' : 'Sin clientes registrados'}</div>
                     <div className="text-[13px]">{search || filtroCliente !== 'todos' ? 'Intenta con otros filtros' : 'Usa "Nuevo cliente" para agregar uno'}</div>
                   </div>
-              ) : drawer ? (
-                /* Lista compacta — solo se ve cuando la columna está angosta (detalle abierto) */
-                <div className="-mx-3 md:-mx-6">
-                  {/* Misma página que la tabla, para no perderla al abrir un detalle */}
-                  {clientesPagina.map(c => (
-                    <div key={c.id} onClick={() => abrirDrawer(c)}
-                      className={`px-4 py-3 border-b border-slate-100 cursor-pointer transition-colors ${drawer?.id === c.id ? 'bg-[#FFF0F3] border-l-[3px] border-l-[#D81B43]' : 'hover:bg-slate-50'}`}>
-                      <div className="flex items-center gap-2">
-                        <div className="text-[13px] font-bold text-slate-800 truncate flex-1">{c.nombre}</div>
-                        {conteoEquiposPorCliente[c.id] > 0 && (
-                          <span className="flex items-center gap-1 text-[11.5px] font-bold text-[#1B3A6B] tabular-nums flex-shrink-0"><Package size={11} className="text-slate-400" />{conteoEquiposPorCliente[c.id]}</span>
-                        )}
-                      </div>
-                      <div className="text-[11.5px] text-slate-400 mt-0.5 flex items-center gap-1.5">
-                        <span className="font-medium" style={{ color: estiloTipo(c).color }}>{c.tipo_persona || '—'}</span>
-                        {c.nit_cc && <span>· {c.nit_cc}</span>}
-                      </div>
-                    </div>
-                  ))}
-                  <Paginador {...paginacionClientes} compacto />
-                </div>
               ) : (
                 <>
                   {/* Cards móvil */}
@@ -1119,175 +1233,119 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
             </div>
           </div>
 
-          {/* Panel de detalle — aparece a la derecha sin reemplazar la columna de lista */}
+          {/* Detalle en ventana ancha, igual que Entregas, Inventario y Préstamos */}
           {drawer && (
-            <div className="flex flex-col flex-1 overflow-hidden animate-panel-detalle">
-              <div className="px-6 py-4 border-b border-slate-200 flex items-start justify-between flex-shrink-0">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full flex items-center justify-center text-[15px] font-bold flex-shrink-0"
-                    style={{ background: estiloTipo(drawer).bg, color: estiloTipo(drawer).color }}>
-                    {drawer.nombre?.charAt(0)?.toUpperCase()}
-                  </div>
-                  <div>
-                    <div className="text-[15px] font-bold text-slate-800 leading-tight">{drawer.nombre}</div>
-                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold mt-0.5"
-                      style={{ color: estiloTipo(drawer).color }}>
-                      {estiloTipo(drawer).icon} Persona {drawer.tipo_persona}
-                    </span>
-                  </div>
-                  {(conteoEquiposPorCliente[drawer.id] || 0) > 0 && (
-                    <span className="ml-1 inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#1B3A6B]/[0.07] text-[#1B3A6B] text-[12px] font-bold whitespace-nowrap">
-                      <Package size={12} /> {conteoEquiposPorCliente[drawer.id]} equipos
-                    </span>
-                  )}
-                </div>
-                <button onClick={() => setDrawer(null)} title="Cerrar (ESC)"
-                  className="text-slate-400 hover:text-slate-600 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100 flex-shrink-0"><X size={16} /></button>
-              </div>
+            <VentanaDetalle onCerrar={() => setDrawer(null)} ancho={1280}>
+            <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+              <EncabezadoDetalle icono={drawer.nombre?.charAt(0)?.toUpperCase()} titulo={drawer.nombre}
+                subtitulo={`Persona ${drawer.tipo_persona || '—'}${(conteoEquiposPorCliente[drawer.id] || 0) ? ` · ${conteoEquiposPorCliente[drawer.id]} equipos` : ''}`}
+                onCerrar={() => setDrawer(null)}
+                acciones={<>
+                  <button onClick={() => generarHojaVidaClientePaciente(drawer, 'clientes')} disabled={pdfGenerando} className={ui.btnChico} title="Informe en PDF">
+                    {pdfGenerando ? <Loader2 size={13} className="animate-spin" /> : <FileText size={13} />} PDF
+                  </button>
+                  <a href={`/api/exportar/cliente?id=${drawer.id}&tipo=cliente`} className={ui.btnChico} title="Informe en Excel">
+                    <Download size={13} /> Excel
+                  </a>
+                </>} />
 
-              <div className="flex-1 overflow-y-auto pb-28 md:pb-6">
-                <div className="px-6 py-4 border-b border-slate-100">
-                  <div className="text-[9.5px] font-bold uppercase tracking-[0.12em] text-slate-400 mb-3">Información general</div>
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-8 gap-y-2.5">
-                  {[
-                    { label: 'NIT / CC', value: drawer.nit_cc ? `${drawer.nit_cc}${drawer.digito_verificacion ? `-${drawer.digito_verificacion}` : ''}` : null },
-                    { label: 'Teléfono', value: drawer.telefono, icon: <Phone size={12} /> },
-                    { label: 'Email', value: drawer.email, icon: <Mail size={12} /> },
-                    { label: 'Dirección', value: drawer.direccion, icon: <MapPin size={12} /> },
-                    { label: 'Ubicación', value: drawer.municipio ? `${drawer.municipio.nombre}, ${drawer.departamento?.nombre}` : null, icon: <MapPin size={12} /> },
-                  ].filter(f => f.value).map(f => (
-                    <div key={f.label} className="flex justify-between gap-4 text-[12.5px] min-w-0">
-                      <span className="text-slate-400 flex items-center gap-1 flex-shrink-0">{f.icon}{f.label}</span>
-                      <span className="font-medium text-slate-700 text-right min-w-0 break-words">{f.value}</span>
-                    </div>
-                  ))}
+              {/* PC: datos a la izquierda (franja angosta), equipos y línea de tiempo a la derecha */}
+              <div className={`flex-1 overflow-y-auto pb-4 lg:pb-0 lg:grid ${editando === 'cliente' ? 'lg:grid-cols-[440px_minmax(0,1fr)]' : 'lg:grid-cols-[300px_minmax(0,1fr)]'}`}>
+                <div className="lg:border-r lg:border-slate-100">
+                {drawer.activo === false && (
+                  <div className="mx-5 md:mx-6 mt-4 flex items-center gap-3 px-3 py-2.5 rounded-[10px] bg-slate-100 text-[13px] text-slate-600">
+                    Cliente inactivo
+                    <button onClick={() => toggleActivo(drawer.id, true)} className="ml-auto font-semibold text-[#0F7B55] hover:underline">Activar</button>
                   </div>
-                </div>
-
-                <AccesoPortal cliente={drawer} onToast={showToast} />
-
-                <div className="p-6">
-                  {/* Tabs + exportar */}
-                  <div className="flex items-center justify-between mb-1 gap-2">
-                    <div className="flex gap-1 border-b border-slate-200 flex-1 overflow-x-auto">
+                )}
+                <div className="px-5 md:px-6 py-4 border-b border-slate-100 lg:border-b-0">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className={ui.tituloSeccion}>Datos</div>
+                    {editando !== 'cliente' && (
+                      <button onClick={() => abrirModal(drawer, true)} className="inline-flex items-center gap-1.5 text-[12.5px] font-semibold text-[#1B3A6B] hover:underline">
+                        <Edit3 size={13} /> Editar
+                      </button>
+                    )}
+                  </div>
+                  {editando === 'cliente' ? (
+                    <>
+                      {camposCliente}
+                      <div className="flex flex-wrap items-center gap-2 mt-5 pt-4 border-t border-slate-100">
+                        {drawer.activo !== false && <button onClick={() => setModalEliminar(drawer)} className={ui.btnPeligro}>Desactivar cliente</button>}
+                        <div className="ml-auto flex gap-2">
+                          <button onClick={intentarCerrarModal} className={ui.btnSecundario}>Cancelar</button>
+                          <button onClick={guardarCliente} disabled={saving} className={ui.btnPrimario}>{saving ? 'Guardando...' : 'Guardar'}</button>
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="grid grid-cols-1 gap-y-2.5">
                       {[
-                        { id: 'prestamo', label: 'En préstamo', count: equiposEnPrestamo.length },
-                        { id: 'ordenes', label: 'Órdenes', count: historial.ordenes.length },
-                        { id: 'linea', label: 'Línea de tiempo', count: lineaTiempo.length },
-                      ].map(t => (
-                        <button key={t.id} onClick={() => setTabHoja(t.id)}
-                          className={`px-3 py-2 text-[12.5px] font-semibold border-b-2 whitespace-nowrap transition-all ${tabHoja === t.id ? 'border-[#D81B43] text-[#D81B43]' : 'border-transparent text-slate-400 hover:text-slate-600'}`}>
-                          {t.label} {t.count > 0 && <span className="ml-1 text-[10.5px] opacity-60">({t.count})</span>}
-                        </button>
-                      ))}
-                    </div>
-                    <button onClick={() => generarHojaVidaClientePaciente(drawer, 'clientes')} disabled={pdfGenerando}
-                      className="flex-shrink-0 flex items-center gap-1.5 px-2.5 py-1.5 bg-[#1B3A6B] text-white rounded-[8px] text-[11.5px] font-semibold hover:bg-[#152D54] transition-all mb-2 disabled:opacity-70 disabled:cursor-not-allowed">
-                      {pdfGenerando ? <><Loader2 size={12} className="animate-spin" /> Generando…</> : <><FileText size={13} /> Hoja de vida (PDF)</>}
-                    </button>
-                  </div>
-
-                  {historial.loading ? (
-                    <div className="space-y-2 mt-3">
-                      {[0, 1, 2].map(i => (
-                        <div key={i} className="flex items-center gap-2.5 p-3 rounded-[9px] border border-slate-100">
-                          <Box className="w-8 h-8 rounded-lg flex-shrink-0" />
-                          <div className="flex-1 space-y-1.5">
-                            <Box className="h-3 w-32" />
-                            <Box className="h-2.5 w-44" />
-                          </div>
+                        { label: 'NIT / CC', value: drawer.nit_cc ? `${drawer.nit_cc}${drawer.digito_verificacion ? `-${drawer.digito_verificacion}` : ''}` : null },
+                        { label: 'Teléfono', value: drawer.telefono, icon: <Phone size={12} /> },
+                        { label: 'Correo', value: drawer.email, icon: <Mail size={12} /> },
+                        { label: 'Dirección', value: drawer.direccion, icon: <MapPin size={12} /> },
+                        { label: 'Ubicación', value: drawer.municipio ? `${drawer.municipio.nombre}, ${drawer.departamento?.nombre}` : null, icon: <MapPin size={12} /> },
+                      ].map(f => (
+                        <div key={f.label} className="flex justify-between gap-4 text-[13px] min-w-0">
+                          <span className="text-slate-400 flex items-center gap-1 flex-shrink-0">{f.icon}{f.label}</span>
+                          <span className={`text-right min-w-0 break-words ${f.value ? 'font-medium text-slate-700' : 'text-slate-300'}`}>{f.value || '—'}</span>
                         </div>
                       ))}
                     </div>
+                  )}
+                </div>
+
+                </div>
+                <div className="px-5 md:px-6 py-4 min-w-0">
+                  <div className="flex gap-1 border-b border-slate-200 mb-4">
+                    {[
+                      { id: 'prestamo', label: 'En préstamo', count: equiposEnPrestamo.length },
+                      { id: 'linea', label: 'Línea de tiempo' },
+                    ].map(t => (
+                      <button key={t.id} onClick={() => setTabHoja(t.id)}
+                        className={`px-3 py-2 -mb-px text-[13px] font-semibold border-b-2 whitespace-nowrap transition-colors ${tabHoja === t.id ? 'border-[#D81B43] text-[#D81B43]' : 'border-transparent text-slate-400 hover:text-slate-600'}`}>
+                        {t.label}{t.count > 0 && <span className="ml-1 text-[11px] opacity-60">({t.count})</span>}
+                      </button>
+                    ))}
+                  </div>
+
+                  {historial.loading ? (
+                    <div className="space-y-2">
+                      {[0, 1, 2].map(i => <Box key={i} className="h-10 w-full rounded-[9px]" />)}
+                    </div>
+                  ) : tabHoja === 'prestamo' ? (
+                    <EquiposDelCliente equipos={equiposEnPrestamo} onDevolverVarios={devolverVarios} />
+                  ) : lineaTiempo.length === 0 ? (
+                    <div className="text-center py-10 text-slate-400 text-[13px]">Sin actividad registrada</div>
                   ) : (
-                    <div className="mt-3">
-                      {/* EQUIPOS EN PRÉSTAMO */}
-                      {tabHoja === 'prestamo' && (
-                        <EquiposDelCliente equipos={equiposEnPrestamo}
-                          onDevolver={oe => abrirModalDevolucion({ ordenEquipoId: oe.id, equipoId: oe.equipo?.id, ordenId: oe.orden?.id }, 'cliente')} />
-                      )}
-
-                      {/* ÓRDENES */}
-                      {tabHoja === 'ordenes' && (
-                        historial.ordenes.length > 0 ? (
-                          <div className="space-y-2">
-                            {historial.ordenes.map(o => (
-                              <div key={o.id} className="p-3 rounded-[9px] border border-slate-100">
-                                <div className="flex items-center justify-between">
-                                  <span className="text-[12.5px] font-semibold text-slate-700">{o.codigo}</span>
-                                  <span className="text-[10.5px] font-medium px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">{o.estado?.nombre || '—'}</span>
+                    <div>
+                      <div className="relative pl-6">
+                        <div className="absolute left-[9px] top-1 bottom-1 w-px bg-slate-200" />
+                        <div className="space-y-4">
+                          {pagLinea.itemsPagina.map((ev, i) => {
+                            const ic = ICONO_EVENTO[ev.tipo] || ICONO_EVENTO.orden
+                            return (
+                              <div key={i} className="relative">
+                                <div className="absolute -left-6 w-[19px] h-[19px] rounded-full flex items-center justify-center" style={{ background: ic.bg, color: ic.color }}>
+                                  <div className="scale-75">{ic.icon}</div>
                                 </div>
-                                <div className="text-[11px] text-slate-400 mt-1">
-                                  {o.tipo?.nombre || '—'} · {formatear(o.fecha_creacion)}
-                                  {o.fecha_vigencia && ` · vigente hasta ${formatearSoloFecha(o.fecha_vigencia)}`}
+                                <div className="text-[13px] font-semibold text-slate-700 leading-snug">{ev.texto}</div>
+                                <div className="text-[11.5px] text-slate-400 mt-0.5">
+                                  {formatear(ev.fecha)}{ev.detalle ? ` · ${ev.detalle}` : ''}
                                 </div>
-                                <div className="text-[11px] text-slate-400 mt-0.5">{(o.equipos || []).length} equipo(s)</div>
                               </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <div className="text-center py-8 text-slate-400">
-                            <FileText className="w-10 h-10 mx-auto mb-2 opacity-20" />
-                            <div className="text-[12.5px]">Sin órdenes registradas</div>
-                          </div>
-                        )
-                      )}
-
-                      {/* LÍNEA DE TIEMPO */}
-                      {tabHoja === 'linea' && (
-                        lineaTiempo.length > 0 ? (
-                          <div className="relative pl-5">
-                            <div className="absolute left-[7px] top-1 bottom-1 w-px bg-slate-200" />
-                            <div className="space-y-4">
-                              {lineaTiempo.map((ev, i) => {
-                                const ic = ICONO_EVENTO[ev.tipo] || ICONO_EVENTO.orden
-                                return (
-                                  <div key={i} className="relative flex items-start gap-3">
-                                    <div className="absolute -left-5 w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0"
-                                      style={{ background: ic.bg, color: ic.color }}>
-                                      <div className="scale-75">{ic.icon}</div>
-                                    </div>
-                                    <div className="min-w-0 flex-1">
-                                      <div className="text-[12px] font-semibold text-slate-700">{ev.label}</div>
-                                      <div className="text-[10.5px] text-slate-400 mt-0.5">
-                                        {formatear(ev.fecha, { hour: '2-digit', minute: '2-digit' })} {ev.sub && `· ${ev.sub}`}
-                                      </div>
-                                    </div>
-                                  </div>
-                                )
-                              })}
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="text-center py-8 text-slate-400">
-                            <Clock className="w-10 h-10 mx-auto mb-2 opacity-20" />
-                            <div className="text-[12.5px]">Sin actividad registrada</div>
-                          </div>
-                        )
-                      )}
+                            )
+                          })}
+                        </div>
+                      </div>
+                      <Paginador {...pagLinea} compacto />
                     </div>
                   )}
                 </div>
               </div>
-
-              <div className="px-6 py-4 border-t border-slate-200 flex gap-2 flex-shrink-0">
-                <button onClick={() => abrirModal(drawer)}
-                  className="flex items-center gap-1.5 px-4 py-2.5 border border-slate-200 rounded-[9px] text-[13px] font-medium text-slate-600 hover:border-slate-300 transition-all">
-                  <Edit3 size={13} /> Editar
-                </button>
-                {drawer.activo === false ? (
-                  <button onClick={() => toggleActivo(drawer.id, true)}
-                    className="flex items-center gap-1.5 px-4 py-2.5 border border-green-200 text-[#0F7B55] rounded-[9px] text-[13px] font-medium hover:bg-green-50 transition-all ml-auto">
-                    <CheckCircle2 size={13} /> Activar
-                  </button>
-                ) : (
-                  <button onClick={() => setModalEliminar(drawer)}
-                    className="flex items-center gap-1.5 px-4 py-2.5 border border-red-200 text-red-400 rounded-[9px] text-[13px] font-medium hover:bg-red-50 transition-all ml-auto">
-                    <X size={13} /> Desactivar
-                  </button>
-                )}
-              </div>
             </div>
+            </VentanaDetalle>
           )}
           </div>
         </div>
@@ -1296,7 +1354,7 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
 
       {/* ── PESTAÑA PACIENTES ── */}
       {tabActiva === 'pacientes' && (
-      <div className="flex-1 overflow-hidden flex flex-col p-3 md:p-6 pb-28 md:pb-6">
+      <div className="flex-1 overflow-hidden flex flex-col p-3 md:p-6 pt-3 md:pt-4">
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col flex-1 min-h-0">
 
           {/* FRANJA 1 — Filtros, SIEMPRE fija, nunca cambia con la selección */}
@@ -1306,7 +1364,7 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
                   <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                   <input value={searchPaciente} onChange={e => setSearchPaciente(e.target.value)}
                     placeholder="Buscar por nombre, cédula o ciudad..."
-                    className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-[9px] text-[13px] outline-none focus:border-[#D81B43] bg-white" />
+                    className="w-full pl-9 pr-4 h-[38px] border border-slate-200 rounded-[9px] text-[13px] text-slate-800 bg-white outline-none focus:border-[#D81B43] focus:ring-2 focus:ring-[#D81B43]/10 placeholder:text-slate-400" />
                 </div>
                 <div className="flex items-center gap-2 md:gap-3 md:flex-1 min-w-0">
                   <div className="flex items-center gap-2 overflow-x-auto flex-1 min-w-0">
@@ -1326,55 +1384,29 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
                   </div>
                   <LimpiarFiltros activo={!!searchPaciente || filtroPaciente !== 'todos'}
                     onLimpiar={() => { setSearchPaciente(''); setFiltroPaciente('todos') }} />
-                  {!drawerPaciente && (
-                    <div className="hidden md:block text-[12px] text-slate-400 flex-shrink-0">
+                  {(
+                    <div className="hidden md:block text-[12px] text-slate-400 flex-shrink-0 ml-auto">
                       {pacientesFiltrados.length} paciente{pacientesFiltrados.length !== 1 ? 's' : ''}
                     </div>
                   )}
-                  {botonExportar}
-                  <button onClick={() => abrirModalPaciente()}
-                    className="hidden md:flex items-center gap-1.5 px-4 h-[38px] bg-[#D81B43] text-white text-[13px] font-semibold rounded-[9px] hover:bg-[#B0172F] transition-colors flex-shrink-0 whitespace-nowrap">
-                    <Plus size={14} strokeWidth={2.5} /> Nuevo paciente
-                  </button>
                 </div>
               </div>
             </div>
 
-          {/* FRANJA 2 — aquí ocurre toda la transición: lista + panel */}
+          {/* FRANJA 2 — lista (el detalle se abre en ventana) */}
           <div className="flex flex-1 overflow-hidden flex-col md:flex-row">
 
-            {/* Columna lista — SIEMPRE montada; solo cambia de ancho (100% ↔ 380px) según haya o no detalle abierto */}
-            <div className={`${drawerPaciente ? 'hidden md:flex' : 'flex'} flex-col overflow-hidden transition-all duration-300 w-full ${drawerPaciente ? 'md:w-[380px] md:flex-shrink-0 md:border-r md:border-slate-200' : ''}`}>
+            {/* Columna lista */}
+            <div className="flex flex-col overflow-hidden w-full">
 
               {/* Lista/tabla — un solo contenedor de scroll; adentro cambia cómo se pinta cada fila según el ancho disponible */}
-              <div className="flex-1 overflow-y-auto px-3 md:px-6 pt-3 md:pt-6 pb-28 md:pb-6">
+              <div className="flex-1 overflow-y-auto px-3 md:px-6 pt-3 md:pt-6 pb-20 md:pb-6">
               {pacientesFiltrados.length === 0 ? (
                 <div className="text-center py-16 text-slate-400">
                     <HeartPulse className="w-12 h-12 mx-auto mb-3 opacity-20" />
                     <div className="font-semibold mb-1">{searchPaciente || filtroPaciente !== 'todos' ? 'Sin resultados' : 'Sin pacientes registrados'}</div>
                     <div className="text-[13px]">{searchPaciente || filtroPaciente !== 'todos' ? 'Intenta con otros filtros' : 'Usa "Nuevo paciente" o regístralo al crear un préstamo'}</div>
                   </div>
-              ) : drawerPaciente ? (
-                /* Lista compacta — solo se ve cuando la columna está angosta (detalle abierto) */
-                <div className="-mx-3 md:-mx-6">
-                  {/* Misma página que la tabla, para no perderla al abrir un detalle */}
-                  {pacientesPagina.map(p => {
-                    const nEquipos = conteoEquiposPorPaciente[p.id] || 0
-                    return (
-                      <div key={p.id} onClick={() => abrirDrawerPaciente(p)}
-                        className={`px-4 py-3 border-b border-slate-100 cursor-pointer transition-colors ${drawerPaciente?.id === p.id ? 'bg-[#FFF0F3] border-l-[3px] border-l-[#D81B43]' : 'hover:bg-slate-50'}`}>
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="text-[13px] font-bold text-slate-800 truncate">{p.nombre}</div>
-                          <span className="flex-shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10.5px] font-bold bg-[#D81B43]/8 text-[#D81B43]">
-                            <Package size={10} /> {nEquipos}
-                          </span>
-                        </div>
-                        <div className="text-[11.5px] text-slate-400 mt-0.5">{p.ciudad || '—'}{p.cedula ? ` · ${p.cedula}` : ''}</div>
-                      </div>
-                    )
-                  })}
-                  <Paginador {...paginacionPacientes} compacto />
-                </div>
               ) : (
                 <>
                   {/* Cards móvil */}
@@ -1477,51 +1509,66 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
             </div>
           </div>
 
-          {/* Panel de detalle — aparece a la derecha sin reemplazar la columna de lista */}
+          {/* Detalle en ventana ancha, igual que Entregas, Inventario y Préstamos */}
           {drawerPaciente && (
-            <div className="flex flex-col flex-1 overflow-hidden animate-panel-detalle">
-              <div className="px-6 py-4 border-b border-slate-200 flex items-start justify-between flex-shrink-0">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full flex items-center justify-center text-[15px] font-bold flex-shrink-0 bg-[#F1F5F9] text-[#475569]">
-                    {drawerPaciente.nombre?.charAt(0)?.toUpperCase()}
-                  </div>
-                  <div>
-                    <div className="text-[15px] font-bold text-slate-800 leading-tight">{drawerPaciente.nombre}</div>
-                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold mt-0.5 text-slate-400">
-                      <HeartPulse size={12} /> Paciente
-                    </span>
-                  </div>
-                </div>
-                <button onClick={() => setDrawerPaciente(null)} title="Cerrar (ESC)"
-                  className="text-slate-400 hover:text-slate-600 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100 flex-shrink-0"><X size={16} /></button>
-              </div>
+            <VentanaDetalle onCerrar={() => setDrawerPaciente(null)} ancho={760}>
+            <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+              <EncabezadoDetalle icono={drawerPaciente.nombre?.charAt(0)?.toUpperCase()} titulo={drawerPaciente.nombre}
+                subtitulo={`Paciente${drawerPaciente.cedula ? ` · CC ${drawerPaciente.cedula}` : ''}`}
+                onCerrar={() => setDrawerPaciente(null)}
+                acciones={<>
+                  <button onClick={() => generarHojaVidaClientePaciente(drawerPaciente, 'pacientes')} disabled={pdfGenerando} className={ui.btnChico} title="Informe en PDF">
+                    {pdfGenerando ? <Loader2 size={13} className="animate-spin" /> : <FileText size={13} />} PDF
+                  </button>
+                  <a href={`/api/exportar/cliente?id=${drawerPaciente.id}&tipo=paciente`} className={ui.btnChico} title="Informe en Excel">
+                    <Download size={13} /> Excel
+                  </a>
+                </>} />
 
-              <div className="flex-1 overflow-y-auto pb-28 md:pb-6">
-                <div className="p-6 space-y-3 border-b border-slate-100">
-                  <div className="text-[9.5px] font-bold uppercase tracking-[0.12em] text-slate-400 mb-3">Información general</div>
-                  {[
-                    { label: 'Cédula', value: drawerPaciente.cedula },
-                    { label: 'Teléfono', value: drawerPaciente.telefono, icon: <Phone size={12} /> },
-                    { label: 'Dirección', value: drawerPaciente.direccion, icon: <MapPin size={12} /> },
-                    { label: 'Ciudad', value: drawerPaciente.ciudad, icon: <MapPin size={12} /> },
-                    { label: 'Correo', value: drawerPaciente.correo, icon: <Mail size={12} /> },
-                  ].filter(f => f.value).map(f => (
-                    <div key={f.label} className="flex justify-between text-[12.5px]">
-                      <span className="text-slate-400 flex items-center gap-1">{f.icon}{f.label}</span>
-                      <span className="font-medium text-slate-700 text-right ml-4 max-w-[220px]">{f.value}</span>
+              <div className="flex-1 overflow-y-auto pb-4">
+                <div className="px-5 md:px-6 py-4 border-b border-slate-100">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className={ui.tituloSeccion}>Datos</div>
+                    {editando !== 'paciente' && (
+                      <button onClick={() => abrirModalPaciente(drawerPaciente, true)} className="inline-flex items-center gap-1.5 text-[12.5px] font-semibold text-[#1B3A6B] hover:underline">
+                        <Edit3 size={13} /> Editar
+                      </button>
+                    )}
+                  </div>
+                  {editando === 'paciente' ? (
+                    <>
+                      {camposPaciente}
+                      <div className="flex flex-wrap items-center gap-2 mt-5 pt-4 border-t border-slate-100">
+                        
+                        <div className="ml-auto flex gap-2">
+                          <button onClick={intentarCerrarModal} className={ui.btnSecundario}>Cancelar</button>
+                          <button onClick={guardarPaciente} disabled={saving} className={ui.btnPrimario}>{saving ? 'Guardando...' : 'Guardar'}</button>
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-8 gap-y-2.5">
+                      {[
+                        { label: 'Cédula', value: drawerPaciente.cedula },
+                        { label: 'Teléfono', value: drawerPaciente.telefono, icon: <Phone size={12} /> },
+                        { label: 'Dirección', value: drawerPaciente.direccion, icon: <MapPin size={12} /> },
+                        { label: 'Ciudad', value: drawerPaciente.ciudad, icon: <MapPin size={12} /> },
+                        { label: 'Correo', value: drawerPaciente.correo, icon: <Mail size={12} /> },
+                      ].map(f => (
+                        <div key={f.label} className="flex justify-between gap-4 text-[13px] min-w-0">
+                          <span className="text-slate-400 flex items-center gap-1 flex-shrink-0">{f.icon}{f.label}</span>
+                          <span className={`text-right min-w-0 break-words ${f.value ? 'font-medium text-slate-700' : 'text-slate-300'}`}>{f.value || '—'}</span>
+                        </div>
+                      ))}
                     </div>
-                  ))}
+                  )}
                 </div>
 
                 <div className="p-6">
                   <div className="flex items-center justify-between mb-3 gap-2">
-                    <div className="text-[9.5px] font-bold uppercase tracking-[0.12em] text-slate-400">
+                    <div className="text-[10.5px] font-bold uppercase tracking-[0.1em] text-slate-400">
                       Equipos actuales {equiposDelPacienteDrawer.length > 0 && `(${equiposDelPacienteDrawer.length})`}
                     </div>
-                    <button onClick={() => generarHojaVidaClientePaciente(drawerPaciente, 'pacientes')} disabled={pdfGenerando}
-                      className="flex-shrink-0 flex items-center gap-1.5 px-2.5 py-1.5 bg-[#1B3A6B] text-white rounded-[8px] text-[11.5px] font-semibold hover:bg-[#152D54] transition-all disabled:opacity-70 disabled:cursor-not-allowed">
-                      {pdfGenerando ? <><Loader2 size={12} className="animate-spin" /> Generando…</> : <><FileText size={13} /> Hoja de vida (PDF)</>}
-                    </button>
                   </div>
 
                   {equiposDelPacienteDrawer.length === 0 ? (
@@ -1550,11 +1597,7 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
                                 <div className="text-[11px] text-slate-400">Vía {eq.cliente_actual.nombre}</div>
                               )}
                               <div className="text-[11px] text-slate-400">
-                                {ordenesPorEquipo.loading
-                                  ? <Box className="h-2.5 w-20 inline-block align-middle" />
-                                  : orden?.codigo
-                                    ? orden.codigo
-                                    : 'Sin orden activa'}
+                                {ordenesPorEquipo.loading ? <Box className="h-2.5 w-20 inline-block align-middle" /> : null}
                               </div>
                               {orden?.ordenEquipoId && (
                                 <div className="mt-1.5">
@@ -1574,13 +1617,8 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
                 </div>
               </div>
 
-              <div className="px-6 py-4 border-t border-slate-200 flex gap-2 flex-shrink-0">
-                <button onClick={() => abrirModalPaciente(drawerPaciente)}
-                  className="flex items-center gap-1.5 px-4 py-2.5 border border-slate-200 rounded-[9px] text-[13px] font-medium text-slate-600 hover:border-slate-300 transition-all">
-                  <Edit3 size={13} /> Editar
-                </button>
-              </div>
             </div>
+            </VentanaDetalle>
           )}
           </div>
         </div>
@@ -1589,201 +1627,28 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
 
       {/* ── MODAL CREAR / EDITAR ── */}
       {modal && (
-        <>
-          <div className="fixed inset-0 bg-black/40 z-40 backdrop-blur-sm" onClick={() => intentarCerrarModal()} />
-          <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center p-0 md:p-4">
-            <div className="bg-white rounded-t-2xl md:rounded-2xl w-full max-w-[560px] max-h-[calc(100vh-2rem)] flex flex-col shadow-2xl overflow-hidden"
-              onClick={e => e.stopPropagation()}>
-              <div className="px-6 py-4 border-b flex items-center justify-between flex-shrink-0">
-                <h3 className="text-[16px] font-bold text-slate-800">{form.id ? 'Editar cliente' : 'Nuevo cliente'}</h3>
-                <button onClick={() => intentarCerrarModal()} className="text-slate-400 hover:text-slate-600 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100"><X size={16} /></button>
-              </div>
-
-              <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4" onChange={() => setFormDirty(true)}>
-                {/* Tipo persona */}
-                <div>
-                  <label className={labelCls}>Tipo de persona <span className="text-[#D81B43]">*</span></label>
-                  <div className="grid grid-cols-2 gap-3">
-                    {['Jurídica', 'Natural'].map(tipo => (
-                      <button key={tipo} type="button"
-                        onClick={() => setForm(f => ({ ...f, tipo_persona: tipo, ...(tipo === 'Natural' ? { digito_verificacion: '' } : {}) }))}
-                        className={`flex items-center gap-2 px-4 py-3 rounded-[9px] border-2 text-[13px] font-semibold transition-all ${form.tipo_persona === tipo
-                          ? 'border-[#D81B43] bg-[#D81B43]/5 text-[#D81B43]'
-                          : 'border-slate-200 text-slate-500 hover:border-slate-300'
-                          }`}>
-                        {tipo === 'Jurídica' ? <Building2 size={15} /> : <User size={15} />}
-                        Persona {tipo}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Nombre */}
-                <div>
-                  <label className={labelCls}>Nombre / Razón social <span className="text-[#D81B43]">*</span></label>
-                  <input value={form.nombre || ''} onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))}
-                    placeholder="Nombre completo o razón social" className={inputCls} />
-                </div>
-
-                {/* NIT / CC */}
-                <div className={`grid gap-3 ${form.tipo_persona !== 'Natural' ? 'grid-cols-3' : 'grid-cols-1'}`}>
-                  <div className={form.tipo_persona !== 'Natural' ? 'col-span-2' : ''}>
-                    <label className={labelCls}>{form.tipo_persona === 'Natural' ? 'CC' : 'NIT'}</label>
-                    <input value={form.nit_cc || ''}
-                      onChange={e => setForm(f => ({ ...f, nit_cc: e.target.value.replace(/[^0-9]/g, '') }))}
-                      placeholder={form.tipo_persona === 'Natural' ? '1234567890' : '900123456'}
-                      inputMode="numeric" className={inputCls} />
-                  </div>
-                  {form.tipo_persona !== 'Natural' && (
-                    <div>
-                      <label className={labelCls}>Dígito verif.</label>
-                      <input value={form.digito_verificacion || ''}
-                        onChange={e => setForm(f => ({ ...f, digito_verificacion: e.target.value.replace(/[^0-9]/g, '') }))}
-                        placeholder="5" maxLength={1} inputMode="numeric" className={inputCls} />
-                    </div>
-                  )}
-                </div>
-
-                {/* Contacto */}
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className={labelCls}>Teléfono</label>
-                    <div className="flex">
-                      <span className="inline-flex items-center px-3 border border-r-0 border-slate-200 rounded-l-[9px] text-[13px] text-slate-500 bg-slate-50 select-none whitespace-nowrap">+57</span>
-                      <input value={form.telefono || ''}
-                        onChange={e => setForm(f => ({ ...f, telefono: e.target.value.replace(/\D/g, '').slice(0, 12) }))}
-                        placeholder="3001234567" inputMode="numeric"
-                        className={`${inputCls} rounded-l-none border-l-0`} />
-                    </div>
-                  </div>
-                  <div>
-                    <label className={labelCls}>Email</label>
-                    <input value={form.email || ''} onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
-                      type="email" placeholder="correo@empresa.com"
-                      className={inputCls + (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim()) ? ' !border-red-300 focus:!border-red-400' : '')} />
-                    {form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim()) && (
-                      <p className="text-[11px] text-red-400 mt-1">Formato inválido</p>
-                    )}
-                  </div>
-                </div>
-
-                {/* Ubicación */}
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className={labelCls}>Departamento</label>
-                    <select value={form.departamento_id || ''} onChange={e => onChangeDepartamento(e.target.value)} className={inputCls}>
-                      <option value="">Seleccionar...</option>
-                      {departamentos.map(d => <option key={d.id} value={d.id}>{d.nombre}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className={labelCls}>Municipio</label>
-                    <select value={form.municipio_id || ''} onChange={e => setForm(f => ({ ...f, municipio_id: e.target.value }))}
-                      disabled={!form.departamento_id} className={inputCls + (!form.departamento_id ? ' opacity-50' : '')}>
-                      <option value="">Seleccionar...</option>
-                      {municipiosFiltrados.map(m => <option key={m.id} value={m.id}>{m.nombre}</option>)}
-                    </select>
-                  </div>
-                </div>
-
-                {/* Dirección */}
-                <div>
-                  <label className={labelCls}>Dirección</label>
-                  <input value={form.direccion || ''} onChange={e => setForm(f => ({ ...f, direccion: e.target.value }))}
-                    placeholder="Calle 10 # 5-20" className={inputCls} />
-                </div>
-              </div>
-
-              <div className="px-6 py-4 border-t border-slate-200 flex justify-end gap-2 flex-shrink-0 bg-white">
-                <button onClick={() => intentarCerrarModal()} className="px-4 py-2.5 border border-slate-200 rounded-[9px] text-[13px] font-medium text-slate-600 hover:border-slate-300">Cancelar</button>
-                <button onClick={guardarCliente} disabled={saving}
-                  className="px-5 py-2.5 bg-[#D81B43] text-white rounded-[9px] text-[13px] font-semibold hover:bg-[#B0172F] disabled:opacity-50">
-                  {saving ? 'Guardando...' : form.id ? 'Guardar cambios' : 'Crear cliente'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </>
+        <Modal onCerrar={intentarCerrarModal} titulo={form.id ? 'Editar cliente' : 'Nuevo cliente'} z="z-[60]" bloqueado={saving}
+          pie={<>
+            <button onClick={intentarCerrarModal} className={ui.btnSecundario}>Cancelar</button>
+            <button onClick={guardarCliente} disabled={saving} className={ui.btnPrimario}>
+              {saving ? 'Guardando...' : form.id ? 'Guardar cambios' : 'Crear cliente'}
+            </button>
+          </>}>
+              {camposCliente}
+        </Modal>
       )}
 
       {/* ── MODAL CREAR / EDITAR PACIENTE ── */}
       {modalPaciente && (
-        <>
-          <div className="fixed inset-0 bg-black/40 z-40 backdrop-blur-sm" onClick={() => intentarCerrarModal()} />
-          <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center p-0 md:p-4">
-            <div className="bg-white rounded-t-2xl md:rounded-2xl w-full max-w-[560px] max-h-[calc(100vh-2rem)] flex flex-col shadow-2xl overflow-hidden"
-              onClick={e => e.stopPropagation()}>
-              <div className="px-6 py-4 border-b flex items-center justify-between flex-shrink-0">
-                <h3 className="text-[16px] font-bold text-slate-800">{formPaciente.id ? 'Editar paciente' : 'Nuevo paciente'}</h3>
-                <button onClick={() => intentarCerrarModal()} className="text-slate-400 hover:text-slate-600 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100"><X size={16} /></button>
-              </div>
-
-              <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4" onChange={() => setFormDirty(true)}>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className={labelCls}>Nombre <span className="text-[#D81B43]">*</span></label>
-                    <input value={formPaciente.nombre || ''} onChange={e => setFormPaciente(f => ({ ...f, nombre: e.target.value }))}
-                      placeholder="Nombre completo" className={inputCls} />
-                  </div>
-                  <div>
-                    <label className={labelCls}>Cédula</label>
-                    <input value={formPaciente.cedula || ''}
-                      onChange={e => setFormPaciente(f => ({ ...f, cedula: e.target.value.replace(/[^0-9]/g, '') }))}
-                      placeholder="1234567890" inputMode="numeric" className={inputCls} />
-                  </div>
-                </div>
-
-                <div>
-                  <label className={labelCls}>Dirección <span className="text-[#D81B43]">*</span></label>
-                  <input value={formPaciente.direccion || ''} onChange={e => setFormPaciente(f => ({ ...f, direccion: e.target.value }))}
-                    placeholder="Calle 10 # 5-20" className={inputCls} />
-                </div>
-
-                <div>
-                  <label className={labelCls}>Ciudad</label>
-                  <input value={formPaciente.ciudad || ''} onChange={e => setFormPaciente(f => ({ ...f, ciudad: e.target.value }))}
-                    placeholder="Valledupar" className={inputCls} />
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className={labelCls}>Teléfono</label>
-                    <div className="flex">
-                      <span className="inline-flex items-center px-3 border border-r-0 border-slate-200 rounded-l-[9px] text-[13px] text-slate-500 bg-slate-50 select-none whitespace-nowrap">+57</span>
-                      <input value={formPaciente.telefono || ''}
-                        onChange={e => setFormPaciente(f => ({ ...f, telefono: e.target.value.replace(/\D/g, '').slice(0, 12) }))}
-                        placeholder="3001234567" inputMode="numeric"
-                        className={`${inputCls} rounded-l-none border-l-0`} />
-                    </div>
-                  </div>
-                  <div>
-                    <label className={labelCls}>Correo</label>
-                    <input value={formPaciente.correo || ''} onChange={e => setFormPaciente(f => ({ ...f, correo: e.target.value }))}
-                      type="email" placeholder="correo@ejemplo.com"
-                      className={inputCls + (formPaciente.correo && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formPaciente.correo.trim()) ? ' !border-red-300 focus:!border-red-400' : '')} />
-                    {formPaciente.correo && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formPaciente.correo.trim()) && (
-                      <p className="text-[11px] text-red-400 mt-1">Formato inválido</p>
-                    )}
-                  </div>
-                </div>
-
-                {!formPaciente.id && (
-                  <p className="text-[11.5px] text-slate-400">
-                    También puedes registrar pacientes al crear un préstamo, desde el paso de datos del paciente.
-                  </p>
-                )}
-              </div>
-
-              <div className="px-6 py-4 border-t border-slate-200 flex justify-end gap-2 flex-shrink-0 bg-white">
-                <button onClick={() => intentarCerrarModal()} className="px-4 py-2.5 border border-slate-200 rounded-[9px] text-[13px] font-medium text-slate-600 hover:border-slate-300">Cancelar</button>
-                <button onClick={guardarPaciente} disabled={saving}
-                  className="px-5 py-2.5 bg-[#D81B43] text-white rounded-[9px] text-[13px] font-semibold hover:bg-[#B0172F] disabled:opacity-50">
-                  {saving ? 'Guardando...' : formPaciente.id ? 'Guardar cambios' : 'Crear paciente'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </>
+        <Modal onCerrar={intentarCerrarModal} titulo={formPaciente.id ? 'Editar paciente' : 'Nuevo paciente'} z="z-[60]" bloqueado={saving}
+          pie={<>
+            <button onClick={intentarCerrarModal} className={ui.btnSecundario}>Cancelar</button>
+            <button onClick={guardarPaciente} disabled={saving} className={ui.btnPrimario}>
+              {saving ? 'Guardando...' : formPaciente.id ? 'Guardar cambios' : 'Crear paciente'}
+            </button>
+          </>}>
+              {camposPaciente}
+        </Modal>
       )}
 
       <ConfirmDialog
@@ -1818,7 +1683,7 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
       />
 
       {toast && (
-        <div className={`fixed bottom-28 md:bottom-6 right-4 md:right-6 z-[70] px-4 py-3 rounded-[10px] text-[13px] font-medium text-white shadow-lg ${toast.tipo === 'error' ? 'bg-red-500' : 'bg-[#0F7B55]'}`}>
+        <div className={`${ui.toast} ${toast.tipo === 'error' ? 'bg-red-500' : 'bg-[#0F7B55]'}`}>
           {toast.msg}
         </div>
       )}

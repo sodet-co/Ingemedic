@@ -7,20 +7,21 @@ import LimpiarFiltros from '@/components/ui/LimpiarFiltros'
 import Paginador from '@/components/ui/Paginador'
 import { usePaginacion } from '@/hooks/usePaginacion'
 import { formatear, paraGuardar, hoyBogota } from '@/lib/fechas'
-import BuzonNovedades from '@/components/layout/BuzonNovedades'
+import EncabezadoModulo from '@/components/ui/EncabezadoModulo'
+import { ui } from '@/lib/ui'
 import { describirBitacora } from '@/lib/bitacora-texto'
 
 const ACCION_STYLES = {
   'crear': { bg: '#ECFDF5', color: '#0F7B55', label: 'CREACIÓN' },
   'editar': { bg: '#E8F7FB', color: '#0E86A0', label: 'EDICIÓN' },
-  'eliminar': { bg: '#FEF2F2', color: '#C0392B', label: 'ELIMINACIÓN' },
+  'eliminar': { bg: '#FEF2F2', color: '#D81B43', label: 'ELIMINACIÓN' },
   'login': { bg: '#F5F3FF', color: '#6D28D9', label: 'ACCESO' },
   'logout': { bg: '#F1F5F9', color: '#64748B', label: 'SALIDA' },
   'activar': { bg: '#ECFDF5', color: '#0F7B55', label: 'ACTIVACIÓN' },
-  'desactivar': { bg: '#FEF2F2', color: '#C0392B', label: 'DESACTIVACIÓN' },
+  'desactivar': { bg: '#FEF2F2', color: '#D81B43', label: 'DESACTIVACIÓN' },
   'cerrar': { bg: '#FFFBEB', color: '#B45309', label: 'CIERRE' },
   'avanzar': { bg: '#E8F7FB', color: '#0E86A0', label: 'AVANCE' },
-  'cancelar': { bg: '#FEF2F2', color: '#C0392B', label: 'CANCELACIÓN' },
+  'cancelar': { bg: '#FEF2F2', color: '#D81B43', label: 'CANCELACIÓN' },
 }
 
 const MODULO_LABELS = {
@@ -115,33 +116,21 @@ export default function BitacoraClient({ registrosIniciales: registrosCrudos, no
     URL.revokeObjectURL(a.href)
   }
 
-  const selectCls = 'px-3 py-2 border border-slate-200 rounded-[9px] text-[13px] outline-none focus:border-[#2EB5D4] bg-white text-slate-600'
+  const selectCls = 'h-[38px] px-3 border border-slate-200 rounded-[9px] text-[13px] outline-none focus:border-[#D81B43] bg-white text-slate-600'
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      {/* Topbar */}
-      <div className="h-14 md:h-16 bg-white border-b border-slate-200 flex items-center px-4 md:px-7 flex-shrink-0">
-        <div>
-          <div className="text-[18px] font-bold text-[#1B3A6B]">Bitácora</div>
-          <div className="text-[12px] text-slate-400 mt-0.5">Registro de actividad del sistema</div>
-        </div>
-        <div className="ml-auto flex items-center gap-2">
-          <BuzonNovedades />
-          <button onClick={exportarCSV}
-            className="flex items-center gap-1.5 px-4 py-2 bg-[#1B3A6B] text-white text-[13px] font-semibold rounded-[9px] hover:bg-[#1E4D8C] transition-colors">
-            <Download size={14} /> Exportar CSV
-          </button>
-        </div>
-      </div>
+      <EncabezadoModulo titulo="Bitácora" subtitulo="Registro de actividad del sistema" ayuda="bitacora"
+        acciones={<button onClick={exportarCSV} className={`${ui.btnSecundario} max-md:hidden`}><Download size={14} /> Exportar CSV</button>} />
 
-      <div className="flex-1 overflow-hidden flex flex-col p-3 md:p-6 gap-3 md:gap-4 pb-28 md:pb-6">
+      <div className="flex-1 overflow-hidden flex flex-col p-3 md:p-6 gap-3 md:gap-4">
         {/* Filtros */}
         <div className="bg-white border border-slate-200 rounded-xl p-4 flex items-center gap-3 flex-wrap flex-shrink-0 shadow-sm">
           <div className="relative flex-1 min-w-[160px] md:max-w-[280px]">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input value={search} onChange={e => setSearch(e.target.value)}
               placeholder="Buscar acción, usuario, entidad..."
-              className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-[9px] text-[13px] outline-none focus:border-[#2EB5D4] bg-slate-50" />
+              className="w-full pl-9 pr-4 h-[38px] border border-slate-200 rounded-[9px] text-[13px] text-slate-800 bg-white outline-none focus:border-[#D81B43] focus:ring-2 focus:ring-[#D81B43]/10 placeholder:text-slate-400" />
           </div>
 
           <select value={filtroModulo} onChange={e => setFiltroModulo(e.target.value)} className={selectCls}>
@@ -157,10 +146,10 @@ export default function BitacoraClient({ registrosIniciales: registrosCrudos, no
           <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
             <span className="text-[12px] text-slate-500 font-medium">Desde</span>
             <input type="date" value={desde} onChange={e => setDesde(e.target.value)}
-              className="px-3 py-2 border border-slate-200 rounded-[9px] text-[13px] outline-none focus:border-[#2EB5D4] bg-white" />
+              className="px-3 py-2 border border-slate-200 rounded-[9px] text-[13px] outline-none focus:border-[#D81B43] bg-white" />
             <span className="text-[12px] text-slate-500 font-medium">Hasta</span>
             <input type="date" value={hasta} onChange={e => setHasta(e.target.value)}
-              className="px-3 py-2 border border-slate-200 rounded-[9px] text-[13px] outline-none focus:border-[#2EB5D4] bg-white" />
+              className="px-3 py-2 border border-slate-200 rounded-[9px] text-[13px] outline-none focus:border-[#D81B43] bg-white" />
           </div>
 
           <LimpiarFiltros activo={!!(filtroModulo || filtroAccion || desde || hasta || search)}
@@ -173,7 +162,7 @@ export default function BitacoraClient({ registrosIniciales: registrosCrudos, no
             { label: 'Total registros', value: filtrados.length, color: '#1B3A6B' },
             { label: 'Creaciones', value: filtrados.filter(r => r.accion === 'crear').length, color: '#0F7B55' },
             { label: 'Ediciones', value: filtrados.filter(r => r.accion === 'editar').length, color: '#0E86A0' },
-            { label: 'Eliminaciones', value: filtrados.filter(r => r.accion === 'eliminar').length, color: '#C0392B' },
+            { label: 'Eliminaciones', value: filtrados.filter(r => r.accion === 'eliminar').length, color: '#D81B43' },
           ].map(s => (
             <div key={s.label} className="bg-white rounded-xl border border-slate-200 p-3 shadow-sm">
               <div className="text-xl font-extrabold tabular-nums" style={{ color: s.color }}>{s.value}</div>

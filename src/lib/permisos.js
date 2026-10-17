@@ -17,7 +17,6 @@ export const MODULOS_RUTA = [
   { modulo: 'ordenes_servicio',     ruta: '/ordenes' },
   { modulo: 'clientes',             ruta: '/clientes' },
   { modulo: 'mantenimientos',       ruta: '/mantenimientos' },
-  { modulo: 'servicios_prestados',  ruta: '/servicios' },
   { modulo: 'bitacora',             ruta: '/bitacora' },
   { modulo: 'configuracion',        ruta: '/configuracion' },
 ]
@@ -31,7 +30,6 @@ export const MODULOS_PRINCIPALES = [
   { modulo: 'ordenes_servicio',    label: 'Préstamos' },
   { modulo: 'clientes',            label: 'Clientes' },
   { modulo: 'mantenimientos',      label: 'Mantenimientos' },
-  { modulo: 'servicios_prestados', label: 'Servicios prestados' },
   { modulo: 'bitacora',            label: 'Bitácora' },
   { modulo: 'configuracion',       label: 'Configuración (módulo completo)' },
 ]
@@ -41,6 +39,7 @@ export const MODULOS_PRINCIPALES = [
 export const MODULOS_CONFIGURACION = [
   { modulo: 'configuracion.usuarios',     label: 'Usuarios' },
   { modulo: 'configuracion.roles',        label: 'Roles y permisos' },
+  { modulo: 'configuracion.accesos',      label: 'Acceso de clientes al portal' },
   { modulo: 'configuracion.categorias',   label: 'Categorías' },
   { modulo: 'configuracion.tipos',        label: 'Tipos de equipo' },
   { modulo: 'configuracion.listas',       label: 'Listas de mantenimiento' },

@@ -22,7 +22,7 @@ function BuscadorCodigoMini({ valor, onChange, resultados, onSeleccionar }) {
         onChange={e => onChange(e.target.value)}
         onBlur={() => setTimeout(() => onChange(''), 200)}
         placeholder="Buscar equipo por código..."
-        className="w-full pl-8 pr-3 py-2 border border-slate-200 rounded-[9px] text-[13px] outline-none focus:border-[#D81B43]" />
+        className="w-full pl-9 pr-4 h-[38px] border border-slate-200 rounded-[9px] text-[13px] text-slate-800 bg-white outline-none focus:border-[#D81B43] focus:ring-2 focus:ring-[#D81B43]/10 placeholder:text-slate-400" />
       {resultados.length > 0 && (
         <div className="absolute z-20 left-0 top-full mt-1 w-full bg-white border border-slate-200 rounded-[9px] shadow-lg overflow-hidden max-h-[240px] overflow-y-auto">
           {resultados.slice(0, 8).map(eq => (

@@ -9,6 +9,7 @@ import { plantillasSugeridas } from '@/lib/actas/firmar'
 import ControlVigencia from '@/components/prestamos/ControlVigencia'
 import SelectorEquiposPrestamo from '@/components/prestamos/SelectorEquiposPrestamo'
 import ConfirmDialog from '@/components/ui/ConfirmDialog'
+import { ui } from '@/lib/ui'
 
 // Asistente de préstamo nuevo, un paso a la vez:
 //   1 Cliente y paciente · 2 Equipos · 3 Entrega · 4 Formatos y confirmación
@@ -537,7 +538,7 @@ export default function NuevoPrestamo({
                   ))}
                 </dl>
                 {f.modo === 'oficina' && (
-                  <div className="mt-4 px-3 py-2.5 bg-[#E8F7FB] rounded-[9px] text-[12.5px] text-[#0E7490]">Sin firma: los formatos quedan relacionados al préstamo y se descargan desde su detalle.</div>
+                  <div className="mt-4 px-3 py-2.5 bg-[#E8F7FB] rounded-[9px] text-[12.5px] text-[#0E7490]">Los formatos se descargan desde el detalle del préstamo.</div>
                 )}
               </section>
             </div>
@@ -563,16 +564,16 @@ export default function NuevoPrestamo({
           <div className="ml-auto flex gap-2 flex-shrink-0">
             {paso > 0 && (
               <button onClick={() => irA(paso - 1)} disabled={guardando}
-                className="px-4 py-2.5 border border-slate-200 rounded-[9px] text-[13px] font-medium text-slate-600 hover:border-slate-300">Atrás</button>
+                className={ui.btnSecundario}>Atrás</button>
             )}
             {paso < PASOS.length - 1 ? (
               <button onClick={() => irA(paso + 1)}
-                className="px-5 py-2.5 bg-[#1B3A6B] text-white rounded-[9px] text-[13px] font-semibold hover:bg-[#152d55]">
+                className={ui.btnAzul}>
                 Siguiente{paso === 1 && carrito.length > 0 ? ` (${carrito.length})` : ''} →
               </button>
             ) : (
               <button onClick={crear} disabled={guardando}
-                className="px-5 py-2.5 bg-[#D81B43] text-white rounded-[9px] text-[13px] font-semibold hover:bg-[#B0172F] disabled:opacity-50">
+                className={ui.btnPrimario}>
                 {guardando ? 'Creando…' : '✓ Crear préstamo'}
               </button>
             )}

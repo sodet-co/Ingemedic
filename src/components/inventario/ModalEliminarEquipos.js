@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { AlertTriangle, Loader2, X } from 'lucide-react'
 import { createClient } from '@/lib/supabase'
 import { revisarEliminacion, eliminarEquipos } from '@/lib/equipos'
+import { ui } from '@/lib/ui'
 
 // Confirmación para eliminar uno o varios equipos (una unidad, un tipo o una
 // categoría completa). Antes de dejar confirmar revisa qué se lleva por delante:
@@ -73,7 +74,7 @@ function Contenido({ titulo, descripcion, cargarEquipos, despues, onCancelar, on
       <div className="fixed inset-0 z-[60] flex items-end md:items-center justify-center p-0 md:p-4 pointer-events-none">
         <div className="pointer-events-auto bg-white rounded-t-2xl md:rounded-2xl w-full max-w-[480px] max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
           <div className="px-6 py-4 border-b flex items-center justify-between flex-shrink-0">
-            <h3 className="text-[15px] font-bold text-slate-800">{titulo}</h3>
+            <h3 className="text-[16px] font-bold text-slate-800">{titulo}</h3>
             <button onClick={onCancelar} disabled={eliminando} className="text-slate-400 hover:text-slate-600 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100"><X size={16} /></button>
           </div>
 
@@ -136,7 +137,7 @@ function Contenido({ titulo, descripcion, cargarEquipos, despues, onCancelar, on
 
           <div className="px-6 py-4 border-t border-slate-200 flex justify-end gap-2 flex-shrink-0"
             style={{ paddingBottom: 'max(16px, env(safe-area-inset-bottom, 16px))' }}>
-            <button onClick={onCancelar} disabled={eliminando} className="px-4 py-2.5 border border-slate-200 rounded-[9px] text-[13px] font-medium text-slate-600 hover:border-slate-300">Cancelar</button>
+            <button onClick={onCancelar} disabled={eliminando} className={ui.btnSecundario}>Cancelar</button>
             {!bloqueado && (
               <button onClick={confirmar} disabled={!puedeConfirmar}
                 className="min-w-[150px] px-5 py-2.5 bg-[#D81B43] text-white rounded-[9px] text-[13px] font-semibold hover:bg-[#B0172F] disabled:opacity-50 disabled:cursor-not-allowed tabular-nums">

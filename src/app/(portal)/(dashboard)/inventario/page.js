@@ -13,6 +13,7 @@ export default async function InventarioPage() {
     { data: tipos },
     equipos,
     { data: estados },
+    { data: actividad },
   ] = await Promise.all([
     supabase.from('categorias_equipo')
       .select('id, nombre, descripcion, imagen_url, atributos_extra')
@@ -24,6 +25,9 @@ export default async function InventarioPage() {
       .select('*, estado:estados_equipo(id, nombre), tipo_equipo:tipos_equipo(id, nombre, imagen_url, atributos, categoria_id), paciente_actual:pacientes(id, nombre, direccion, ciudad, telefono), cliente_actual:clientes(id, nombre)')
       .order('fecha_creacion', { ascending: false })),
     supabase.from('estados_equipo').select('*').order('nombre'),
+    // "Actividad reciente": los últimos movimientos del inventario en la bitácora
+    supabase.from('bitacora').select('id, fecha, accion, entidad, entidad_id, detalle, usuario:usuarios(nombre)')
+      .eq('modulo', 'inventario').order('fecha', { ascending: false }).limit(12),
   ])
 
   return (
@@ -32,6 +36,7 @@ export default async function InventarioPage() {
       tipos={tipos || []}
       equipos={equipos || []}
       estados={estados || []}
+      actividad={actividad || []}
     />
   )
 }

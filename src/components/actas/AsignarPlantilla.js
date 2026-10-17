@@ -1,6 +1,8 @@
 'use client'
 import { useMemo, useState } from 'react'
-import { X, Search, Globe } from 'lucide-react'
+import { Search, Globe } from 'lucide-react'
+import Modal from '@/components/ui/Modal'
+import { ui } from '@/lib/ui'
 import { createClient } from '@/lib/supabase'
 
 // A qué clientes se ofrece una plantilla al crear un préstamo.
@@ -45,17 +47,12 @@ export default function AsignarPlantilla({ plantilla, clientes, onCerrar, onGuar
   }
 
   return (
-    <>
-      <div className="fixed inset-0 bg-black/50 z-[60]" onClick={guardando ? undefined : onCerrar} />
-      <div className="fixed inset-x-0 bottom-0 h-[85vh] rounded-t-2xl md:inset-auto md:top-1/2 md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:h-auto md:max-h-[85vh] md:w-[520px] md:rounded-2xl bg-white z-[60] flex flex-col shadow-2xl overflow-hidden">
-        <div className="px-5 py-4 border-b flex items-start justify-between gap-3 flex-shrink-0">
-          <div className="min-w-0">
-            <div className="text-[15px] font-bold text-slate-800">Clientes de la plantilla</div>
-            <div className="text-[12px] text-slate-400 truncate">{plantilla.nombre}</div>
-          </div>
-          <button onClick={onCerrar} disabled={guardando} className="text-slate-400 hover:text-slate-600 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100 flex-shrink-0"><X size={16} /></button>
-        </div>
-        <div className="flex-1 min-h-0 overflow-y-auto p-5 space-y-4">
+    <Modal onCerrar={onCerrar} titulo="Clientes de la plantilla" subtitulo={plantilla.nombre} z="z-[60]" bloqueado={guardando}
+      pie={<>
+        <button onClick={onCerrar} disabled={guardando} className={ui.btnSecundario}>Cancelar</button>
+        <button onClick={guardar} disabled={guardando} className={ui.btnPrimario}>{guardando ? 'Guardando…' : 'Guardar'}</button>
+      </>}>
+        <div className="space-y-4">
           <label className={`flex items-start gap-3 p-3 rounded-[10px] border cursor-pointer ${general ? 'border-[#1B3A6B]/40 bg-[#1B3A6B]/[0.04]' : 'border-slate-200'}`}>
             <input type="checkbox" className="mt-0.5" checked={general} onChange={e => setGeneral(e.target.checked)} />
             <span>
@@ -65,8 +62,7 @@ export default function AsignarPlantilla({ plantilla, clientes, onCerrar, onGuar
           </label>
           <div>
             <div className="text-[11px] font-bold uppercase tracking-[0.07em] text-slate-500 mb-1.5">Clientes que la usan ({elegidos.length})</div>
-            <div className="text-[12px] text-slate-400 mb-2">A estos clientes se les ofrece y viene marcada al crear el préstamo.</div>
-            <div className="relative mb-2">
+                        <div className="relative mb-2">
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
               <input value={buscar} onChange={e => setBuscar(e.target.value)} placeholder="Buscar cliente…"
                 className="w-full pl-9 pr-3 py-2.5 border border-slate-200 rounded-[9px] text-[16px] md:text-[13.5px] outline-none focus:border-[#D81B43]" />
@@ -82,13 +78,6 @@ export default function AsignarPlantilla({ plantilla, clientes, onCerrar, onGuar
           </div>
           {error && <div className="px-3 py-2.5 bg-red-50 border border-red-200 rounded-[8px] text-[12.5px] text-red-700">{error}</div>}
         </div>
-        <div className="px-5 py-3.5 border-t flex justify-end gap-2 flex-shrink-0" style={{ paddingBottom: 'max(14px, env(safe-area-inset-bottom, 14px))' }}>
-          <button onClick={onCerrar} disabled={guardando} className="px-4 py-2.5 border border-slate-200 rounded-[9px] text-[13px] font-medium text-slate-600">Cancelar</button>
-          <button onClick={guardar} disabled={guardando} className="px-5 py-2.5 bg-[#D81B43] text-white rounded-[9px] text-[13px] font-semibold hover:bg-[#B0172F] disabled:opacity-50">
-            {guardando ? 'Guardando…' : 'Guardar'}
-          </button>
-        </div>
-      </div>
-    </>
+    </Modal>
   )
 }

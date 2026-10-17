@@ -11,7 +11,7 @@ import {
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 import EntregaEnCursoBanner from '@/components/dashboard/EntregaEnCursoBanner'
 import PanelAtencion from '@/components/dashboard/PanelAtencion'
-import BuzonNovedades from '@/components/layout/BuzonNovedades'
+import EncabezadoModulo from '@/components/ui/EncabezadoModulo'
 import { formatear } from '@/lib/fechas'
 import { COLOR_ESCALA_MUNICIPIOS, normalizarNombreMunicipio } from '@/lib/municipios'
 
@@ -22,7 +22,7 @@ const COLORES_DONA = ['#1B3A6B', '#D81B43', '#2EB5D4', '#0F7B55', '#B45309', '#6
 const ESTADO_EQUIPO_STYLES = {
   'Disponible': { bg: '#ECFDF5', color: '#0F7B55', dot: '#0F7B55' },
   'Reservado': { bg: '#FFFBEB', color: '#B45309', dot: '#F59E0B' },
-  'En préstamo': { bg: '#E8F7FB', color: '#0E86A0', dot: '#25A9E0' },
+  'En préstamo': { bg: '#E8F7FB', color: '#0E86A0', dot: '#2EB5D4' },
   'En mantenimiento': { bg: '#FFFBEB', color: '#B45309', dot: '#F59E0B' },
   'Con novedad': { bg: '#FEF2F2', color: '#D81B43', dot: '#D81B43' },
   'Baja': { bg: '#F1F5F9', color: '#64748B', dot: '#94A3B8' },
@@ -120,20 +120,10 @@ export default function DashboardClient({
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      {/* Topbar */}
-      <div className="h-14 md:h-16 md:bg-white md:border-b md:border-slate-200 flex items-center px-4 md:px-7 flex-shrink-0">
-        <div>
-          <div className="text-[18px] font-bold text-slate-800">Dashboard</div>
-          <div className="text-[12px] text-slate-400 mt-0.5">
-            {new Date().toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
-          </div>
-        </div>
-        <div className="ml-auto flex items-center gap-2">
-          <BuzonNovedades />
-        </div>
-      </div>
+      <EncabezadoModulo titulo="Dashboard" ayuda="dashboard"
+        subtitulo={new Date().toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })} />
 
-      <div className="flex-1 overflow-y-auto p-3 md:p-6 pb-28 md:pb-6 space-y-5">
+      <div className="flex-1 overflow-y-auto p-3 md:p-6 pb-20 md:pb-6 space-y-5">
 
         {/* ── BANNER ENTREGA EN CURSO — solo aparece si hay entregas activas, en cualquier tamaño de pantalla ── */}
         <EntregaEnCursoBanner />

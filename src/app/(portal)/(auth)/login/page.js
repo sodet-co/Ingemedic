@@ -93,7 +93,7 @@ export default function LoginPage() {
 
     if (params.get('expirada')) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      setError('Tu sesión venció tras 8 horas — ingresa de nuevo.')
+      setError('Tu sesión expiró. Vuelve a ingresar.')
     } else if (params.get('inactivo')) {
       setError(MENSAJE_INACTIVO)
     }

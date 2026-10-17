@@ -6,6 +6,7 @@ import { registrarBitacora } from '@/lib/bitacora'
 import { formatear, soloDia, hoyBogota, sumarDias } from '@/lib/fechas'
 import { crearEntrega, finalizarEntrega } from '@/lib/entregas'
 import FirmaActas from '@/components/actas/FirmaActas'
+import Ayuda from '@/components/ui/Ayuda'
 import EntregaEnCurso, { RutaAnimada } from '@/components/entregas/EntregaEnCurso'
 import ConfirmDialog from '@/components/ui/ConfirmDialog'
 import {
@@ -172,8 +173,13 @@ export default function EntregasRepartidorClient({ nombreRepartidor = '', entreg
     <div className="min-h-full bg-[#F8FAFC]">
       {/* Saludo */}
       <div className="px-4 pt-4">
-        <div className="text-[20px] font-bold text-slate-800 leading-tight">Hola{primerNombre ? `, ${primerNombre}` : ''} 👋</div>
-        <div className="text-[13px] text-slate-400">{fechaHoyLarga}</div>
+        <div className="flex items-start gap-2">
+          <div className="min-w-0 flex-1">
+            <div className="text-[20px] font-bold text-slate-800 leading-tight">Hola{primerNombre ? `, ${primerNombre}` : ''} 👋</div>
+            <div className="text-[13px] text-slate-400">{fechaHoyLarga}</div>
+          </div>
+          <Ayuda modulo="repartidor" />
+        </div>
 
         <div className="flex bg-slate-200/60 rounded-[10px] p-1 gap-1 mt-4">
           {[['activas', `Pendientes (${totalActivas})`], ['completadas', `Completadas (${completadas.length})`]].map(([v, l]) => (

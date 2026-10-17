@@ -16,7 +16,7 @@ export const PORTAL_URL = 'https://portal.ingemedic.com.co'
 // al panel, va aquí también, o el middleware lo tratará como página pública.
 export const RUTAS_PORTAL = [
   'login', 'sin-acceso', 'dashboard', 'entregas', 'inventario', 'ordenes',
-  'clientes', 'mantenimientos', 'servicios', 'bitacora', 'configuracion',
+  'clientes', 'mantenimientos', 'bitacora', 'configuracion',
   'repartidor-preferencias', 'cliente', 'sitio-web',
 ]
 

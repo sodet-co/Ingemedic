@@ -4,7 +4,7 @@ import { Search, Check, ArrowRight, ArrowDown, ArrowLeft, X, PackageSearch, Load
 import { hoyBogota } from '@/lib/fechas'
 import { IconoTipo } from '@/components/inventario/IconoTipo'
 
-const inputCls = 'w-full px-3.5 py-2.5 border border-slate-200 rounded-[10px] text-[14px] text-slate-800 outline-none focus:border-[#2EB5D4] focus:ring-4 focus:ring-[#2EB5D4]/15 bg-white transition-shadow placeholder:text-slate-400'
+const inputCls = 'w-full px-3.5 py-2.5 border border-slate-200 rounded-[10px] text-[14px] text-slate-800 outline-none focus:border-[#D81B43] focus:ring-4 focus:ring-[#2EB5D4]/15 bg-white transition-shadow placeholder:text-slate-400'
 const labelCls = 'block text-[11px] font-bold uppercase tracking-[0.07em] text-slate-500 mb-1.5'
 const MAX_VISIBLES = 90 // con tipos de cientos de unidades, se pide afinar la búsqueda
 
@@ -151,8 +151,8 @@ export default function ModalCambioEquipo({ equipoActual, disponibles, categoria
           {/* Encabezado */}
           <div className="bg-white px-5 md:px-7 py-4 border-b border-slate-200 flex items-start justify-between gap-4 flex-shrink-0">
             <div className="min-w-0">
-              <h3 id="cambio-equipo-titulo" className="text-[18px] font-bold text-[#1B3A6B]">Cambiar equipo</h3>
-              <p className="text-[13px] text-slate-500 mt-0.5">
+              <h3 id="cambio-equipo-titulo" className="text-[16px] font-bold text-slate-800 leading-tight">Cambiar equipo</h3>
+              <p className="text-[12.5px] text-slate-400 mt-0.5">
                 {entregada
                   ? 'El equipo actual queda como devuelto y el nuevo entra al préstamo con el mismo cliente y paciente.'
                   : 'El préstamo aún no se entrega: el equipo se reemplaza directamente y el actual vuelve a Disponible.'}

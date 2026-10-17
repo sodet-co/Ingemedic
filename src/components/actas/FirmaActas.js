@@ -6,6 +6,7 @@ import { cargarParaFirma, guardarActas } from '@/lib/actas/firmar'
 import { construirContexto } from '@/lib/actas/contexto'
 import VistaActa from '@/components/actas/VistaActa'
 import FirmaPad from '@/components/entregas/FirmaPad'
+import { ui } from '@/lib/ui'
 
 const inputCls = 'w-full px-3 py-2.5 border border-slate-200 rounded-[9px] text-[16px] md:text-[13.5px] text-slate-800 outline-none focus:border-[#D81B43] bg-white placeholder:text-slate-400'
 const labelCls = 'block text-[11px] font-bold uppercase tracking-[0.07em] text-slate-500 mb-1.5'
@@ -312,14 +313,14 @@ export default function FirmaActas({ ordenId, entregaId = null, titulo = 'Firmar
         {base && (
           <div className="px-5 py-3.5 border-t border-slate-200 flex justify-end gap-2 flex-shrink-0"
             style={{ paddingBottom: 'max(14px, env(safe-area-inset-bottom, 14px))' }}>
-            <button onClick={onCancelar} disabled={guardando} className="px-4 py-2.5 border border-slate-200 rounded-[9px] text-[13px] font-medium text-slate-600 hover:border-slate-300">Cancelar</button>
+            <button onClick={onCancelar} disabled={guardando} className={ui.btnSecundario}>Cancelar</button>
             {paso < pasoFirmaEntrega
               ? <button onClick={siguiente} disabled={paso === pasoFirma && !firmas.recibe}
-                  className="px-5 py-2.5 bg-[#1B3A6B] text-white rounded-[9px] text-[13px] font-semibold hover:bg-[#152d55] disabled:opacity-50">
+                  className={ui.btnAzul}>
                   {paso === pasoFirma ? 'Listo, sigue quien entrega →' : 'Siguiente →'}
                 </button>
               : <button onClick={confirmar} disabled={guardando || !firmas.recibe || !firmas.entrega}
-                  className="px-5 py-2.5 bg-[#D81B43] text-white rounded-[9px] text-[13px] font-semibold hover:bg-[#B0172F] disabled:opacity-50">
+                  className={ui.btnPrimario}>
                   {guardando ? 'Guardando…' : '✓ Confirmar y firmar'}
                 </button>}
           </div>

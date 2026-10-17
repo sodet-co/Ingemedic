@@ -1,5 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
+import EncabezadoModulo from '@/components/ui/EncabezadoModulo'
+import { ui } from '@/lib/ui'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { MessageCircle, Send, RefreshCw, ExternalLink } from 'lucide-react'
@@ -70,30 +72,24 @@ export default function SitioWebClient({ datos }) {
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      {/* Topbar */}
-      <div className="h-14 md:h-16 md:bg-white md:border-b md:border-slate-200 flex items-center px-4 md:px-7 flex-shrink-0">
-        <div>
-          <div className="text-[18px] font-bold text-slate-800">Página web</div>
-          <div className="text-[12px] text-slate-400 mt-0.5">Interés que genera el sitio público · últimos {datos.dias} días</div>
-        </div>
-        <div className="ml-auto flex items-center gap-2">
+      <EncabezadoModulo titulo="Página web" subtitulo={`Interés que genera el sitio público · últimos ${datos.dias} días`}
+        acciones={<>
           <span className="flex items-center gap-1.5 text-[11.5px] font-semibold text-slate-500 mr-1"
             title={enVivo ? 'Los datos se actualizan solos' : 'Sin conexión en vivo: usa Actualizar'}>
             <span className={`w-2 h-2 rounded-full ${enVivo ? 'bg-[#0F7B55] animate-pulse' : 'bg-slate-300'}`} />
             {enVivo ? 'En vivo' : 'Sin conexión'}
           </span>
           <a href={SITIO_URL} target="_blank" rel="noopener noreferrer"
-            className="hidden md:flex items-center gap-1.5 px-3 py-2 text-[12.5px] font-semibold text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors">
+            className={`${ui.btnSecundario} max-md:hidden`}>
             <ExternalLink size={13} /> Ver sitio
           </a>
           <button onClick={() => router.refresh()}
-            className="flex items-center gap-1.5 px-3 py-2 text-[12.5px] font-semibold text-white bg-[#1B3A6B] rounded-lg hover:bg-[#152E55] transition-colors">
+            className={ui.btnAzul}>
             <RefreshCw size={13} /> Actualizar
           </button>
-        </div>
-      </div>
+        </>} />
 
-      <div className="flex-1 overflow-y-auto p-3 md:p-6 pb-28 md:pb-6 space-y-5">
+      <div className="flex-1 overflow-y-auto p-3 md:p-6 pb-20 md:pb-6 space-y-5">
 
         {datos.error && (
           <div className="bg-[#FFFBEB] border border-[#F59E0B]/40 text-[#B45309] rounded-xl px-4 py-3 text-[12.5px]">

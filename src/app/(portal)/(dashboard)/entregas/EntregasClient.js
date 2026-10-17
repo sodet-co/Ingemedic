@@ -9,11 +9,13 @@ import {
   ArrowUpRight, ArrowDownLeft, Filter, Calendar, Lock
 } from 'lucide-react'
 import LimpiarFiltros from '@/components/ui/LimpiarFiltros'
-import BuzonNovedades from '@/components/layout/BuzonNovedades'
+import EncabezadoModulo from '@/components/ui/EncabezadoModulo'
+import Modal from '@/components/ui/Modal'
+import { ui } from '@/lib/ui'
 import { formatear, soloDia, hoyBogota } from '@/lib/fechas'
 import FirmaActas from '@/components/actas/FirmaActas'
 import ActasPrestamo from '@/components/actas/ActasPrestamo'
-import VentanaDetalle, { Columnas } from '@/components/ui/VentanaDetalle'
+import VentanaDetalle, { Columnas, EncabezadoDetalle } from '@/components/ui/VentanaDetalle'
 import EntregaEnCurso, { RutaAnimada } from '@/components/entregas/EntregaEnCurso'
 import { descargarActasPDF } from '@/lib/actas/pdf'
 import { crearEntrega, finalizarEntrega } from '@/lib/entregas'
@@ -67,21 +69,21 @@ function TimelineHorizontal({ estadoNombre, inicio, fin, horaProg, alerta }) {
           <div key={paso} className="flex-1 flex flex-col items-center relative">
             {i > 0 && (
               <div className={`absolute top-[11px] right-1/2 w-full h-0.5 ${
-                st === 'done' ? 'bg-[#25A9E0]' : isAlerta ? 'bg-[#D81B43]' : 'bg-slate-200'
+                st === 'done' ? 'bg-[#2EB5D4]' : isAlerta ? 'bg-[#D81B43]' : 'bg-slate-200'
               }`} />
             )}
             <div className={`w-6 h-6 rounded-full z-10 flex items-center justify-center flex-shrink-0 border-2 transition-all ${
-              st === 'done'    ? 'bg-[#25A9E0] border-[#25A9E0]' :
+              st === 'done'    ? 'bg-[#2EB5D4] border-[#2EB5D4]' :
               isAlerta         ? 'bg-[#D81B43] border-[#D81B43] animate-pulse' :
-              st === 'current' ? 'bg-white border-[#25A9E0] shadow-[0_0_0_3px_rgba(37,169,224,0.18)]' :
+              st === 'current' ? 'bg-white border-[#2EB5D4] shadow-[0_0_0_3px_rgba(37,169,224,0.18)]' :
               'bg-white border-slate-200'
             }`}>
               {st === 'done' && <CheckCircle2 size={11} className="text-white" />}
-              {st === 'current' && !isAlerta && <div className="w-2 h-2 bg-[#25A9E0] rounded-full" />}
+              {st === 'current' && !isAlerta && <div className="w-2 h-2 bg-[#2EB5D4] rounded-full" />}
               {isAlerta && <AlertTriangle size={10} className="text-white" />}
             </div>
             <div className={`text-[9px] font-semibold mt-1 text-center leading-tight ${
-              st === 'done' ? 'text-[#25A9E0]' : isAlerta ? 'text-[#D81B43]' : st === 'current' ? 'text-slate-700 font-bold' : 'text-slate-400'
+              st === 'done' ? 'text-[#2EB5D4]' : isAlerta ? 'text-[#D81B43]' : st === 'current' ? 'text-slate-700 font-bold' : 'text-slate-400'
             }`}>{paso}</div>
             <div className="text-[9px] text-slate-400 mt-0.5 text-center">{horas[i]}</div>
           </div>
@@ -603,31 +605,22 @@ export default function EntregasClient({ entregasIniciales, ordenesEnReparto, es
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      {/* Topbar */}
-      <div className="h-14 md:h-16 md:bg-white md:border-b md:border-slate-200 flex items-center px-4 md:px-7 flex-shrink-0">
-        <div>
-          <div className="text-[18px] font-bold text-slate-800">Entregas</div>
-          <div className="text-[12px] text-slate-400 mt-0.5">Rutas del día · En tiempo real</div>
-        </div>
-        <div className="ml-auto flex items-center gap-2">
-          <BuzonNovedades />
-          {ordenes.length > 0 && (
-            <div className="flex items-center gap-2 px-3 py-1.5 bg-[#FFFBEB] border border-[#F59E0B]/30 rounded-full">
-              <span className="w-2 h-2 rounded-full bg-[#F59E0B] animate-pulse" />
-              <span className="text-[12px] font-semibold text-[#B45309]">{ordenes.length} pendiente{ordenes.length !== 1 ? 's' : ''}</span>
-            </div>
-          )}
-        </div>
-      </div>
+      <EncabezadoModulo titulo="Entregas" subtitulo="Rutas del día · en tiempo real" ayuda="entregas"
+        acciones={ordenes.length > 0 && (
+          <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-amber-50 border border-[#F59E0B]/30 rounded-full">
+            <span className="w-2 h-2 rounded-full bg-[#F59E0B] animate-pulse" />
+            <span className="text-[12px] font-semibold text-[#B45309]">{ordenes.length} por iniciar</span>
+          </div>
+        )} />
 
-      <div className="flex-1 overflow-hidden flex flex-col p-3 md:p-6 pb-28 md:pb-6 gap-4">
+      <div className="flex-1 overflow-hidden flex flex-col p-3 md:p-6 gap-4">
         {/* Buscador + filtros */}
         <div className="flex items-center gap-3 flex-shrink-0 flex-wrap">
           <div className="relative flex-1 md:max-w-[300px]">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input value={search} onChange={e => setSearch(e.target.value)}
               placeholder="Buscar por código, cliente..."
-              className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-[9px] text-[13px] outline-none focus:border-[#D81B43] bg-white" />
+              className="w-full pl-9 pr-4 h-[38px] border border-slate-200 rounded-[9px] text-[13px] text-slate-800 bg-white outline-none focus:border-[#D81B43] focus:ring-2 focus:ring-[#D81B43]/10 placeholder:text-slate-400" />
           </div>
 
           <button onClick={() => setShowFiltros(v => !v)}
@@ -745,25 +738,26 @@ export default function EntregasClient({ entregasIniciales, ordenesEnReparto, es
         </div>
       </div>
 
-      {/* ── MODAL DETALLE ORDEN (antes de iniciar) ── */}
+      {/* ── DETALLE DE LA ORDEN (antes de iniciar) ── */}
       {modalOrden && (
-        <>
-          <div className="fixed inset-0 bg-black/40 z-40 backdrop-blur-sm" onClick={() => setModalOrden(null)} />
-          <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center p-0 md:p-4">
-            <div className="bg-white rounded-t-2xl md:rounded-2xl w-full max-w-[520px] max-h-[92dvh] md:max-h-[calc(100dvh-2rem)] flex flex-col shadow-2xl overflow-hidden"
-              onClick={e => e.stopPropagation()}>
-              <div className="px-6 py-4 border-b flex items-center justify-between flex-shrink-0 bg-[#D81B43]">
-                <div>
-                  <div className="text-[11px] text-white/60">Orden de servicio</div>
-                  <div className="text-[15px] font-bold text-white font-mono">{modalOrden.codigo}</div>
-                </div>
-                <button onClick={() => setModalOrden(null)} className="text-white/60 hover:text-white w-8 h-8 flex items-center justify-center rounded-lg bg-white/10 hover:bg-white/20">
-                  <X size={16} />
-                </button>
-              </div>
-              <div className="flex-1 overflow-y-auto divide-y divide-slate-100 pb-[calc(var(--mobile-nav-space,0px)+16px)] md:pb-0">
+        <Modal onCerrar={() => setModalOrden(null)} titulo={<span className="font-mono">{modalOrden.codigo}</span>} subtitulo="Préstamo a domicilio por iniciar"
+          icono={<Truck size={17} />} sinPadding
+          pie={<>
+                <button onClick={() => setModalOrden(null)} className={ui.btnSecundario}>{puedeIniciar ? 'Cancelar' : 'Cerrar'}</button>
+                {puedeIniciar ? (
+                  <button onClick={() => iniciarEntrega(modalOrden)} disabled={saving}
+                    className={ui.btnPrimario}>
+                    <Truck size={14} /> {saving ? 'Iniciando...' : 'Iniciar entrega'}
+                  </button>
+                ) : (
+                  <div className="mr-auto order-first flex items-center gap-2 text-[12px] text-slate-500">
+                    <Lock size={13} className="flex-shrink-0" /> La inicia el repartidor.
+                  </div>
+                )}
+          </>}>
+              <div className="divide-y divide-slate-100">
                 <div className="p-5">
-                  <div className="text-[9.5px] font-bold uppercase tracking-[0.12em] text-slate-400 mb-3">Cliente</div>
+                  <div className="text-[10.5px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-3">Cliente</div>
                   <div className="space-y-2">
                     {[
                       { icon: <User size={12} />,   label: 'Nombre',    value: modalOrden.cliente?.nombre },
@@ -778,7 +772,7 @@ export default function EntregasClient({ entregasIniciales, ordenesEnReparto, es
                   </div>
                 </div>
                 <div className="p-5">
-                  <div className="text-[9.5px] font-bold uppercase tracking-[0.12em] text-slate-400 mb-3">
+                  <div className="text-[10.5px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-3">
                     Equipos a entregar ({modalOrden.equipos?.length || 0})
                   </div>
                   <div className="space-y-2">
@@ -795,7 +789,7 @@ export default function EntregasClient({ entregasIniciales, ordenesEnReparto, es
                 </div>
                 {(modalOrden.plantillas?.length || 0) > 0 && (
                   <div className="p-5">
-                    <div className="text-[9.5px] font-bold uppercase tracking-[0.12em] text-slate-400 mb-3">
+                    <div className="text-[10.5px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-3">
                       Documentos a firmar ({modalOrden.plantillas.length})
                     </div>
                     <div className="space-y-2">
@@ -810,7 +804,7 @@ export default function EntregasClient({ entregasIniciales, ordenesEnReparto, es
                 )}
                 {modalOrden.observaciones && (
                   <div className="p-5">
-                    <div className="text-[9.5px] font-bold uppercase tracking-[0.12em] text-slate-400 mb-2">Observaciones</div>
+                    <div className="text-[10.5px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-2">Observaciones</div>
                     <div className="text-[13px] text-slate-600 italic">{modalOrden.observaciones}</div>
                   </div>
                 )}
@@ -822,45 +816,20 @@ export default function EntregasClient({ entregasIniciales, ordenesEnReparto, es
                   </div>
                 )}
               </div>
-              <div className="px-6 py-4 border-t border-slate-200 flex gap-2 flex-shrink-0 bg-white">
-                <button onClick={() => setModalOrden(null)} className="flex-1 py-2.5 border border-slate-200 rounded-[9px] text-[13px] font-medium text-slate-600 hover:border-slate-300">{puedeIniciar ? 'Cancelar' : 'Cerrar'}</button>
-                {puedeIniciar ? (
-                  <button onClick={() => iniciarEntrega(modalOrden)} disabled={saving}
-                    className="flex-1 py-2.5 bg-[#D81B43] text-white rounded-[9px] text-[13px] font-semibold hover:bg-[#B0172F] disabled:opacity-50 flex items-center justify-center gap-2">
-                    <Truck size={14} /> {saving ? 'Iniciando...' : 'Iniciar entrega'}
-                  </button>
-                ) : (
-                  <div className="flex-[2] flex items-center gap-2 px-3 py-2 rounded-[9px] bg-slate-50 text-[12px] text-slate-500">
-                    <Lock size={13} className="flex-shrink-0" /> La entrega la inicia el repartidor desde su celular.
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </>
+        </Modal>
       )}
 
       {/* ── DETALLE ENTREGA (ventana ancha; en celular, hoja desde abajo) ── */}
       {drawer && (
         <VentanaDetalle onCerrar={() => setDrawer(null)} z="z-30">
-            <div className="px-6 py-4 border-b flex items-start justify-between flex-shrink-0 bg-[#D81B43]">
-              <div>
-                <div className="text-[11px] text-white/60">Entrega · OS: {drawer.orden?.codigo}</div>
-                <div className="text-[15px] font-bold text-white font-mono">{drawer.codigo}</div>
-                <div className="text-[12px] text-white/60 mt-0.5">{drawer.cliente?.nombre}</div>
-              </div>
-              <div className="flex items-center gap-2">
-                {drawer.estado?.nombre === 'Completada' && (
-                  <button onClick={() => descargarActa(drawer)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-white/20 text-white text-[12px] font-semibold rounded-[7px] hover:bg-white/30">
-                    <FileText size={13} /> Acta PDF
-                  </button>
-                )}
-                <button onClick={() => setDrawer(null)} className="text-white/60 hover:text-white w-8 h-8 flex items-center justify-center rounded-lg bg-white/10 hover:bg-white/20">
-                  <X size={16} />
+            <EncabezadoDetalle icono={<Truck size={18} />} etiqueta={`Entrega · ${drawer.orden?.codigo || ''}`}
+              titulo={<span className="font-mono">{drawer.codigo}</span>} subtitulo={drawer.cliente?.nombre}
+              onCerrar={() => setDrawer(null)}
+              acciones={drawer.estado?.nombre === 'Completada' && (
+                <button onClick={() => descargarActa(drawer)} className={`${ui.btnSecundario} max-sm:hidden`}>
+                  <FileText size={13} /> Acta PDF
                 </button>
-              </div>
-            </div>
+              )} />
 
             <Columnas izquierda={<>
               {drawer.estado?.nombre === 'En progreso' && (
@@ -889,7 +858,7 @@ export default function EntregasClient({ entregasIniciales, ordenesEnReparto, es
 
               {/* Datos */}
               <div className="p-5">
-                <div className="text-[9.5px] font-bold uppercase tracking-[0.12em] text-slate-400 mb-3">Detalles</div>
+                <div className="text-[10.5px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-3">Detalles</div>
                 <div className="space-y-2">
                   {[
                     { icon: <User size={12} />,   label: 'Cliente',      value: drawer.cliente?.nombre },
@@ -909,7 +878,7 @@ export default function EntregasClient({ entregasIniciales, ordenesEnReparto, es
 
               {/* Equipos */}
               <div className="p-5">
-                <div className="text-[9.5px] font-bold uppercase tracking-[0.12em] text-slate-400 mb-3">
+                <div className="text-[10.5px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-3">
                   Equipos ({drawer.orden?.equipos?.length || 0})
                 </div>
                 <div className="space-y-2">
@@ -929,14 +898,14 @@ export default function EntregasClient({ entregasIniciales, ordenesEnReparto, es
               {/* Actas firmadas del préstamo (lib/actas) */}
               {drawer.orden?.id && (
                 <div className="p-5">
-                  <div className="text-[9.5px] font-bold uppercase tracking-[0.12em] text-slate-400 mb-3">Actas</div>
+                  <div className="text-[10.5px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-3">Actas</div>
                   <ActasPrestamo key={drawer.id} ordenId={drawer.orden.id} ordenCodigo={drawer.orden.codigo} onToast={showToast} />
                 </div>
               )}
 
               {/* Documentos con estado de firma */}
               <div className="p-5">
-                <div className="text-[9.5px] font-bold uppercase tracking-[0.12em] text-slate-400 mb-3">
+                <div className="text-[10.5px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-3">
                   Documentos ({drawer.orden?.plantillas?.length || 0})
                 </div>
                 <div className="space-y-2">

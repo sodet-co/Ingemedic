@@ -35,7 +35,7 @@ export default async function ConfiguracionPage() {
       .select('id, nombre, descripcion, bloques, es_estandar, tipo, uso_general, clientes:cliente_plantillas_acta(orden, cliente_id, cliente:clientes(id, nombre))')
       .eq('activo', true).order('es_estandar', { ascending: false }).order('nombre'),
     // Para asignar plantillas de actas a clientes
-    supabase.from('clientes').select('id, nombre').eq('activo', true).order('nombre'),
+    supabase.from('clientes').select('id, nombre, email, auth_user_id').eq('activo', true).order('nombre'),
   ])
 
   const superAdmin = esSuperAdmin(usuarioActual?.roles?.nombre)

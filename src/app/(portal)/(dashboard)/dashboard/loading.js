@@ -4,7 +4,7 @@ export default function Loading() {
   return (
     <div className="flex flex-col flex-1 min-h-0">
       <Topbar />
-      <div className="flex-1 overflow-auto p-3 md:p-6 pb-28 md:pb-6 space-y-4">
+      <div className="flex-1 overflow-auto p-3 md:p-6 pb-20 md:pb-6 space-y-4">
         {/* KPIs — solo visibles en desktop, igual que el Dashboard real */}
         <KPIRow count={6} />
         {/* Paneles: Órdenes activas / Mantenimientos — apilados en móvil, 2 columnas en desktop */}

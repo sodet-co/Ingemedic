@@ -128,7 +128,7 @@ export default function PageSkeleton({ kpis = 0, rows = 6, cols = 4, chips = fal
   return (
     <div className="flex flex-col flex-1 min-h-0">
       <Topbar />
-      <div className="flex-1 overflow-hidden p-3 md:p-6 pb-28 md:pb-6 space-y-4">
+      <div className="flex-1 overflow-hidden p-3 md:p-6 pb-20 md:pb-6 space-y-4">
         {kpis > 0 && chips && <ChipsRow count={kpis} />}
         {kpis > 0 && <KPIRow count={kpis} />}
         <ListaFilas rows={rows} cols={cols} />

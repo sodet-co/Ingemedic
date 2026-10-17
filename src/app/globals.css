@@ -84,3 +84,13 @@ input, select, textarea {
   transform-style: preserve-3d;
   backface-visibility: hidden;
 }
+/* iPhone amplía la página al tocar un campo con letra de menos de 16px y no la
+   devuelve sola. En el panel, en celular, todos los campos van a 16px (en PC
+   conservan su tamaño). Fuera de capas para ganarle a text-[13px] de Tailwind. */
+@media (max-width: 767px) {
+  .panel-app input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
+  .panel-app select,
+  .panel-app textarea {
+    font-size: 16px;
+  }
+}
