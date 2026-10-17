@@ -38,7 +38,7 @@ export default function VistaActa({ bloques, ctx }) {
       <div className={ampliado ? 'overflow-x-auto -mx-3 px-3' : ''}>
         <div className="space-y-4" style={{ width: ampliado ? ANCHO_PAGINA : undefined }}>
           {ancho > 0 && paginas.map((html, i) => (
-            <div key={i} className="mx-auto bg-white shadow-md ring-1 ring-slate-200 overflow-hidden"
+            <div key={i} className="siempre-claro mx-auto bg-white shadow-md ring-1 ring-slate-200 overflow-hidden"
               style={{ width: ANCHO_PAGINA * escala, height: ALTO_A4 * escala }}>
               <iframe srcDoc={html} title={`Página ${i + 1}`} tabIndex={-1}
                 style={{ width: ANCHO_PAGINA, height: ALTO_A4, border: 0, transform: `scale(${escala})`, transformOrigin: 'top left', pointerEvents: 'none' }} />

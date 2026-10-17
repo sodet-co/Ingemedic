@@ -110,7 +110,7 @@ export default function PreviaActas({ actas, inicial = 0, titulo, descargando, o
           <div ref={area} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}
             className={`absolute inset-0 ${ampliado ? 'overflow-auto' : 'overflow-hidden flex items-center justify-center'}`}>
             {escala > 0 && (
-              <div className={`bg-white shadow-md ring-1 ring-slate-200 overflow-hidden ${ampliado ? 'm-2' : ''}`}
+              <div className={`siempre-claro bg-white shadow-md ring-1 ring-slate-200 overflow-hidden ${ampliado ? 'm-2' : ''}`}
                 style={{ width: ANCHO_PAGINA * escala, height: ALTO_A4 * escala, flexShrink: 0 }}>
                 <iframe key={actual} srcDoc={hoja.html} title={`Hoja ${actual + 1}`} tabIndex={-1}
                   style={{ width: ANCHO_PAGINA, height: ALTO_A4, border: 0, transform: `scale(${escala})`, transformOrigin: 'top left', pointerEvents: 'none' }} />

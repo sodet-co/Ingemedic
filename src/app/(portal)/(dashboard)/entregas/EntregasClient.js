@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase'
 import {
   Package, CheckCircle2, Clock, Truck, X, Search,
   MapPin, Phone, FileText, User, AlertTriangle,
-  ArrowUpRight, ArrowDownLeft, Filter, Calendar
+  ArrowUpRight, ArrowDownLeft, Filter, Calendar, Lock
 } from 'lucide-react'
 import LimpiarFiltros from '@/components/ui/LimpiarFiltros'
 import BuzonNovedades from '@/components/layout/BuzonNovedades'
@@ -17,6 +17,7 @@ import VentanaDetalle, { Columnas } from '@/components/ui/VentanaDetalle'
 import EntregaEnCurso, { RutaAnimada } from '@/components/entregas/EntregaEnCurso'
 import { descargarActasPDF } from '@/lib/actas/pdf'
 import { crearEntrega, finalizarEntrega } from '@/lib/entregas'
+import { useUsuarioActual } from '@/lib/usuario-context'
 
 const TL_STEPS = ['Programada', 'En ruta', 'Entregada']
 
@@ -219,7 +220,13 @@ export default function EntregasClient({ entregasIniciales, ordenesEnReparto, es
   }, [ordenes, entregas, ordenesConEntrega, search, filtroRep, filtroFecha, filtroCliente])
 
   // ── INICIAR ENTREGA ──────────────────────────────────────
+  // Iniciar es cosa del repartidor (lo hace desde su vista, EntregasRepartidorClient).
+  // En esta vista de administración solo SuperAdmin puede hacerlo; el resto ve
+  // la orden pero no la arranca.
+  const { esSuperAdmin } = useUsuarioActual()
+  const puedeIniciar = esSuperAdmin
   async function iniciarEntrega(orden) {
+    if (!puedeIniciar) { showToast('Solo el repartidor puede iniciar la entrega', 'error'); return }
     setSaving(true)
     const { data, error } = await crearEntrega(supabase, orden)
     if (error) { showToast('Error: ' + error.message, 'error'); setSaving(false); return }
@@ -707,10 +714,14 @@ export default function EntregasClient({ entregasIniciales, ordenesEnReparto, es
                       {esPendiente && (
                         <div className="flex items-center justify-between gap-2 mt-2.5">
                           <span className="text-[11.5px] text-slate-500 flex items-center gap-1"><Clock size={11} /> {programada ? formatear(programada, { hour: '2-digit', minute: '2-digit' }) : 'Sin hora'}</span>
-                          <button onClick={e => { e.stopPropagation(); setModalOrden(item) }}
-                            className="flex items-center gap-1.5 px-3 py-1.5 bg-[#D81B43] text-white text-[12px] font-semibold rounded-[8px] hover:bg-[#B0172F]">
-                            <Truck size={12} /> Ver y empezar
-                          </button>
+                          {puedeIniciar ? (
+                            <button onClick={e => { e.stopPropagation(); setModalOrden(item) }}
+                              className="flex items-center gap-1.5 px-3 py-1.5 bg-[#D81B43] text-white text-[12px] font-semibold rounded-[8px] hover:bg-[#B0172F]">
+                              <Truck size={12} /> Ver y empezar
+                            </button>
+                          ) : (
+                            <span className="text-[11.5px] text-slate-400">Espera al repartidor</span>
+                          )}
                         </div>
                       )}
                       {item.estado?.nombre === 'En progreso' && (
@@ -812,11 +823,17 @@ export default function EntregasClient({ entregasIniciales, ordenesEnReparto, es
                 )}
               </div>
               <div className="px-6 py-4 border-t border-slate-200 flex gap-2 flex-shrink-0 bg-white">
-                <button onClick={() => setModalOrden(null)} className="flex-1 py-2.5 border border-slate-200 rounded-[9px] text-[13px] font-medium text-slate-600 hover:border-slate-300">Cancelar</button>
-                <button onClick={() => iniciarEntrega(modalOrden)} disabled={saving}
-                  className="flex-1 py-2.5 bg-[#D81B43] text-white rounded-[9px] text-[13px] font-semibold hover:bg-[#B0172F] disabled:opacity-50 flex items-center justify-center gap-2">
-                  <Truck size={14} /> {saving ? 'Iniciando...' : 'Iniciar entrega'}
-                </button>
+                <button onClick={() => setModalOrden(null)} className="flex-1 py-2.5 border border-slate-200 rounded-[9px] text-[13px] font-medium text-slate-600 hover:border-slate-300">{puedeIniciar ? 'Cancelar' : 'Cerrar'}</button>
+                {puedeIniciar ? (
+                  <button onClick={() => iniciarEntrega(modalOrden)} disabled={saving}
+                    className="flex-1 py-2.5 bg-[#D81B43] text-white rounded-[9px] text-[13px] font-semibold hover:bg-[#B0172F] disabled:opacity-50 flex items-center justify-center gap-2">
+                    <Truck size={14} /> {saving ? 'Iniciando...' : 'Iniciar entrega'}
+                  </button>
+                ) : (
+                  <div className="flex-[2] flex items-center gap-2 px-3 py-2 rounded-[9px] bg-slate-50 text-[12px] text-slate-500">
+                    <Lock size={13} className="flex-shrink-0" /> La entrega la inicia el repartidor desde su celular.
+                  </div>
+                )}
               </div>
             </div>
           </div>

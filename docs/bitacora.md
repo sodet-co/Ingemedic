@@ -59,6 +59,43 @@ Lo que está sin resolver, ordenado por prioridad.
 
 # Entradas
 
+## 2026-10-16 — Rol Operador, modo oscuro, inicio de entregas, equipos del cliente y tipos
+**Qué se hizo:**
+- **Rol Operador** (por debajo de Administrador): ve los módulos de operación,
+  pero en Configuración solo Preferencias. No hay código nuevo: son filas en
+  `permisos` con `puede_ver = false` para cada `configuracion.*`, y la pantalla ya
+  oculta lo no permitido. Se ajusta desde Roles y permisos como cualquier rol.
+- **Modo oscuro** (Preferencias: Claro / Oscuro / Automático). Es preferencia del
+  usuario: `usuarios.tema`, copiada a localStorage `ingemedic.tema`. El layout la
+  lee en una consulta aparte (si la columna no existe, no rompe) y el script la
+  aplica antes de pintar. Tailwind 4 pinta con variables, así que
+  `src/app/tema-oscuro.css` redefine `--color-white`, `--color-slate-*` y los tonos
+  claros de rojo/verde/ámbar… dentro de `.panel-app` (clase del layout del panel), y
+  corrige uno a uno los hex escritos a mano más usados. `.siempre-claro` devuelve
+  la paleta clara (hojas de actas, pad de firma). Un script en el layout aplica el
+  tema antes de pintar; `<html>` lleva `suppressHydrationWarning` por eso. El sitio
+  público y los PDF no cambian. También está en el perfil del repartidor.
+- **Clientes → En préstamo:** tabla de un renglón por equipo con resumen, chips por
+  tipo, buscador y vista agrupada por paciente o tipo
+  (`components/clientes/EquiposDelCliente.js`). Columna "Equipos" en la lista.
+- **Entregas:** en la vista de administración solo SuperAdmin puede iniciar una
+  entrega; los demás ven "Espera al repartidor". El repartidor la inicia desde su
+  vista, como siempre. Es una restricción de pantalla, no de BD.
+- **Configuración → Tipos:** un solo botón "Nuevo tipo" junto a la categoría (antes
+  había dos que hacían lo mismo).
+**Archivos:** `lib/tema.js`, `app/tema-oscuro.css`, `app/globals.css`, `app/layout.js`,
+`(dashboard)/layout.js`, `layout/TemaPanel.js`, `layout/SelectorTema.js`,
+`configuracion/ConfiguracionClient.js`, `repartidor-preferencias/…Client.js`,
+`clientes/ClientesClient.js`, `clientes/EquiposDelCliente.js`, `entregas/FirmaPad.js`,
+`actas/VistaActa.js`, `actas/PreviaActas.js`.
+**SQL:** rol Operador y sus permisos — corrido. `usuarios.tema` — entregado, pendiente de correr.
+**Pendiente:**
+- El Operador solo pierde *visibilidad*: la BD (RLS) y `/api/*` no distinguen
+  roles salvo los módulos que valida `api-auth.js`. Ver pendiente de RLS por rol.
+- Modo oscuro verificado con una página de muestra y el CSS real, no recorriendo
+  cada módulo con sesión. Colores en `style={{}}` o hex poco usados pueden quedar
+  claros: se corrigen agregándolos a `tema-oscuro.css`.
+
 ## 2026-10-15 — Ajustes de actas, entregas y plantillas por cliente
 **Qué se hizo:**
 - **PDF:** los valores llenos quedaban más arriba que su etiqueta (renglón

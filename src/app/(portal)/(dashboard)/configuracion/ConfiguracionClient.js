@@ -6,9 +6,10 @@ import {
   Users, Lock, Tag, Cpu, Building2,
   FileText, Upload, Plus, X, Edit3, Trash2,
   Check, Save, ClipboardList, Download, CheckCircle2, Smartphone,
-  ChevronDown, ChevronRight, Search, Globe
+  ChevronDown, ChevronRight, Search, Globe, Moon
 } from 'lucide-react'
 import { GaleriaIconos, IconoEquipo } from '@/components/inventario/IconosEquipo'
+import SelectorTema from '@/components/layout/SelectorTema'
 import { MODULOS_PRINCIPALES, MODULOS_CONFIGURACION, MODULOS_OCULTOS_POR_DEFECTO, puedeVerModulo } from '@/lib/permisos'
 import BuzonNovedades from '@/components/layout/BuzonNovedades'
 import { filaPortal } from '@/lib/portalClientes'
@@ -989,12 +990,8 @@ export default function ConfiguracionClient({
                 <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
                   <div>
                     <h2 className="text-[20px] font-bold text-slate-800">Tipos de equipo</h2>
-                    <p className="text-[13px] text-slate-400 mt-0.5">Cada tipo agrupa unidades del mismo modelo</p>
+                    <p className="text-[13px] text-slate-400 mt-0.5">Cada tipo es un modelo (ej. Concentrador EverFlo). Elige la categoría y crea ahí sus tipos.</p>
                   </div>
-                  <button onClick={() => abrirModal('tipo', grupoActivo ? { categoria_id: grupoActivo.categoria.id } : {})}
-                    className="flex items-center gap-1.5 px-4 py-2 bg-[#D81B43] text-white text-[13px] font-semibold rounded-[9px] hover:bg-[#B0172F] transition-colors">
-                    <Plus size={14} /> Nuevo tipo
-                  </button>
                 </div>
 
                 {!grupoActivo ? (
@@ -1006,6 +1003,7 @@ export default function ConfiguracionClient({
                 <div className="flex flex-col md:flex-row gap-4 md:items-start">
                   {/* Categorías: columna en escritorio, chips con scroll en móvil */}
                   <div className="w-full md:w-[230px] flex-shrink-0 bg-white rounded-xl border border-slate-200 shadow-sm p-1.5 flex md:flex-col gap-1 overflow-x-auto">
+                    <div className="hidden md:block px-3 pt-1.5 pb-1 text-[10.5px] font-bold uppercase tracking-[0.1em] text-slate-400">Categorías</div>
                     {tiposPorCategoria.map(g => {
                       const activa = g.categoria.id === grupoActivo.categoria.id
                       return (
@@ -1038,14 +1036,21 @@ export default function ConfiguracionClient({
                         </div>
                       )}
                       <button onClick={() => abrirModal('tipo', { categoria_id: grupoActivo.categoria.id })}
-                        className={`flex items-center gap-1 px-3 h-[36px] text-[12.5px] font-semibold text-[#D81B43] border border-[#D81B43]/30 hover:bg-[#D81B43]/5 rounded-[8px] transition-colors flex-shrink-0 ${grupoActivo.tipos.length === 0 ? 'ml-auto' : ''}`}>
-                        <Plus size={13} /> Agregar aquí
+                        title={`Crear un tipo dentro de ${grupoActivo.categoria.nombre}`}
+                        className={`flex items-center gap-1.5 px-4 h-[36px] bg-[#D81B43] text-white text-[13px] font-semibold rounded-[8px] hover:bg-[#B0172F] transition-colors flex-shrink-0 ${grupoActivo.tipos.length === 0 ? 'ml-auto' : ''}`}>
+                        <Plus size={14} /> Nuevo tipo
                       </button>
                     </div>
 
                     {tiposVisibles.length === 0 ? (
                       <div className="bg-white rounded-xl border border-slate-200 shadow-sm text-center py-12 text-slate-400 text-[13px]">
-                        {q ? `Ningún tipo coincide con "${buscarTipo}"` : 'Esta categoría todavía no tiene tipos'}
+                        {q ? `Ningún tipo coincide con "${buscarTipo}"` : (
+                          <>
+                            <div>{grupoActivo.categoria.nombre} todavía no tiene tipos</div>
+                            <button onClick={() => abrirModal('tipo', { categoria_id: grupoActivo.categoria.id })}
+                              className="mt-2 text-[#D81B43] font-semibold hover:underline">Crear el primero</button>
+                          </>
+                        )}
                       </div>
                     ) : (
                     <div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-3 items-start">
@@ -1370,7 +1375,20 @@ export default function ConfiguracionClient({
             {seccionActiva === 'preferencias' && (
               <div className="max-w-[860px]">
                 <h2 className="text-[20px] font-bold text-slate-800 mb-1">Preferencias</h2>
-                <p className="text-[13px] text-slate-400 mb-6">Ajustes de la experiencia en dispositivos móviles</p>
+                <p className="text-[13px] text-slate-400 mb-6">Apariencia y navegación en este dispositivo</p>
+
+                <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 mb-4">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Moon size={16} className="text-slate-400" />
+                    <div className="text-[14px] font-bold text-slate-700">Modo oscuro</div>
+                  </div>
+                  <p className="text-[12.5px] text-slate-400 mb-5">
+                    Queda guardado en tu usuario: lo verás igual en cualquier computador o celular. Las actas y los PDF siempre salen en blanco.
+                  </p>
+                  <SelectorTema onCambio={(t, error) => error
+                    ? showToast('Se aplicó en este navegador, pero no se pudo guardar en tu usuario: ' + error.message, 'error')
+                    : showToast(t === 'oscuro' ? 'Modo oscuro activado' : t === 'claro' ? 'Modo claro activado' : 'El tema seguirá al del dispositivo')} />
+                </div>
 
                 <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
                   <div className="flex items-center gap-2 mb-1">

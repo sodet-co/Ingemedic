@@ -17,6 +17,7 @@ import { Box } from '@/components/ui/Skeleton'
 import { IconoTipo } from '@/components/inventario/IconoTipo'
 import BuzonNovedades from '@/components/layout/BuzonNovedades'
 import AccesoPortal from '@/components/clientes/AccesoPortal'
+import EquiposDelCliente from '@/components/clientes/EquiposDelCliente'
 import { useOrdenable } from '@/hooks/useOrdenable'
 import { usePaginacion } from '@/hooks/usePaginacion'
 import { formatear, formatearSoloFecha, hoyBogota } from '@/lib/fechas'
@@ -864,7 +865,12 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
                   {clientesPagina.map(c => (
                     <div key={c.id} onClick={() => abrirDrawer(c)}
                       className={`px-4 py-3 border-b border-slate-100 cursor-pointer transition-colors ${drawer?.id === c.id ? 'bg-[#FFF0F3] border-l-[3px] border-l-[#D81B43]' : 'hover:bg-slate-50'}`}>
-                      <div className="text-[13px] font-bold text-slate-800 truncate">{c.nombre}</div>
+                      <div className="flex items-center gap-2">
+                        <div className="text-[13px] font-bold text-slate-800 truncate flex-1">{c.nombre}</div>
+                        {conteoEquiposPorCliente[c.id] > 0 && (
+                          <span className="flex items-center gap-1 text-[11.5px] font-bold text-[#1B3A6B] tabular-nums flex-shrink-0"><Package size={11} className="text-slate-400" />{conteoEquiposPorCliente[c.id]}</span>
+                        )}
+                      </div>
                       <div className="text-[11.5px] text-slate-400 mt-0.5 flex items-center gap-1.5">
                         <span className="font-medium" style={{ color: estiloTipo(c).color }}>{c.tipo_persona || '—'}</span>
                         {c.nit_cc && <span>· {c.nit_cc}</span>}
@@ -894,6 +900,11 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
                                 {st.icon} {c.tipo_persona || '—'}
                               </span>
                             </div>
+                            {conteoEquiposPorCliente[c.id] > 0 && (
+                              <span className="flex items-center gap-1 px-2 py-1 rounded-full bg-[#1B3A6B]/[0.07] text-[#1B3A6B] text-[12px] font-bold tabular-nums flex-shrink-0">
+                                <Package size={11} /> {conteoEquiposPorCliente[c.id]}
+                              </span>
+                            )}
                             <ChevronRight size={16} className="text-slate-300 flex-shrink-0" />
                           </div>
                           <div className="space-y-1 pl-1">
@@ -930,6 +941,7 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
                             { label: 'NIT / CC', clave: null },
                             { label: 'Contacto', clave: null },
                             { label: 'Ubicación', clave: 'ubicacion', accessor: c => c.municipio?.nombre || '' },
+                            { label: 'Equipos', clave: 'equipos', accessor: c => conteoEquiposPorCliente[c.id] || 0 },
                             { label: '', clave: null },
                           ].map(col => (
                             <th key={col.label || 'acciones'}
@@ -982,6 +994,11 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
                                 {c.municipio?.nombre
                                   ? <div className="flex items-center gap-1"><MapPin size={11} className="text-slate-400 flex-shrink-0" />{c.municipio.nombre}, {c.departamento?.nombre}</div>
                                   : <span className="text-slate-300">—</span>}
+                              </td>
+                              <td className="px-4 py-3">
+                                {conteoEquiposPorCliente[c.id]
+                                  ? <span className="inline-flex items-center gap-1 text-[13px] font-bold text-[#1B3A6B] tabular-nums"><Package size={12} className="text-slate-400" />{conteoEquiposPorCliente[c.id]}</span>
+                                  : <span className="text-slate-300 text-[12px]">—</span>}
                               </td>
                               <td className="px-3 py-3 text-slate-300"><ChevronRight size={14} /></td>
                             </tr>
@@ -1118,14 +1135,20 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
                       {estiloTipo(drawer).icon} Persona {drawer.tipo_persona}
                     </span>
                   </div>
+                  {(conteoEquiposPorCliente[drawer.id] || 0) > 0 && (
+                    <span className="ml-1 inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#1B3A6B]/[0.07] text-[#1B3A6B] text-[12px] font-bold whitespace-nowrap">
+                      <Package size={12} /> {conteoEquiposPorCliente[drawer.id]} equipos
+                    </span>
+                  )}
                 </div>
                 <button onClick={() => setDrawer(null)} title="Cerrar (ESC)"
                   className="text-slate-400 hover:text-slate-600 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100 flex-shrink-0"><X size={16} /></button>
               </div>
 
               <div className="flex-1 overflow-y-auto pb-28 md:pb-6">
-                <div className="p-6 space-y-3 border-b border-slate-100">
+                <div className="px-6 py-4 border-b border-slate-100">
                   <div className="text-[9.5px] font-bold uppercase tracking-[0.12em] text-slate-400 mb-3">Información general</div>
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-8 gap-y-2.5">
                   {[
                     { label: 'NIT / CC', value: drawer.nit_cc ? `${drawer.nit_cc}${drawer.digito_verificacion ? `-${drawer.digito_verificacion}` : ''}` : null },
                     { label: 'Teléfono', value: drawer.telefono, icon: <Phone size={12} /> },
@@ -1133,11 +1156,12 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
                     { label: 'Dirección', value: drawer.direccion, icon: <MapPin size={12} /> },
                     { label: 'Ubicación', value: drawer.municipio ? `${drawer.municipio.nombre}, ${drawer.departamento?.nombre}` : null, icon: <MapPin size={12} /> },
                   ].filter(f => f.value).map(f => (
-                    <div key={f.label} className="flex justify-between text-[12.5px]">
-                      <span className="text-slate-400 flex items-center gap-1">{f.icon}{f.label}</span>
-                      <span className="font-medium text-slate-700 text-right ml-4 max-w-[220px]">{f.value}</span>
+                    <div key={f.label} className="flex justify-between gap-4 text-[12.5px] min-w-0">
+                      <span className="text-slate-400 flex items-center gap-1 flex-shrink-0">{f.icon}{f.label}</span>
+                      <span className="font-medium text-slate-700 text-right min-w-0 break-words">{f.value}</span>
                     </div>
                   ))}
+                  </div>
                 </div>
 
                 <AccesoPortal cliente={drawer} onToast={showToast} />
@@ -1179,45 +1203,8 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
                     <div className="mt-3">
                       {/* EQUIPOS EN PRÉSTAMO */}
                       {tabHoja === 'prestamo' && (
-                        equiposEnPrestamo.length > 0 ? (
-                          <div className="space-y-2">
-                            {equiposEnPrestamo.map(oe => {
-                              const esUnico = (oe.orden?.equipos?.length || 0) === 1
-                              return (
-                                <div key={oe.id} className="flex items-start gap-2.5 p-3 rounded-[9px] border border-slate-100 bg-slate-50">
-                                  <Package size={15} className="text-[#D81B43] mt-0.5 flex-shrink-0" />
-                                  <div className="flex-1 min-w-0">
-                                    <div className="text-[12.5px] font-semibold text-slate-700">
-                                      {oe.equipo?.tipo_equipo?.atributos?.nombre || oe.equipo?.tipo_equipo?.nombre || 'Equipo'}
-                                    </div>
-                                    <div className="text-[11px] text-slate-400 mt-0.5">
-                                      Código: {oe.equipo?.codigo || '—'}
-                                    </div>
-                                    <div className="text-[11px] text-slate-400 mt-0.5">
-                                      OS {oe.orden?.codigo} · desde {formatear(oe.fecha_entrega)}
-                                    </div>
-                                    <div className="text-[11px] text-slate-400 mt-0.5">
-                                      {oe.equipo?.paciente_actual?.nombre ? `Paciente: ${oe.equipo.paciente_actual.nombre}` : 'Sin paciente asociado'}
-                                    </div>
-                                    <div className="mt-2">
-                                      <button type="button"
-                                        onClick={() => abrirModalDevolucion({ ordenEquipoId: oe.id, equipoId: oe.equipo?.id, ordenId: oe.orden?.id }, 'cliente')}
-                                        className="text-[11.5px] text-[#D81B43] font-semibold hover:underline">
-                                        {esUnico ? 'Finalizar préstamo' : 'Marcar como devuelto'}
-                                      </button>
-                                    </div>
-                                  </div>
-                                </div>
-                              )
-                            })}
-                          </div>
-                        ) : (
-                          <div className="text-center py-8 text-slate-400">
-                            <FileText className="w-10 h-10 mx-auto mb-2 opacity-20" />
-                            <div className="text-[12.5px]">Sin equipos activos</div>
-                            <div className="text-[11.5px] mt-1 text-slate-300">Los préstamos aparecerán aquí</div>
-                          </div>
-                        )
+                        <EquiposDelCliente equipos={equiposEnPrestamo}
+                          onDevolver={oe => abrirModalDevolucion({ ordenEquipoId: oe.id, equipoId: oe.equipo?.id, ordenId: oe.orden?.id }, 'cliente')} />
                       )}
 
                       {/* ÓRDENES */}

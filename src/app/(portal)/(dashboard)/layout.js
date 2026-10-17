@@ -6,6 +6,8 @@ import BannerAtencion from '@/components/layout/BannerAtencion'
 import PiePanel from '@/components/layout/PiePanel'
 import { esSuperAdmin } from '@/lib/permisos'
 import { UsuarioProvider } from '@/lib/usuario-context'
+import TemaPanel from '@/components/layout/TemaPanel'
+import { scriptTema } from '@/lib/tema'
 
 export default async function DashboardLayout({ children }) {
   const supabase = await createClient()
@@ -33,13 +35,25 @@ export default async function DashboardLayout({ children }) {
     .select('logo_url, razon_social')
     .single()
 
+  // Tema oscuro: el script corre antes de pintar (sin destello claro) y
+  // TemaPanel lo mantiene al día. Los colores solo aplican dentro de .panel-app.
+  // Consulta aparte y tolerante: si la columna `tema` aún no existe, el panel
+  // sigue funcionando con lo guardado en el navegador.
+  const { data: pref } = usuario?.id
+    ? await supabase.from('usuarios').select('tema').eq('id', usuario.id).maybeSingle()
+    : { data: null }
+  const tema = <><script dangerouslySetInnerHTML={{ __html: scriptTema(pref?.tema) }} /><TemaPanel temaUsuario={pref?.tema} /></>
+
   // El rol Repartidor tiene un layout dedicado, sin el sidebar/navegación de admin
   // (la restricción de qué rutas puede visitar vive en middleware.js).
   if (usuario?.roles?.nombre === 'Repartidor') {
     return (
-      <RepartidorHeader logoUrl={empresa?.logo_url || '/images/logo.png'} nombre={usuario?.nombre}>
-        {children}
-      </RepartidorHeader>
+      <div className="panel-app">
+        {tema}
+        <RepartidorHeader logoUrl={empresa?.logo_url || '/images/logo.png'} nombre={usuario?.nombre}>
+          {children}
+        </RepartidorHeader>
+      </div>
     )
   }
 
@@ -51,7 +65,8 @@ export default async function DashboardLayout({ children }) {
     : await supabase.from('permisos').select('modulo, puede_ver').eq('rol_id', usuario?.rol_id)
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#F8FAFC]">
+    <div className="panel-app flex h-screen overflow-hidden bg-[#F8FAFC]">
+      {tema}
       <Sidebar usuario={usuario} empresa={empresa} permisos={permisos || []} esSuperAdmin={superAdmin} />
       <UsuarioProvider usuario={usuario} esSuperAdmin={superAdmin}>
         <main className="flex-1 min-w-0 flex flex-col h-screen overflow-hidden pt-12 md:pt-0 pb-[var(--mobile-nav-space,0px)] md:pb-0">

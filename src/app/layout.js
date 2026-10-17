@@ -69,9 +69,12 @@ export const metadata = {
 
 export default function RootLayout({ children }) {
   return (
+    // suppressHydrationWarning: el script del tema (layout del panel) agrega
+    // la clase `tema-oscuro` a <html> antes de que React hidrate
     <html
       lang="es"
       className={`${geistSans.variable} ${geistMono.variable} ${poppins.variable} h-full antialiased`}
+      suppressHydrationWarning
     >
       <body className="min-h-full flex flex-col">
         {children}

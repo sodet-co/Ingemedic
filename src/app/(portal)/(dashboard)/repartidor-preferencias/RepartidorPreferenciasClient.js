@@ -6,7 +6,8 @@ import { registrarBitacora } from '@/lib/bitacora'
 import { ULTIMA_ACTUALIZACION } from '@/lib/ultima-actualizacion'
 import { iniciales } from '@/components/layout/RepartidorHeader'
 import ConfirmDialog from '@/components/ui/ConfirmDialog'
-import { User, Lock, LogOut, Eye, EyeOff, Mail, AtSign, Check } from 'lucide-react'
+import SelectorTema from '@/components/layout/SelectorTema'
+import { User, Lock, LogOut, Eye, EyeOff, Mail, AtSign, Check, Moon } from 'lucide-react'
 
 const inputCls = 'w-full px-3.5 py-3 border border-slate-200 rounded-[10px] text-[15px] text-slate-800 outline-none focus:border-[#1B3A6B] bg-white placeholder:text-slate-300'
 const labelCls = 'block text-[12px] font-semibold text-slate-500 mb-1.5'
@@ -139,6 +140,10 @@ export default function RepartidorPreferenciasClient({ usuario }) {
           className="w-full mt-4 py-3 bg-[#1B3A6B] text-white rounded-[10px] text-[14px] font-semibold disabled:bg-slate-200 disabled:text-slate-400 transition-colors">
           {guardandoPass ? 'Guardando...' : 'Actualizar contraseña'}
         </button>
+      </Seccion>
+
+      <Seccion Icono={Moon} titulo="Apariencia">
+        <SelectorTema usuarioId={usuario?.id} />
       </Seccion>
 
       <button onClick={() => setConfirmarSalida(true)}

@@ -1,4 +1,6 @@
 @import "tailwindcss";
+/* Modo oscuro del panel (opcional, en Configuración → Preferencias) */
+@import "./tema-oscuro.css";
 
 /* TailWind v4 Global Theme & Utility Styles */
 
@@ -6,8 +8,9 @@ html {
   scroll-behavior: smooth;
 }
 
-/* La app es solo de tema claro. `only light` también le impide al navegador
-   oscurecer la página por su cuenta (modo oscuro forzado de Chrome/Samsung). */
+/* Claro por defecto. `only light` también le impide al navegador oscurecer la
+   página por su cuenta (modo oscuro forzado de Chrome/Samsung). El modo oscuro
+   propio del panel es opcional: ver tema-oscuro.css. */
 :root {
   --background: #ffffff;
   --foreground: #171717;

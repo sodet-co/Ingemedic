@@ -115,7 +115,7 @@ export default function FirmaPad({ onFirma, onLimpiar, fullscreen = false }) {
 
   return (
     <div className={fullscreen ? 'flex-1 flex flex-col min-h-0' : ''}>
-      <div className={`border-2 border-dashed border-slate-300 rounded-[10px] overflow-hidden bg-white relative ${
+      <div className={`border-2 border-dashed border-slate-300 rounded-[10px] overflow-hidden bg-white relative siempre-claro ${
         fullscreen ? 'flex-1 min-h-[240px]' : 'h-[160px]'
       }`}>
         <canvas ref={canvasRef}
