@@ -68,3 +68,11 @@ devolución / cambio de equipo (z-[75]) < avisos (toast, z-[80]).
 Estados como clases (`TONOS` en `ui.js`), no en `style={{}}`: así el modo oscuro
 los ajusta. Los que siguen en `style` los corrige `tema-oscuro.css` por atributo.
 Nada de rojos o azules nuevos: el menú usaba `#E53935` y se unificó.
+
+## Pantallas de carga
+
+Cada módulo tiene su `loading.js`, que copia la estructura real de su pantalla:
+encabezado igual a `EncabezadoModulo`, tarjetas, buscador, chips y filas. Las
+piezas están en `components/ui/Skeleton.js` (`Pantalla`, `Topbar`, `Contenido`,
+`Cifra`, `Buscador`, `Chips`, `Filas`, `TarjetaLista`, `Panel`). **Si cambia la
+estructura de un módulo, su esqueleto cambia con él.**

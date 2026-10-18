@@ -84,6 +84,11 @@ input, select, textarea {
   transform-style: preserve-3d;
   backface-visibility: hidden;
 }
+/* Logo con versión para modo oscuro (components/layout/LogoEmpresa.js) */
+.panel-app .logo-oscuro { display: none; }
+html.tema-oscuro .panel-app .logo-oscuro { display: inline-block; }
+html.tema-oscuro .panel-app .logo-claro { display: none; }
+
 /* iPhone amplía la página al tocar un campo con letra de menos de 16px y no la
    devuelve sola. En el panel, en celular, todos los campos van a 16px (en PC
    conservan su tamaño). Fuera de capas para ganarle a text-[13px] de Tailwind. */

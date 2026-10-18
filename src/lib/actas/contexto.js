@@ -71,27 +71,34 @@ function edad(fechaNacimiento, hoy) {
 }
 
 // { empresa, orden: { codigo, diagnostico, cliente, paciente }, equipos: [unidades], datos, firmas }
-// datos = { fecha (ISO), ciudad, recibe: {...}, entrega: {...}, insumos: [...], observaciones }
+// datos = { fecha (ISO), ciudad, recibe: {...}, entrega: {...}, insumos: [...], observaciones, extra: {...} }
+// (lo que se llena al crear el préstamo vive en ordenes_servicio.datos_acta; ver campos.js)
 export function construirContexto({ empresa = {}, orden = {}, equipos = [], datos = {}, firmas = {} }) {
   const p = orden.paciente || {}
   const c = orden.cliente || {}
-  const r = datos.recibe || {}
+  // "Recibe el mismo paciente": nombre y documento salen del paciente
+  const r = datos.recibe?.esPaciente && p.nombre
+    ? { ...datos.recibe, nombre: p.nombre, documento: p.cedula, parentesco: '' }
+    : datos.recibe || {}
   const en = datos.entrega || {}
   const f = datos.fecha ? new Date(datos.fecha) : new Date()
   const bog = new Date(f.toLocaleString('en-US', { timeZone: 'America/Bogota' }))
-  const filas = equipos.map(filaEquipo)
+  // Estado de cada equipo: "Bueno" salvo que se haya escrito otro (datos_acta.estados)
+  const filas = equipos.map(filaEquipo).map(f => ({ ...f, estado: t(datos.estados?.[f.codigo]) || f.estado }))
   const cat = (re) => filas.find(x => re.test(x.categoria) || re.test(x.descripcion))
   const cilindro = cat(/cilindro/i), regulador = cat(/regulador/i)
   const principal = filas.find(x => x !== cilindro && x !== regulador) || filas[0] || {}
   const insumos = (datos.insumos || []).map(i => ({
     descripcion: t(i.descripcion), cantidad: t(i.cantidad), lote: t(i.lote), invima: t(i.invima),
-    marca: t(i.marca), modelo: t(i.modelo),
+    marca: t(i.marca), modelo: t(i.modelo), estado: t(i.estado) || 'Nuevo',
   }))
   const tipoDoc = t(p.tipo_documento || 'CC').toUpperCase()
   // ¿Firma un responsable o el mismo paciente? Los formatos tienen renglón para cada uno
   const esResponsable = !!t(r.nombre) && t(r.nombre).toLowerCase() !== t(p.nombre).toLowerCase()
 
   const variables = {
+    // Campos propios de la plantilla ({{numero_contrato}}…); los del sistema van encima
+    ...Object.fromEntries(Object.entries(datos.extra || {}).map(([k, v]) => [k, t(v)])),
     fecha: bog.toLocaleDateString('es-CO', { day: '2-digit', month: '2-digit', year: 'numeric' }),
     hora: bog.toLocaleTimeString('es-CO', { hour: 'numeric', minute: '2-digit', hour12: true }),
     dia: String(bog.getDate()), mes: MESES[bog.getMonth()], anio: String(bog.getFullYear()),
@@ -121,8 +128,16 @@ export function construirContexto({ empresa = {}, orden = {}, equipos = [], dato
     observaciones: t(datos.observaciones),
   }
 
+  // Lo que la persona escribió encima de lo automático (datos_acta.valores)
+  for (const [k, v] of Object.entries(datos.valores || {})) if (t(v)) variables[k] = t(v)
+
   // Además de 'recibe' y 'entrega', la firma de quien recibe va en el renglón
   // del paciente o en el del responsable, según quién sea
   const todas = { ...firmas, [esResponsable ? 'responsable' : 'paciente']: firmas.recibe }
-  return { variables, equipos: filas, insumos, firmas: todas }
+  // manuales: renglones en blanco de cada plantilla ({ plantilla_id: { 'bloque.campo': valor } });
+  // quien pinta una plantilla pasa los suyos como ctx.manuales (ver conManuales)
+  return { variables, equipos: filas, insumos, firmas: todas, manualesPorPlantilla: datos.manuales || {} }
 }
+
+// Contexto para pintar una plantilla con sus renglones en blanco llenos
+export const conManuales = (ctx, plantillaId) => ({ ...ctx, manuales: ctx?.manualesPorPlantilla?.[plantillaId] || {} })

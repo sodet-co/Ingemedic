@@ -1,5 +1,5 @@
 'use client'
-import Image from 'next/image'
+import LogoEmpresa from '@/components/layout/LogoEmpresa'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useState, useEffect, useRef, useLayoutEffect } from 'react'
@@ -230,15 +230,7 @@ export default function Sidebar({ usuario, empresa, permisos = [], esSuperAdmin 
       {/* ── DESKTOP SIDEBAR ── */}
       <aside className="hidden md:flex w-56 min-w-[224px] flex-col h-screen overflow-y-auto flex-shrink-0 bg-white border-r border-slate-200">
         <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-center">
-          <div className="siempre-claro bg-white rounded-xl px-2 py-1">
-          {empresa?.logo_url ? (
-            <Image src={empresa.logo_url} alt={empresa.razon_social || 'Logo'} width={300} height={100}
-              className="object-contain" style={{ width: 'auto', height: '80px' }} priority />
-          ) : (
-            <Image src="/logo.png" alt="Ingemedic" width={300} height={100}
-              className="object-contain" style={{ width: 'auto', height: '80px' }} priority />
-          )}
-          </div>
+          <LogoEmpresa empresa={empresa} />
         </div>
 
         <nav className="flex-1 py-3 overflow-y-auto">

@@ -32,7 +32,7 @@ export default async function DashboardLayout({ children }) {
 
   const { data: empresa } = await supabase
     .from('configuracion_empresa')
-    .select('logo_url, razon_social')
+    .select('*') // '*': tolera que logo_oscuro_url aún no exista
     .single()
 
   // Tema oscuro: el script corre antes de pintar (sin destello claro) y
@@ -50,7 +50,7 @@ export default async function DashboardLayout({ children }) {
     return (
       <div className="panel-app">
         {tema}
-        <RepartidorHeader logoUrl={empresa?.logo_url || '/images/logo.png'} nombre={usuario?.nombre}>
+        <RepartidorHeader empresa={empresa} nombre={usuario?.nombre}>
           {children}
         </RepartidorHeader>
       </div>

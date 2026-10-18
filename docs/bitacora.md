@@ -59,6 +59,147 @@ Lo que está sin resolver, ordenado por prioridad.
 
 # Entradas
 
+## 2026-10-18 — PDF de actas sin hojas en blanco; el repartidor lo descarga
+**Qué se hizo:**
+- **Hojas en blanco** (`lib/actas/pdf.js`): el alto de una hoja A4 en píxeles
+  (2149,7) tenía decimales. Cada página de 2150 px dejaba un resto de 0,3 px que
+  salía como hoja en blanco: ORD-2026-307 tenía 3 páginas y el PDF salía con 6.
+  - Ahora el alto va redondeado y un pedazo en blanco no se agrega.
+  - Si una página se pasa hasta un 8 % (fuente un poco más grande en el navegador),
+    se achica para que quepa en una hoja, en vez de partirla.
+- **Valores corridos sobre las rayas** (Acta_ORD-2026-503): html2canvas, al dibujar
+  el texto él mismo, calcula mal la altura de la letra en algunos equipos (celulares
+  sin Arial). En PC con Windows se ve bien. Ahora el texto lo dibuja el navegador
+  (`foreignObjectRendering`), con los logos incrustados como data URL antes, porque
+  en ese modo las imágenes externas no cargan. Si la captura sale bloqueada o vacía,
+  vuelve al modo anterior. Probado con la hoja real de ASMEDC en Chrome sin ventana:
+  los valores van sobre la raya y salen el logo y la firma. **Pendiente:** probar la
+  descarga en el celular donde salió mal. El informe de Clientes y la hoja de vida
+  de Inventario usan html2canvas y pueden tener el mismo problema.
+- **Repartidor:** en Completadas, cada entrega tiene un botón **PDF** con las actas
+  firmadas en esa entrega (por `entrega_id`; si no hay, las del préstamo).
+- **Al cerrar la entrega**, el repartidor ve una pantalla de éxito (`EntregaExitosa`)
+  con el tiempo de entrega (de `fecha_inicio` a la firma), quién recibió, la hora y
+  "Descargar acta".
+**Verificado:** las páginas de ORD-2026-307 miden 1070, 761 y 931 px (A4 = 1075), así
+que ahora sale una hoja por página.
+**Pendiente:** generar el PDF en el navegador y ver la pantalla de éxito en un
+celular. No se hizo porque Chrome estaba en segundo plano.
+
+## 2026-10-18 — Llenar formatos mirando la hoja (todos los campos)
+**Qué se hizo:** a pedido de Sofía, "Llenar formatos" (asistente, paso 4, y
+"Llenar datos" del detalle) deja de ser una lista larga. Ahora es
+`components/actas/LlenarFormatos.js`:
+- **Una pestaña por formato**, cada una con su contador de lo que falta.
+- **A la izquierda, la hoja** (una a la vez, con flechas), que se actualiza al
+  escribir. Los espacios para llenar van marcados: ámbar si están vacíos, azul si
+  están llenos.
+- **A la derecha, todos los campos de ese formato**, en el orden de la hoja y por
+  sección, con la etiqueta del documento (`campos.js → camposDelFormato`):
+  - datos que se piden (cuentan en "Faltan");
+  - automáticos (fecha, marca, quien entrega…), que muestran en gris lo que pondría
+    el sistema (`datos_acta.valores`);
+  - campos propios;
+  - renglones en blanco (`datos_acta.manuales[plantilla]['bloque.campo']`; los de
+    "FIRMA" no);
+  - estado de cada equipo (`datos_acta.estados`, antes fijo en "Bueno") e insumos
+    (con su estado, antes fijo en "Nuevo").
+- **Ida y vuelta:** tocar un campo resalta su lugar (y cambia de hoja); tocar la hoja
+  lleva al campo. `render.js` con `ctx.marcar = CLAVES_HOJA` pone `data-campo`;
+  sin marcar no deja rastro (PDF igual).
+- El iframe se carga una vez y luego solo cambia su contenido, así que no parpadea.
+- En celular hay dos pestañas: Campos y Ver hoja.
+- **Ventana casi a pantalla completa** (`VentanaLlenarFormatos`), para que la hoja se
+  vea a tamaño real. En el asistente, el paso 4 muestra los formatos elegidos, lo que
+  falta y un botón "Llenar formatos" (se cierra con "Listo"). En el detalle se
+  cierra con Cancelar o Guardar.
+- `DatosFormatos.js` se eliminó. `EditorInsumos` vive en `LlenarFormatos.js`. La firma
+  conserva todo y cada acta guarda sus renglones (`actas.datos.manuales`).
+**Verificado:** en las 5 plantillas activas, cada espacio de la hoja tiene su campo y
+cada campo su espacio. En ORD-2026-501 (sin guardar): pestañas con contador, un
+toque en la hoja lleva al campo, un renglón de la hoja 2 cambia de hoja y se resalta,
+y lo escrito aparece en vivo.
+**Ojo:** los renglones se ubican por la posición del bloque. Si se mueven bloques
+en el editor, lo llenado en préstamos sin firmar puede quedar en otro renglón. Las
+actas firmadas no se afectan.
+
+## 2026-10-18 — Plantillas desde el panel: importar Word y editor visual (fase 3)
+**Qué se hizo:** desde Configuración → Plantillas ya se crean plantillas sin
+tocar código. Dos caminos: importar un Word o armarla por bloques.
+- **Nombres de datos** (`lib/actas/nombres.js`): en Word y en el editor los datos
+  van entre corchetes, como `[Nombre del paciente]`. Se traducen a `{{variables}}`
+  y de vuelta.
+  - Si el nombre no existe (`[Número de contrato]`), se vuelve un campo propio:
+    `{{numero_contrato}}`, y su etiqueta queda en un bloque oculto `campos_propios`.
+  - Ese campo se pide en "Llenar formatos" del préstamo.
+  - Marcadores especiales: `[Equipos]`, `[Insumos]`, `[Firma de quien recibe]` y
+    `[Firma de quien entrega]`.
+- **Importar Word** (`lib/actas/importarWord.js`): lee el `.docx` en el navegador
+  con JSZip y un lector de XML propio.
+  - Párrafos → texto o título. Tablas → campos. Una tabla con `[Equipos]`, o con
+    títulos tipo CANTIDAD / MARCA / SERIE y filas vacías → tabla de equipos.
+  - Primera tabla con logo → encabezado. El encabezado y el pie de página de Word
+    se repiten en cada hoja. Imágenes → bloque `imagen` (nuevo en `render.js`).
+  - Las imágenes se suben a `logos/plantillas/` (`lib/actas/imagenesPlantilla.js`).
+  - El resultado es un **borrador**: se ajusta en el editor. No copia el Word al
+    milímetro.
+- **Editor** (`components/actas/EditorPlantilla.js`): bloques plegables (subir,
+  bajar, duplicar, quitar), un formulario por tipo, "+ Dato" que inserta
+  `[Nombre]` donde está el cursor, vista previa en vivo con datos de ejemplo,
+  Guardar y Desactivar.
+- **Nueva plantilla** (`components/actas/NuevaPlantilla.js`): Word, copia de otra
+  o en blanco, con la lista de nombres de datos para copiar.
+- `jszip` pasa a ser dependencia directa.
+**Verificado:**
+- Abrir y guardar sin tocar deja las 4 plantillas reales idénticas.
+- Con sesión en local, de punta a punta: un Word de prueba (ASMEDC con corchetes)
+  se importó, el logo subió y se guardó con el campo propio y su etiqueta.
+  Después se editó y se desactivó. Todo lo de la prueba se borró: fila, logo y
+  bitácora.
+- "Llenar datos" en ORD-2026-308 marca lo que falta. El asistente muestra los
+  5 pasos.
+**Ojo al probar en Chrome:** con la ventana oculta, React 19 no muestra el
+contenido que llega por streaming (lo hace con `requestAnimationFrame`) y la
+página se queda en el esqueleto de carga. No es un error del código.
+**Pendiente:**
+- Probar con Words reales de clientes. Un Word armado con tabulaciones queda
+  como texto corrido y hay que pasarlo a campos en el editor.
+- No se probó crear un préstamo de punta a punta con el paso Formatos, ni la
+  firma precargada.
+
+## 2026-10-18 — Formatos: se llenan al crear el préstamo, insumos libres, plantillas unidas
+**Qué se hizo:**
+- **Plantillas unidas (decisión de Sofía):** el pagaré vuelve a ser parte de la estándar.
+  Comodato, acta general y F-FAM-11 de Family quedan en un solo formato. Las tres viejas
+  se desactivan y los préstamos que las tenían pasan a la unida.
+- **F-FAM-11:** las tablas de equipos e insumos dejan las filas fijas (CPAP / BPAP /
+  máscaras) y listan lo del préstamo. Así reemplaza las 3 hojas del Excel.
+- **Insumos:** vuelven, pero libres (insumo, cantidad, lote, Reg. INVIMA). No salen del
+  inventario. Antes la firma los mandaba vacíos.
+- **Llenar formatos al crear el préstamo:** el asistente tiene 5 pasos y "Formatos" es
+  uno propio. `lib/actas/campos.js` mira qué `{{variables}}` usan las plantillas elegidas
+  y `components/actas/DatosFormatos.js` pide solo esas. Cuenta los vacíos y deja seguir
+  sin llenarlos. Tiene vista previa "Ver cómo quedan".
+  - Lo que se llena se guarda en `ordenes_servicio.datos_acta`.
+  - Los datos del paciente van al paciente y el diagnóstico al préstamo.
+  - `FirmaActas` llega precargado, así que el repartidor solo corrige y firma.
+  - En el detalle del préstamo, si los formatos no están firmados, se muestra
+    "Faltan N datos" y un botón "Llenar datos".
+- **Campos propios:** una variable que el sistema no conoce (`{{numero_contrato}}`) se
+  pide como texto libre en "Otros datos" y se guarda en `datos_acta.extra`. Es la base
+  para importar plantillas desde Word.
+- **Logo para modo oscuro:** Configuración → Empresa permite subir una segunda versión
+  (`configuracion_empresa.logo_oscuro_url`). Con las dos, `LogoEmpresa.js` muestra la del
+  tema; sin la oscura, el logo normal va sobre una pastilla blanca. El logo se guarda al
+  subirlo, con `?v=` para que el navegador no siga mostrando el anterior.
+**SQL:** respaldo `bkp_*_20261018`, columna `datos_acta`, unión y reasignación: ya
+corrido, 4 plantillas activas. `logo_oscuro_url`: entregado, sin correr.
+**Pendiente:**
+- Ver en pantalla el asistente, la firma y "Llenar datos" (Chrome sin sesión).
+- FAM-11 revisado contra `docs/FORMATO ENTREGA DE EQUIPOS BIOMEDICOS 2025.xlsx`: entre las 3 hojas solo cambian las filas. En la versión 2025, "quien recibe" lleva solo NOMBRE y CEDULA, sin PARENTESCO ni RECIBO CONFORME: falta que Sofía diga si se quitan.
+- Importar plantillas desde Word y el editor visual (fase 3).
+- Borrar los respaldos cuando se confirme.
+
 ## 2026-10-17 — Ajustes tras la revisión: Clientes, Configuración, textos
 **Qué se hizo:**
 - **Textos**: ayudas y avisos cortos y generales (sin detalles internos ni de

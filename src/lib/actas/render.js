@@ -17,9 +17,11 @@
 //                (filas preimpresas: cada una toma la primera fila cuya descripción
 //                coincide con la expresión `coincide`; la de `resto` junta las que sobran)
 //   firmas       firmas [{rol 'recibe' | 'entrega' | 'vacia', titulo, lineas [{etiqueta, valor}]}]
+//   imagen       url, alto (px), alineacion (logos o sellos sueltos, p. ej. de un Word importado)
 //   espacio      alto (px)
 //   pie          texto (centrado, pequeño)
 //   salto_pagina
+//   campos_propios  etiquetas { variable: 'Nombre visible' } — no se dibuja (lib/actas/nombres.js)
 //
 // Valores: texto libre con {{variable}}. Una variable vacía se dibuja como raya
 // para llenar a mano, igual que en los formatos impresos.
@@ -33,10 +35,18 @@ const esc = s => String(s ?? '')
 function interpolar(texto, vars, { marcar = false, raya = 14 } = {}) {
   return esc(texto).replace(/\{\{\s*([a-z0-9_]+)\s*\}\}/gi, (_, k) => {
     const v = vars[k]
-    if (v == null || v === '') return `<span class="raya">${'&nbsp;'.repeat(raya)}</span>`
-    return marcar ? `<span class="valor">${esc(v)}</span>` : esc(v)
+    const html = v == null || v === ''
+      ? `<span class="raya">${'&nbsp;'.repeat(raya)}</span>`
+      : marcar ? `<span class="valor">${esc(v)}</span>` : esc(v)
+    // Modo llenar (ctx.marcar): cada dato lleva su clave para resaltarlo y tocarlo
+    if (!vars.__marcar) return html
+    const clave = (typeof vars.__marcar === 'object' && vars.__marcar[k]) || `v:${k}`
+    return `<span class="cmp${v == null || v === '' ? ' vacio' : ''}" data-campo="${clave}">${html}</span>`
   })
 }
+// Un renglón "FIRMA:" se firma a mano: no se marca para llenar
+const esFirma = c => /^\s*firma/i.test(c.etiqueta || '')
+const attrCampo = (ctx, clave, lleno) => ctx.marcar ? ` data-campo="${clave}" class="cmp${lleno ? '' : ' vacio'}"` : ''
 
 // **negrita** y saltos de línea, después de interpolar (el texto ya viene escapado)
 const formato = html => html
@@ -75,39 +85,48 @@ function encabezado(b, vars) {
 }
 
 // ¿El valor quedó sin nada escrito? (solo rayas para llenar a mano)
-const sinTexto = html => !html.replace(/<span class="raya">.*?<\/span>/g, '').replace(/&nbsp;|\s/g, '')
+const sinTexto = html => !html.replace(/<span class="raya">.*?<\/span>/g, '').replace(/<[^>]+>/g, '').replace(/&nbsp;|\s/g, '')
 
 const imgFirma = (rol, ctx) => ctx.firmas?.[rol] ? `<img class="firma-linea" src="${esc(ctx.firmas[rol])}">` : ''
 
-function campos(b, ctx) {
+// Renglón en blanco que la persona llenó (ctx.manuales; claves de campos.js → lineasEnBlanco)
+const manual = (ctx, clave) => {
+  const v = ctx.manuales?.[clave]
+  return v != null && String(v).trim() ? esc(String(v).trim()) : ''
+}
+
+function campos(b, ctx, bi) {
   const vars = ctx.variables || {}
   const cols = b.columnas || 1
   const titulo = b.titulo ? `<div class="sub">${esc(b.titulo)}</div>` : ''
   if (b.estilo === 'tabla') {
     const celdas = []
     let fila = [], usadas = 0
-    for (const c of b.campos || []) {
+    for (const [ci, c] of (b.campos || []).entries()) {
       const span = Math.min(c.span || 1, cols)
       if (usadas + span > cols) { celdas.push(fila); fila = []; usadas = 0 }
-      const valor = (c.firma ? imgFirma(c.firma, ctx) : '') + (c.valor || !c.firma ? interpolar(c.valor || '', vars, { raya: 10 }) : '')
-      fila.push(`<td colspan="${span}"><span class="et">${esc(c.etiqueta)}</span> ${valor}</td>`)
+      const escrito = !c.valor && !c.firma ? manual(ctx, `${bi}.${ci}`) : ''
+      const valor = (c.firma ? imgFirma(c.firma, ctx) : '') + (escrito || (c.valor || !c.firma ? interpolar(c.valor || '', vars, { raya: 10 }) : ''))
+      const marca = !c.valor && !c.firma && !esFirma(c) ? attrCampo(ctx, `m:${bi}.${ci}`, !!escrito) : ''
+      fila.push(`<td colspan="${span}"${marca}><span class="et">${esc(c.etiqueta)}</span> ${valor}</td>`)
       usadas += span
     }
     if (fila.length) celdas.push(fila)
     return titulo + `<table class="grilla">${celdas.map(f => `<tr>${f.join('')}</tr>`).join('')}</table>`
   }
   // 'lineas': etiqueta y el valor sobre una raya, como los formularios impresos
-  const items = (b.campos || []).map(c => {
-    const texto = c.valor ? interpolar(c.valor, vars, { raya: 3 }) : ''
+  const items = (b.campos || []).map((c, ci) => {
+    const texto = c.valor ? interpolar(c.valor, vars, { raya: 3 }) : (!c.firma ? manual(ctx, `${bi}.${ci}`) : '')
     // Firma y nombre juntos (F-FAM-11): la firma va encima del nombre, no al lado
     const conTexto = !sinTexto(texto)
     const firma = c.firma ? (conTexto ? `<span class="firma-sobre">${imgFirma(c.firma, ctx)}</span>` : imgFirma(c.firma, ctx)) : ''
     const valor = firma + (conTexto ? texto : '')
     const vacio = !valor
+    const marca = !c.valor && !c.firma && !esFirma(c) ? attrCampo(ctx, `m:${bi}.${ci}`, !vacio) : ''
     if (c.arriba) return `<div class="linea-arriba" style="grid-column:span ${Math.min(c.span || 1, cols)}">
-      <div class="et">${esc(c.etiqueta)}</div><div class="llenar">${vacio ? '&nbsp;' : valor}</div></div>`
+      <div class="et">${esc(c.etiqueta)}</div><div class="llenar"${marca}>${vacio ? '&nbsp;' : valor}</div></div>`
     return `<div class="linea" style="grid-column:span ${Math.min(c.span || 1, cols)}">
-      <span class="et">${esc(c.etiqueta)}</span><span class="llenar">${vacio ? '&nbsp;' : valor}</span></div>`
+      <span class="et">${esc(c.etiqueta)}</span><span class="llenar"${marca}>${vacio ? '&nbsp;' : valor}</span></div>`
   }).join('')
   return titulo + `<div class="lineas" style="grid-template-columns:repeat(${cols},1fr)">${items}</div>`
 }
@@ -119,7 +138,7 @@ const COLUMNAS_TABLA = {
 
 function tabla(b, ctx) {
   const filas = (b.fuente === 'insumos' ? ctx.insumos
-    : b.fuente === 'ambos' ? [...(ctx.equipos || []), ...(ctx.insumos || []).map(i => ({ ...i, estado: 'Nuevo' }))]
+    : b.fuente === 'ambos' ? [...(ctx.equipos || []), ...(ctx.insumos || []).map(i => ({ ...i, estado: i.estado || 'Nuevo' }))]
     : ctx.equipos) || []
   if (!filas.length && b.ocultar_vacia) return ''
   if (b.filas_fijas?.length) return tablaFija(b, filas)
@@ -166,12 +185,15 @@ function tablaFija(b, filas) {
     <tbody>${cuerpo}</tbody></table>`
 }
 
-function firmas(b, ctx) {
+function firmas(b, ctx, bi) {
   const lista = b.firmas || []
-  return `<div class="firmas" style="grid-template-columns:repeat(${Math.max(lista.length, 1)},1fr)">${lista.map(f => {
+  return `<div class="firmas" style="grid-template-columns:repeat(${Math.max(lista.length, 1)},1fr)">${lista.map((f, fi) => {
     const img = f.rol !== 'vacia' && ctx.firmas?.[f.rol]
-    const lineas = (f.lineas || []).map(l =>
-      `<div><b>${esc(l.etiqueta)}</b> ${interpolar(l.valor || '', ctx.variables, { raya: 18 })}</div>`).join('')
+    const lineas = (f.lineas || []).map((l, li) => {
+      const escrito = !l.valor && manual(ctx, `${bi}.f${fi}.${li}`)
+      const contenido = escrito || interpolar(l.valor || '', ctx.variables, { raya: 18 })
+      return `<div><b>${esc(l.etiqueta)}</b> ${!l.valor && ctx.marcar ? `<span${attrCampo(ctx, `m:${bi}.f${fi}.${li}`, !!escrito)}>${contenido}</span>` : contenido}</div>`
+    }).join('')
     return `<div class="firma">
       <div class="firma-img">${img ? `<img src="${esc(img)}">` : ''}</div>
       <div class="firma-raya"></div>
@@ -180,7 +202,7 @@ function firmas(b, ctx) {
   }).join('')}</div>`
 }
 
-function bloque(b, ctx) {
+function bloque(b, ctx, bi) {
   const vars = ctx.variables || {}
   switch (b.tipo) {
     case 'encabezado': return encabezado(b, vars)
@@ -188,9 +210,18 @@ function bloque(b, ctx) {
       return `<div class="titulo" style="text-align:${alinear(b.alineacion || 'centro')}">${formato(interpolar(b.texto, vars))}</div>`
     case 'texto':
       return caja(b, `<div class="texto" style="text-align:${alinear(b.alineacion || 'justificado')};font-size:${b.tamano || 12}px">${formato(interpolar(b.texto, vars, { marcar: true }))}</div>`)
-    case 'campos': return caja(b, campos(b, ctx))
-    case 'tabla': return caja(b, tabla(b, ctx))
-    case 'firmas': return caja(b, firmas(b, ctx))
+    case 'campos': return caja(b, campos(b, ctx, bi))
+    case 'tabla': {
+      const html = tabla(b, ctx)
+      if (!ctx.marcar || !html) return caja(b, html)
+      // Claves separadas por espacio: una tabla de equipos e insumos con Estado lleva las dos
+      const claves = [(b.columnas || []).some(c => c.clave === 'estado') && b.fuente !== 'insumos' && 'estados', (b.fuente === 'insumos' || b.fuente === 'ambos') && 'insumos'].filter(Boolean)
+      return caja(b, claves.length ? `<div data-campo="${claves.join(' ')}" class="cmp-tabla">${html}</div>` : html)
+    }
+    case 'firmas': return caja(b, firmas(b, ctx, bi))
+    case 'imagen': return b.url
+      ? `<div style="text-align:${alinear(b.alineacion || 'centro')}"><img src="${esc(b.url)}" style="max-height:${b.alto || 60}px;max-width:100%"></div>`
+      : ''
     case 'espacio': return `<div style="height:${b.alto || 16}px"></div>`
     case 'pie': return `<div class="pie">${formato(interpolar(b.texto, vars))}</div>`
     default: return ''
@@ -248,18 +279,28 @@ body{font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#111;background
 .firma-raya{border-top:1px solid #111;margin-bottom:3px}
 .firma-titulo{font-weight:bold}
 .pie{text-align:center;font-size:10px;color:#333;margin-top:14px}
+.cmp{background:rgba(46,181,212,.12);border-radius:2px;cursor:pointer;transition:background .15s,outline-color .15s}
+.cmp:hover{background:rgba(46,181,212,.28)}
+.cmp.vacio{background:rgba(245,158,11,.18)}
+.cmp.vacio:hover{background:rgba(245,158,11,.32)}
+.cmp-tabla{cursor:pointer;border-radius:3px;outline:2px dashed transparent;outline-offset:2px}
+.cmp-tabla:hover{outline-color:rgba(46,181,212,.6)}
+.activo{background:#FDE68A!important;outline:2px solid #F59E0B!important;outline-offset:1px}
 `
 
 // Divide los bloques en páginas (por salto_pagina) y devuelve un documento HTML por página
 export function renderPaginas(bloques, ctx) {
+  // marcar: true, o un mapa variable → clave (campos.js → CLAVES_HOJA)
+  if (ctx?.marcar) ctx = { ...ctx, variables: { ...ctx.variables, __marcar: ctx.marcar } }
+  // Cada bloque guarda su posición en la plantilla: es la clave de sus renglones en blanco
   const paginas = [[]]
-  for (const b of bloques || []) {
+  ;(bloques || []).forEach((b, bi) => {
     if (b.tipo === 'salto_pagina') paginas.push([])
-    else paginas[paginas.length - 1].push(b)
-  }
+    else if (b.tipo !== 'campos_propios') paginas[paginas.length - 1].push({ b, bi })
+  })
   return paginas
     .filter(p => p.length)
     .map(p => `<!DOCTYPE html><html><head><meta charset="utf-8"><style>${CSS}</style></head><body>${
-      p.map(b => `<div class="bloque">${bloque(b, ctx)}</div>`).join('')
+      p.map(({ b, bi }) => `<div class="bloque">${bloque(b, ctx, bi)}</div>`).join('')
     }</body></html>`)
 }

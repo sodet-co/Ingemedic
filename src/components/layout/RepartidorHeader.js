@@ -2,6 +2,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { Truck, User } from 'lucide-react'
+import LogoEmpresa from '@/components/layout/LogoEmpresa'
 
 export function iniciales(nombre) {
   return (nombre || '?').trim().split(/\s+/).slice(0, 2).map(p => p[0]).join('').toUpperCase()
@@ -16,14 +17,13 @@ const TABS = [
 // Barra superior blanca (el logo es un JPG con fondo blanco: sobre la barra
 // azul de antes se veía como un recuadro pegado) + barra inferior con las
 // dos secciones al alcance del pulgar. Cerrar sesión vive en "Mi perfil".
-export default function RepartidorHeader({ children, logoUrl, nombre }) {
+export default function RepartidorHeader({ children, empresa, nombre }) {
   const pathname = usePathname()
 
   return (
     <div className="flex flex-col h-[100dvh] bg-[#F8FAFC]">
       <header className="h-14 bg-white border-b border-slate-200 flex items-center justify-between px-4 flex-shrink-0">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={logoUrl} className="h-8 w-auto" alt="Ingemedic" />
+        <LogoEmpresa empresa={empresa} alto={32} respaldo="/images/logo.png" />
         <Link href="/repartidor-preferencias" aria-label="Mi perfil"
           className="w-9 h-9 rounded-full bg-[#1B3A6B] text-white text-[13px] font-bold flex items-center justify-center">
           {iniciales(nombre)}

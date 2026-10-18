@@ -9,8 +9,10 @@ import FirmaActas from '@/components/actas/FirmaActas'
 import Ayuda from '@/components/ui/Ayuda'
 import EntregaEnCurso, { RutaAnimada } from '@/components/entregas/EntregaEnCurso'
 import ConfirmDialog from '@/components/ui/ConfirmDialog'
+import { descargarActasPDF } from '@/lib/actas/pdf'
+import { ui } from '@/lib/ui'
 import {
-  Package, MapPin, Clock, CheckCircle2, Truck, Phone, Navigation, StickyNote, ChevronLeft,
+  Package, MapPin, Clock, CheckCircle2, Truck, Phone, Navigation, StickyNote, ChevronLeft, Download, Loader2,
 } from 'lucide-react'
 
 function nombreEquipo(eq) {
@@ -149,6 +151,26 @@ export default function EntregasRepartidorClient({ nombreRepartidor = '', entreg
     setModalRegistro(entrega)
   }
 
+  // PDF con las actas firmadas en una entrega (las de esa entrega; si es de antes
+  // de guardar la entrega en el acta, las del préstamo)
+  const [descargando, setDescargando] = useState(null)
+  // Pantalla de éxito al cerrar una entrega: tiempo, quién recibió y el acta
+  const [exito, setExito] = useState(null)
+  async function descargarActas(item) {
+    setDescargando(item.key)
+    try {
+      const campos = 'id, nombre, fecha_firma, bloques, datos, firma_recibe, firma_entrega'
+      let { data } = await supabase.from('actas').select(campos).eq('entrega_id', item.entrega.id).order('fecha_firma')
+      if (!data?.length && item.orden?.id) ({ data } = await supabase.from('actas').select(campos).eq('orden_id', item.orden.id).order('fecha_firma'))
+      if (!data?.length) { showToast('Esta entrega no tiene actas firmadas', 'error'); return }
+      await descargarActasPDF(data, `Acta_${item.orden?.codigo || 'entrega'}.pdf`)
+    } catch (e) {
+      showToast('No se pudo generar el PDF: ' + (e.message || e), 'error')
+    } finally {
+      setDescargando(null)
+    }
+  }
+
   // Lo corre FirmaActas antes de guardar las actas: si falla, no se guarda nada
   async function completarEntrega({ recibidoPor, firma, observaciones }) {
     const entrega = modalRegistro
@@ -231,6 +253,9 @@ export default function EntregasRepartidorClient({ nombreRepartidor = '', entreg
                         <div className="text-[12px] text-slate-500 truncate">Recibió: {item.entrega.recibido_por}</div>
                       )}
                     </div>
+                    <button onClick={() => descargarActas(item)} disabled={!!descargando} className={ui.btnChico} aria-label="Descargar actas en PDF">
+                      {descargando === item.key ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />} PDF
+                    </button>
                   </div>
                 )
               })}
@@ -238,6 +263,11 @@ export default function EntregasRepartidorClient({ nombreRepartidor = '', entreg
           )
         )}
       </div>
+
+      {exito && (
+        <EntregaExitosa exito={exito} descargando={descargando === 'exito'}
+          onDescargar={() => descargarActas(exito.item)} onCerrar={() => setExito(null)} />
+      )}
 
       {/* Confirmar antes de iniciar (evita toques accidentales) */}
       <ConfirmDialog
@@ -255,7 +285,13 @@ export default function EntregasRepartidorClient({ nombreRepartidor = '', entreg
           titulo="Completar entrega"
           alFirmar={completarEntrega}
           onCancelar={() => setModalRegistro(null)}
-          onHecho={() => { setModalRegistro(null); setEnCursoId(null); showToast('¡Entrega completada!'); router.refresh() }} />
+          onHecho={resumen => {
+            setExito({
+              item: { key: 'exito', entrega: modalRegistro, orden: modalRegistro.orden },
+              recibidoPor: resumen?.recibidoPor, inicio: modalRegistro.fecha_inicio, fin: new Date().toISOString(),
+            })
+            setModalRegistro(null); setEnCursoId(null); router.refresh()
+          }} />
       )}
 
       {/* Entrega en curso a pantalla completa */}
@@ -297,6 +333,54 @@ function Vacio({ titulo, sub }) {
       <Truck className="w-14 h-14 mx-auto mb-3 opacity-20" />
       <div className="font-semibold text-[15px] text-slate-500 mb-1">{titulo}</div>
       <div className="text-[13px]">{sub}</div>
+    </div>
+  )
+}
+
+// "38 min", "1 h 12 min"
+function duracion(desde, hasta) {
+  if (!desde || !hasta) return null
+  const min = Math.max(1, Math.round((new Date(hasta) - new Date(desde)) / 60000))
+  return min < 60 ? `${min} min` : `${Math.floor(min / 60)} h${min % 60 ? ` ${min % 60} min` : ''}`
+}
+
+// Al cerrar una entrega: confirmación grande con el tiempo, quién recibió y el acta a un toque
+function EntregaExitosa({ exito, descargando, onDescargar, onCerrar }) {
+  const { item, recibidoPor, inicio, fin } = exito
+  const destino = item.orden?.paciente?.nombre || item.orden?.cliente?.nombre || 'Entrega'
+  const tiempo = duracion(inicio, fin)
+  const datos = [
+    tiempo && ['Tiempo de entrega', tiempo, Clock],
+    recibidoPor && ['Recibió', recibidoPor, CheckCircle2],
+    ['Hora', new Date(fin).toLocaleTimeString('es-CO', { hour: 'numeric', minute: '2-digit', hour12: true }), Truck],
+  ].filter(Boolean)
+  return (
+    <div className="fixed inset-0 z-[70] bg-black/50 flex items-end md:items-center justify-center md:p-4" role="dialog" aria-modal="true" aria-label="Entrega completada">
+      <div className="w-full md:max-w-[420px] bg-white rounded-t-3xl md:rounded-2xl shadow-2xl px-6 pt-8 pb-6 text-center animate-[aparecer_.25s_ease-out]"
+        style={{ paddingBottom: 'max(24px, env(safe-area-inset-bottom, 24px))' }}>
+        <div className="mx-auto w-20 h-20 rounded-full bg-[#ECFDF5] flex items-center justify-center animate-[pop_.4s_ease-out]">
+          <div className="w-14 h-14 rounded-full bg-[#0F7B55] text-white flex items-center justify-center"><CheckCircle2 size={32} strokeWidth={2.5} /></div>
+        </div>
+        <div className="mt-4 text-[20px] font-bold text-slate-800">¡Entrega completada!</div>
+        <div className="mt-1 text-[14px] text-slate-500 truncate">{destino}</div>
+        {item.orden?.codigo && <div className="text-[12px] font-mono text-slate-400">{item.orden.codigo}</div>}
+
+        <div className="mt-5 rounded-2xl bg-slate-50 border border-slate-100 divide-y divide-slate-100 text-left">
+          {datos.map(([k, v, Icono]) => (
+            <div key={k} className="flex items-center gap-3 px-4 py-3">
+              <Icono size={16} className="text-[#0F7B55] flex-shrink-0" />
+              <span className="text-[13px] text-slate-500 flex-shrink-0">{k}</span>
+              <span className="ml-auto text-[14px] font-semibold text-slate-800 truncate text-right">{v}</span>
+            </div>
+          ))}
+        </div>
+
+        <button onClick={onDescargar} disabled={descargando} className={`${ui.btnPrimario} w-full !h-12 mt-5 !text-[14px]`}>
+          {descargando ? <><Loader2 size={16} className="animate-spin" /> Generando acta…</> : <><Download size={16} /> Descargar acta</>}
+        </button>
+        <button onClick={onCerrar} disabled={descargando} className={`${ui.btnSecundario} w-full !h-11 mt-2`}>Listo</button>
+      </div>
+      <style>{'@keyframes pop{0%{transform:scale(.5);opacity:0}70%{transform:scale(1.08)}100%{transform:scale(1);opacity:1}}@keyframes aparecer{from{transform:translateY(24px);opacity:0}to{transform:none;opacity:1}}'}</style>
     </div>
   )
 }

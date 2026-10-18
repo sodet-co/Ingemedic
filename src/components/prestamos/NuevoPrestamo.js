@@ -1,18 +1,24 @@
 'use client'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Search, X, Check, Plus, ChevronDown, ChevronLeft, User, Building, Truck, Store, FileText, RotateCcw } from 'lucide-react'
+import { Search, X, Check, Plus, ChevronDown, ChevronLeft, User, Building, Truck, Store, FileText, RotateCcw, Eye, AlertCircle } from 'lucide-react'
 import { createClient } from '@/lib/supabase'
 import { registrarBitacora } from '@/lib/bitacora'
 import { paraGuardar, hoyBogota, formatear, formatearSoloFecha } from '@/lib/fechas'
 import { buscarCedulaDuplicada, mensajeCedulaDuplicada, esErrorCedulaDuplicada, MENSAJE_CEDULA_DUPLICADA } from '@/lib/pacientes'
 import { plantillasSugeridas } from '@/lib/actas/firmar'
+import { DATOS_ACTA_VACIO, leerDatosActa, camposPedidos, camposVacios } from '@/lib/actas/campos'
+import { construirContexto, conManuales } from '@/lib/actas/contexto'
+import LlenarFormatos, { VentanaLlenarFormatos } from '@/components/actas/LlenarFormatos'
+import PreviaActas from '@/components/actas/PreviaActas'
 import ControlVigencia from '@/components/prestamos/ControlVigencia'
 import SelectorEquiposPrestamo from '@/components/prestamos/SelectorEquiposPrestamo'
 import ConfirmDialog from '@/components/ui/ConfirmDialog'
 import { ui } from '@/lib/ui'
 
 // Asistente de préstamo nuevo, un paso a la vez:
-//   1 Cliente y paciente · 2 Equipos · 3 Entrega · 4 Formatos y confirmación
+//   1 Cliente y paciente · 2 Equipos · 3 Entrega · 4 Formatos · 5 Confirmación
+// En Formatos se eligen las plantillas y se llenan los datos que piden
+// mirando la hoja (LlenarFormatos): al repartidor solo le quedan las firmas.
 // Pensado para el caso del día a día (94% con paciente, 96% en oficina, 1–2
 // equipos): el paciente viene activado y la entrega por defecto es en oficina.
 // Los equipos se eligen con el selector de siempre (SelectorEquiposPrestamo,
@@ -23,7 +29,7 @@ import { ui } from '@/lib/ui'
 const inputCls = 'w-full px-3 py-2.5 border border-slate-200 rounded-[9px] text-[16px] md:text-[13.5px] text-slate-800 outline-none focus:border-[#D81B43] bg-white transition-colors placeholder:text-slate-400'
 const labelCls = 'block text-[11px] font-bold uppercase tracking-[0.07em] text-slate-500 mb-1.5'
 const TIPOS_DOC = ['CC', 'TI', 'RC', 'CE', 'PA']
-const PASOS = ['Cliente y paciente', 'Equipos', 'Entrega', 'Formatos y confirmación']
+const PASOS = ['Cliente y paciente', 'Equipos', 'Entrega', 'Formatos', 'Confirmación']
 const CLAVE_BORRADOR = 'ingemedic.borradorPrestamo'
 
 export const PACIENTE_VACIO = { nombre: '', cedula: '', tipo_documento: 'CC', direccion: '', barrio: '', ciudad: '', telefono: '', correo: '', eps: '', fecha_nacimiento: '' }
@@ -32,7 +38,7 @@ const FORM_VACIO = {
   cliente_id: '', sinPaciente: false, paciente_id: '', paciente: { ...PACIENTE_VACIO }, pacienteNuevo: false,
   diagnostico: '', equipos_ids: [],
   modo: 'oficina', fecha_oficina: '', fecha_domicilio: '', repartidor_id: '', inicioDistinto: false, fecha_inicio: '',
-  fecha_vigencia: null, observaciones: '', plantillas_acta: [],
+  fecha_vigencia: null, observaciones: '', plantillas_acta: [], datos_acta: DATOS_ACTA_VACIO,
 }
 
 const nombreEquipo = eq => eq?.tipo_equipo?.atributos?.nombre || eq?.tipo_equipo?.nombre || '—'
@@ -85,8 +91,8 @@ export default function NuevoPrestamo({
   function retomarBorrador() {
     // Lo que entretanto se prestó o entró a mantenimiento sale del carrito
     const quitados = borrador.f.equipos_ids.filter(id => !idsDisponibles.has(id))
-    setF({ ...FORM_VACIO, ...borrador.f, equipos_ids: borrador.f.equipos_ids.filter(id => idsDisponibles.has(id)) })
-    setPaso(Math.min(borrador.paso || 0, quitados.length ? 1 : 3))
+    setF({ ...FORM_VACIO, ...borrador.f, datos_acta: leerDatosActa(borrador.f.datos_acta), equipos_ids: borrador.f.equipos_ids.filter(id => idsDisponibles.has(id)) })
+    setPaso(Math.min(borrador.paso || 0, quitados.length ? 1 : PASOS.length - 1))
     if (quitados.length) setErrorGeneral(`${quitados.length} equipo(s) del borrador ya no están disponibles y se quitaron.`)
     setBorrador(null)
   }
@@ -137,6 +143,31 @@ export default function NuevoPrestamo({
   }
   // ── Paso 3: entrega (F) ──────────────────────────────────
   const repartidorSel = repartidores.find(r => r.id === f.repartidor_id)
+
+  // ── Paso 4: formatos ─────────────────────────────────────
+  const elegidas = useMemo(() => f.plantillas_acta.map(id => plantillas.find(p => p.id === id)).filter(Boolean), [f.plantillas_acta, plantillas])
+  const valoresFormatos = { paciente: f.paciente, diagnostico: f.diagnostico, acta: f.sinPaciente ? { ...f.datos_acta, recibe: { ...f.datos_acta.recibe, esPaciente: false } } : f.datos_acta }
+  const faltantes = useMemo(() => camposVacios(camposPedidos(elegidas, { conPaciente: conPaciente }).campos, valoresFormatos).length,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [elegidas, conPaciente, f.paciente, f.diagnostico, f.datos_acta, f.sinPaciente])
+  const [previa, setPrevia] = useState(null) // filas de la vista previa abierta
+  const [llenando, setLlenando] = useState(false) // ventana grande de llenar formatos
+
+  // Los formatos tal como quedarán (sin firmas), para revisarlos antes de crear
+  const contextoFormatos = (acta = valoresFormatos.acta) => construirContexto({
+    orden: { diagnostico: f.diagnostico, cliente: clienteSel, paciente: conPaciente ? f.paciente : null },
+    equipos: carrito,
+    datos: { ...acta, fecha: (f.modo === 'oficina' ? f.fecha_oficina && f.fecha_oficina + 'T12:00:00' : f.fecha_domicilio) || undefined },
+  })
+  function filasPrevia() {
+    const ctx = contextoFormatos()
+    return elegidas.map(p => ({ id: p.id, nombre: p.nombre, bloques: p.bloques, datos: conManuales(ctx, p.id), firma_recibe: null, firma_entrega: null }))
+  }
+  // Lo que la hoja necesita además de lo que se escribe (LlenarFormatos)
+  const fechaFormatos = (f.modo === 'oficina' ? f.fecha_oficina && f.fecha_oficina + 'T12:00:00' : f.fecha_domicilio) || undefined
+  const baseFormatos = useMemo(() => ({ orden: { cliente: clienteSel }, equipos: carrito, fecha: fechaFormatos }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [clienteSel, f.equipos_ids, fechaFormatos])
 
   // ── Validación por paso, con el error junto a su campo ──
   function validar(p) {
@@ -223,6 +254,7 @@ export default function NuevoPrestamo({
       fecha_entrega: paraGuardar(domicilio ? f.fecha_domicilio : f.fecha_oficina),
       observaciones: notaInicio, fecha_vigencia: f.fecha_vigencia || null,
       diagnostico: f.diagnostico.trim() || null, plantillas_acta: f.plantillas_acta,
+      datos_acta: valoresFormatos.acta,
     }).select('id, codigo').single()
     if (errOrden) return fallo('Error: ' + errOrden.message)
 
@@ -492,30 +524,64 @@ export default function NuevoPrestamo({
             </section>
           )}
 
-          {/* ── PASO 4: FORMATOS Y CONFIRMACIÓN ── */}
+          {/* ── PASO 4: FORMATOS (elegirlos arriba y llenarlos mirando la hoja) ── */}
           {paso === 3 && (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
-              <section className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 md:p-6">
-                <div className="flex items-center gap-2 text-[14px] font-bold text-slate-800 mb-1"><FileText size={16} className="text-[#1B3A6B]" /> Formatos del préstamo</div>
-                <div className="text-[12.5px] text-slate-400 mb-4">{f.modo === 'domicilio' ? 'Se firman al entregar.' : 'Quedan relacionados al préstamo.'} Vienen marcados los del cliente.</div>
-                {[['De entrega', formatosEntrega], ['Anexos (opcionales)', anexos]].map(([titulo, lista]) => lista.length > 0 && (
-                  <div key={titulo} className="mb-4">
-                    <div className="text-[10.5px] font-bold uppercase tracking-[0.07em] text-slate-400 mb-2">{titulo}</div>
-                    <div className="space-y-2">
-                      {lista.map(p => {
-                        const marcado = f.plantillas_acta.includes(p.id)
-                        return (
-                          <label key={p.id} className={`flex items-start gap-3 p-3 rounded-[10px] border cursor-pointer transition-colors ${marcado ? 'border-[#D81B43]/40 bg-[#D81B43]/[0.03]' : 'border-slate-200 hover:border-slate-300'}`}>
-                            <input type="checkbox" className="mt-0.5" checked={marcado}
-                              onChange={e => { set('plantillas_acta', e.target.checked ? [...f.plantillas_acta, p.id] : f.plantillas_acta.filter(id => id !== p.id)); setErrores({}) }} />
-                            <span className="text-[13px] text-slate-700">{p.nombre}{p.es_estandar && <span className="ml-1.5 text-[11px] font-semibold text-[#1B3A6B]">Estándar</span>}</span>
-                          </label>
-                        )
-                      })}
+            <div className="space-y-3">
+              <section className="bg-white rounded-xl border border-slate-200 shadow-sm px-4 py-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="flex items-center gap-1.5 text-[13px] font-bold text-slate-800 mr-1"><FileText size={15} className="text-[#1B3A6B]" /> Formatos</span>
+                  {[...formatosEntrega, ...anexos].map(p => {
+                    const marcado = f.plantillas_acta.includes(p.id)
+                    return (
+                      <label key={p.id} title={p.nombre} className={`flex items-center gap-2 max-w-[320px] px-3 h-9 rounded-full border cursor-pointer text-[12.5px] transition-colors ${marcado ? 'border-[#D81B43]/50 bg-[#D81B43]/[0.05] text-slate-800 font-semibold' : 'border-slate-200 text-slate-500 hover:border-slate-300'}`}>
+                        <input type="checkbox" checked={marcado}
+                          onChange={e => { set('plantillas_acta', e.target.checked ? [...f.plantillas_acta, p.id] : f.plantillas_acta.filter(id => id !== p.id)); setErrores({}) }} />
+                        <span className="truncate">{p.nombre}</span>
+                        {p.tipo === 'anexo' && <span className="text-[11px] font-normal text-slate-400">anexo</span>}
+                      </label>
+                    )
+                  })}
+                </div>
+                {errores.formatos && <div className="text-[12px] text-[#D81B43] mt-2">{errores.formatos}</div>}
+              </section>
+
+              {elegidas.length > 0 && (
+                <section className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 md:p-6 flex flex-col sm:flex-row sm:items-center gap-4">
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[14px] font-bold text-slate-800">Llenar formatos</div>
+                    <div className={`flex items-center gap-1.5 mt-1 text-[13px] ${faltantes ? 'text-[#B45309]' : 'text-[#0F7B55]'}`}>
+                      {faltantes ? <AlertCircle size={15} /> : <Check size={15} />}
+                      {faltantes ? `Faltan ${faltantes} ${faltantes === 1 ? 'dato' : 'datos'}. Lo demás es opcional.` : 'Datos completos. Solo faltan las firmas.'}
                     </div>
                   </div>
-                ))}
-                {errores.formatos && <div className="text-[12px] text-[#D81B43]">{errores.formatos}</div>}
+                  <button type="button" onClick={() => setLlenando(true)} className={`${ui.btnAzul} !h-11 !px-5`}>
+                    <FileText size={15} /> Llenar formatos
+                  </button>
+                </section>
+              )}
+            </div>
+          )}
+
+          {/* ── PASO 5: CONFIRMACIÓN ── */}
+          {paso === 4 && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
+              <section className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 md:p-6">
+                <div className="flex items-center gap-2 text-[14px] font-bold text-slate-800 mb-4"><FileText size={16} className="text-[#1B3A6B]" /> Formatos</div>
+                <div className="space-y-1.5 mb-4">
+                  {elegidas.map(p => (
+                    <div key={p.id} className="flex items-center gap-2 text-[13px] text-slate-700"><FileText size={13} className="text-slate-400 flex-shrink-0" /><span className="truncate">{p.nombre}</span></div>
+                  ))}
+                </div>
+                {faltantes > 0 ? (
+                  <div className="flex items-start gap-2 px-3 py-2.5 rounded-[10px] bg-amber-50 text-[12.5px] text-[#B45309]">
+                    <AlertCircle size={15} className="flex-shrink-0 mt-px" />
+                    <span className="flex-1">Faltan {faltantes} {faltantes === 1 ? 'dato' : 'datos'} en los formatos. {f.modo === 'domicilio' ? 'El repartidor puede completarlos al entregar.' : 'Quedarán en blanco.'}</span>
+                    <button onClick={() => irA(3)} className="font-semibold hover:underline flex-shrink-0">Llenar</button>
+                  </div>
+                ) : (
+                  <div className="px-3 py-2.5 rounded-[10px] bg-emerald-50 text-[12.5px] text-[#0F7B55]">Formatos completos. Solo faltan las firmas.</div>
+                )}
+                <button type="button" onClick={() => setPrevia(filasPrevia())} className={`${ui.btnSecundario} mt-4`}><Eye size={14} /> Ver cómo quedan</button>
               </section>
 
               <section className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 md:p-6">
@@ -529,6 +595,7 @@ export default function NuevoPrestamo({
                       ? `En oficina · ${f.fecha_oficina ? formatearSoloFecha(f.fecha_oficina) : '—'}`
                       : `A domicilio · ${repartidorSel?.nombre || '—'} · ${f.fecha_domicilio ? formatear(f.fecha_domicilio, { hour: '2-digit', minute: '2-digit' }) : '—'}`, 2],
                     ['Vigencia', f.fecha_vigencia ? `Hasta el ${formatearSoloFecha(f.fecha_vigencia)}` : 'Indefinida', 2],
+                    ['Formatos', `${elegidas.length} ${elegidas.length === 1 ? 'formato' : 'formatos'}`, 3],
                   ].map(([k, v, p]) => (
                     <div key={k} className="flex gap-3">
                       <dt className="w-[78px] flex-shrink-0 text-slate-400">{k}</dt>
@@ -537,9 +604,6 @@ export default function NuevoPrestamo({
                     </div>
                   ))}
                 </dl>
-                {f.modo === 'oficina' && (
-                  <div className="mt-4 px-3 py-2.5 bg-[#E8F7FB] rounded-[9px] text-[12.5px] text-[#0E7490]">Los formatos se descargan desde el detalle del préstamo.</div>
-                )}
               </section>
             </div>
           )}
@@ -580,6 +644,20 @@ export default function NuevoPrestamo({
           </div>
         </div>
       </div>
+
+      {llenando && elegidas.length > 0 && (
+        <VentanaLlenarFormatos subtitulo={[clienteSel?.nombre, conPaciente && f.paciente.nombre].filter(Boolean).join(' · ')}
+          onCerrar={() => setLlenando(false)}
+          pie={<button onClick={() => setLlenando(false)} className={ui.btnPrimario}>Listo</button>}>
+          <LlenarFormatos plantillas={elegidas} valores={valoresFormatos} conPaciente={conPaciente} nombrePaciente={f.paciente.nombre}
+            base={baseFormatos}
+            onPaciente={setPac} onDiagnostico={v => set('diagnostico', v)} onActa={v => set('datos_acta', v)} />
+        </VentanaLlenarFormatos>
+      )}
+
+      {previa && (
+        <PreviaActas actas={previa} titulo="Vista previa de los formatos" onCerrar={() => setPrevia(null)} />
+      )}
 
       <ConfirmDialog
         abierto={confirmarDescarte}

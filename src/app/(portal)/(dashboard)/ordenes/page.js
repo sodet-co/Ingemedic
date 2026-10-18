@@ -34,7 +34,7 @@ export default async function OrdenesPage() {
     supabase.from('estados_orden').select('*').order('nombre'),
     supabase.from('estados_equipo').select('*').order('nombre'),
     // Formatos de acta que se eligen al crear un préstamo (lib/actas)
-    supabase.from('plantillas_acta').select('id, nombre, tipo, es_estandar, uso_general, clientes:cliente_plantillas_acta(orden, cliente_id)')
+    supabase.from('plantillas_acta').select('id, nombre, tipo, es_estandar, uso_general, bloques, clientes:cliente_plantillas_acta(orden, cliente_id)')
       .eq('activo', true).order('es_estandar', { ascending: false }).order('nombre'),
     traerTodosLosEquipos(supabase, q => q.select(`
       id, codigo, tipo_equipo_id, atributos,

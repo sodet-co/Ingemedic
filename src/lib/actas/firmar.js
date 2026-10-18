@@ -3,7 +3,7 @@
 // crear un préstamo en oficina— y la descarga del PDF.
 
 const SELECT_ORDEN = `
-  id, codigo, diagnostico, plantillas_acta, cliente_id,
+  id, codigo, diagnostico, plantillas_acta, datos_acta, cliente_id,
   cliente:clientes(id, nombre, nit_cc),
   paciente:pacientes(id, nombre, cedula, tipo_documento, direccion, barrio, ciudad, telefono, correo, eps, fecha_nacimiento),
   equipos:orden_equipos(id, fecha_devolucion, equipo:equipos(id, codigo, atributos,
@@ -63,7 +63,7 @@ export async function guardarActas(supabase, { ordenId, entregaId = null, planti
     plantilla_id: p.id,
     nombre: p.nombre,
     bloques: p.bloques,
-    datos: { variables: ctx.variables, equipos: ctx.equipos, insumos: ctx.insumos },
+    datos: { variables: ctx.variables, equipos: ctx.equipos, insumos: ctx.insumos, manuales: ctx.manualesPorPlantilla?.[p.id] || {} },
     firma_recibe: firmas.recibe || null,
     firma_entrega: firmas.entrega || null,
     creado_por: user?.id || null,
@@ -79,6 +79,7 @@ export function contextoDeActa(acta) {
     variables: d.variables || {},
     equipos: d.equipos || [],
     insumos: d.insumos || [],
+    manuales: d.manuales || {},
     firmas: {
       recibe: acta.firma_recibe, entrega: acta.firma_entrega,
       [responsable ? 'responsable' : 'paciente']: acta.firma_recibe,

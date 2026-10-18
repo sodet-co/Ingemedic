@@ -68,7 +68,7 @@ function estandar(base) {
   }
 }
 
-// ── Pagaré y carta de instrucciones (Excel, hoja 1 abajo) — documento aparte, se asigna por cliente ──
+// ── Pagaré y carta de instrucciones (Excel, hoja 1 abajo) — va al final de la estándar ──
 function pagare(base) {
   const enc = titulo => ({ tipo: 'encabezado', logos: [logo(base, 'logo-ingemedic.png', 50)], ancho_logo: 28, centro: [{ texto: titulo, estilo: 'titulo' }] })
   const cierre = [
@@ -302,13 +302,13 @@ function familyF11() {
         { etiqueta: 'BARRIO:', valor: '{{paciente_barrio}}', span: 2 }, { etiqueta: 'CIUDAD:', valor: '{{ciudad}}' },
         { etiqueta: 'PERIODO DE ATENCIÓN: MESES:', valor: '{{mes}}', span: 2 }, { etiqueta: 'FECHA:', valor: '{{fecha}}' },
       ] },
-      { tipo: 'tabla', fuente: 'equipos', titulo: 'ENTREGA DE EQUIPO BIOMEDICO',
-        filas_fijas: [{ texto: '1. EQUIPO CPAP', coincide: 'cpap' }, { texto: '2. EQUIPO BPAP', coincide: 'bpap' }, { texto: '3. OTROS:', resto: true }],
+      // Las 3 hojas del Excel (CPAP, BPAP, otros) solo cambiaban los equipos: ahora
+      // la tabla lista los del préstamo, sean del tipo que sean
+      { tipo: 'tabla', fuente: 'equipos', titulo: 'ENTREGA DE EQUIPO BIOMEDICO', filas_minimas: 3,
         columnas: [{ clave: 'descripcion', etiqueta: 'DESCRIPCION DEL EQUIPO', ancho: 40 }, { clave: 'cantidad', etiqueta: 'CANT.', ancho: 10 },
           { clave: 'marca', etiqueta: 'MARCA' }, { clave: 'serie', etiqueta: 'SERIAL' }] },
-      { tipo: 'tabla', fuente: 'insumos', titulo: 'ENTREGA DE INSUMOS',
-        filas_fijas: [{ texto: '1. MASCARA ORONASAL', coincide: 'oronasal' }, { texto: '2. MASCARA NASAL', coincide: 'nasal' },
-          { texto: '3. MANGUERA CORRUGADA PARA CPAP Y/O BPAP', coincide: 'manguera' }, { texto: '4. OTROS:', resto: true }],
+      // Insumos: libres, los escribe quien crea el préstamo (no están en el inventario)
+      { tipo: 'tabla', fuente: 'insumos', titulo: 'ENTREGA DE INSUMOS', filas_minimas: 4,
         columnas: [{ clave: 'descripcion', etiqueta: 'INSUMO', ancho: 40 }, { clave: 'cantidad', etiqueta: 'CANT.', ancho: 10 },
           { clave: 'lote', etiqueta: 'LOTE' }, { clave: 'invima', etiqueta: 'REG. INVIMA' }] },
       { tipo: 'campos', titulo: 'DATOS DEL PACIENTE O FAMLIAR QUE RECIBE', columnas: 1, borde: true, campos: [
@@ -326,15 +326,33 @@ function familyF11() {
   }
 }
 
+const SALTO = { tipo: 'salto_pagina' }
+
+// Estándar + pagaré en un solo formato (como el Excel original)
+function estandarConPagare(base) {
+  const e = estandar(base)
+  return {
+    ...e,
+    descripcion: 'Contrato de arriendo de suministro integral de oxígeno domiciliario, entrega y devolución de equipos, declaración de capacitación, carta de instrucciones y pagaré. Se usa con los clientes que no tienen formato propio.',
+    bloques: [...e.bloques, SALTO, ...pagare(base).bloques],
+  }
+}
+
+// Family / FOMAG en un solo formato: comodato, acta general y F-FAM-11
+function family() {
+  return {
+    nombre: 'Family Homecare / FOMAG — Comodato, acta general y F-FAM-11',
+    descripcion: 'Contrato de comodato (5 páginas), acta general de equipos y entrega de equipos e insumos F-FAM-11 de Family Homecare.',
+    bloques: [...familyComodato().bloques, SALTO, ...familyActaGeneral().bloques, SALTO, ...familyF11().bloques],
+  }
+}
+
 // Plantillas y a qué cliente (por nombre en `clientes`) se asignan al cargarlas
 export function plantillasBase(supabaseUrl) {
   return [
-    { ...estandar(supabaseUrl), clientes: [] },
-    { ...pagare(supabaseUrl), clientes: [] },
+    { ...estandarConPagare(supabaseUrl), clientes: [] },
     { ...solidaridad(supabaseUrl), clientes: ['SOLIDARIDAD'] },
     { ...asmedc(supabaseUrl), clientes: ['ASMEDC'] },
-    { ...familyComodato(), clientes: ['FAMILY HOMECARE SAS'] },
-    { ...familyActaGeneral(), clientes: ['FAMILY HOMECARE SAS'] },
-    { ...familyF11(), clientes: ['FAMILY HOMECARE SAS'] },
+    { ...family(), clientes: ['FAMILY HOMECARE SAS', 'FOMAG'] },
   ]
 }

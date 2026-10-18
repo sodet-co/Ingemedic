@@ -3,8 +3,10 @@ import { useEffect, useMemo, useState } from 'react'
 import { X, Loader2, FileText, ChevronLeft } from 'lucide-react'
 import { createClient } from '@/lib/supabase'
 import { cargarParaFirma, guardarActas } from '@/lib/actas/firmar'
-import { construirContexto } from '@/lib/actas/contexto'
+import { construirContexto, conManuales } from '@/lib/actas/contexto'
 import VistaActa from '@/components/actas/VistaActa'
+import { EditorInsumos } from '@/components/actas/LlenarFormatos'
+import { leerDatosActa, camposPedidos } from '@/lib/actas/campos'
 import FirmaPad from '@/components/entregas/FirmaPad'
 import { ui } from '@/lib/ui'
 
@@ -14,9 +16,9 @@ const TIPOS_DOC = ['CC', 'TI', 'RC', 'CE', 'PA']
 
 // Paso único de firma de un préstamo, igual para entrega a domicilio
 // (Entregas y vista del repartidor) y préstamo en oficina (al crearlo):
-//   0       datos: quién recibe, datos del paciente que piden los formatos
-//           y quién entrega (los insumos no se capturan: deben salir del
-//           inventario, no escribirse a mano; las filas quedan en blanco)
+//   0       datos: quién recibe, datos del paciente que piden los formatos,
+//           insumos y quién entrega. Llega lleno con lo que se escribió al crear
+//           el préstamo (ordenes_servicio.datos_acta); aquí solo se corrige.
 //   1..N    revisión de cada formato ya lleno
 //   N+1     firma de quien recibe (el paciente o su familiar, primero y sola)
 //   N+2     firma de quien entrega (el repartidor o técnico, después)
@@ -33,6 +35,10 @@ export default function FirmaActas({ ordenId, entregaId = null, titulo = 'Firmar
   const [diagnostico, setDiagnostico] = useState('')
   const [ciudad, setCiudad] = useState('')
   const [observaciones, setObservaciones] = useState('')
+  const [insumos, setInsumos] = useState([])
+  const [extra, setExtra] = useState({}) // campos propios de la plantilla (lib/actas/campos.js)
+  // "Más campos del formato" llenados al crear el préstamo: se conservan tal cual
+  const [opcionales, setOpcionales] = useState({ valores: {}, estados: {}, manuales: {} })
   const [entrega, setEntrega] = useState({ nombre: '', cargo: '', tipo_documento: 'CC', documento: '' })
   // Quien entrega es quien tiene la sesión: con el perfil completo solo firma.
   // Si le faltan datos se le piden aquí y quedan guardados en su perfil.
@@ -51,8 +57,15 @@ export default function FirmaActas({ ordenId, entregaId = null, titulo = 'Firmar
         setBase(b)
         setPac({ tipo_documento: p.tipo_documento || 'CC', cedula: p.cedula || '', barrio: p.barrio || '', eps: p.eps || '', fecha_nacimiento: p.fecha_nacimiento || '' })
         setDiagnostico(b.orden.diagnostico || '')
-        setCiudad(p.ciudad || '')
-        setRecibe(r => ({ ...r, esPaciente: !!p.nombre, telefono: p.telefono || '', correo: p.correo || '' }))
+        // Lo que se llenó al crear el préstamo
+        const d = leerDatosActa(b.orden.datos_acta)
+        setCiudad(d.ciudad || p.ciudad || '')
+        setObservaciones(d.observaciones || '')
+        setInsumos(d.insumos)
+        setExtra(d.extra)
+        setOpcionales({ valores: d.valores, estados: d.estados, manuales: d.manuales })
+        setRecibe({ ...d.recibe, esPaciente: !!p.nombre && d.recibe.esPaciente !== false,
+          telefono: d.recibe.telefono || p.telefono || '', correo: d.recibe.correo || p.correo || '' })
         setEntrega({ nombre: b.usuario.nombre || '', cargo: b.usuario.cargo || '', tipo_documento: b.usuario.tipo_documento || 'CC', documento: b.usuario.cedula || '' })
         setEditarEntrega(!(b.usuario.nombre && b.usuario.cargo && b.usuario.cedula))
       })
@@ -70,11 +83,13 @@ export default function FirmaActas({ ordenId, entregaId = null, titulo = 'Firmar
     empresa: base.empresa,
     orden: { ...base.orden, diagnostico, paciente: paciente ? { ...paciente, ...pac, ciudad } : null },
     equipos: base.equipos,
-    datos: { ciudad, observaciones, recibe: datosRecibe, entrega, insumos: [] },
+    datos: { ciudad, observaciones, recibe: datosRecibe, entrega, insumos, extra, ...opcionales },
     firmas,
-  }), [base, paciente, pac, diagnostico, ciudad, observaciones, datosRecibe, entrega, firmas])
+  }), [base, paciente, pac, diagnostico, ciudad, observaciones, datosRecibe, entrega, insumos, extra, opcionales, firmas])
 
-  const plantillas = base?.plantillas || []
+  const plantillas = useMemo(() => base?.plantillas || [], [base])
+  const pedidos = useMemo(() => camposPedidos(plantillas), [plantillas])
+  const camposExtra = pedidos.campos.filter(c => c.grupo === 'Otros datos')
   const pasoFirma = plantillas.length + 1       // firma de quien recibe
   const pasoFirmaEntrega = plantillas.length + 2 // firma de quien entrega (último)
   const docActual = paso >= 1 && paso <= plantillas.length ? plantillas[paso - 1] : null
@@ -114,9 +129,11 @@ export default function FirmaActas({ ordenId, entregaId = null, titulo = 'Firmar
         }
       }
     }
-    if ((diagnostico || null) !== (base.orden.diagnostico || null)) {
-      await supabase.from('ordenes_servicio').update({ diagnostico: diagnostico || null }).eq('id', ordenId)
-    }
+    // Diagnóstico y datos de los formatos quedan en el préstamo, como se firmaron
+    await supabase.from('ordenes_servicio').update({
+      diagnostico: diagnostico || null,
+      datos_acta: { recibe, ciudad, observaciones, insumos: insumos.filter(i => i.descripcion?.trim()), extra, ...opcionales },
+    }).eq('id', ordenId)
 
     // Lo que faltaba en el perfil de quien entrega queda guardado (no se pisa lo que ya tenía)
     const u = base.usuario
@@ -259,6 +276,23 @@ export default function FirmaActas({ ordenId, entregaId = null, titulo = 'Firmar
                   className={`${inputCls} resize-none`} placeholder="Ej.: equipo en óptimas condiciones, se capacita en su manejo." />
               </section>
 
+              {pedidos.insumos && <EditorInsumos insumos={insumos} onChange={setInsumos} />}
+
+              {camposExtra.length > 0 && (
+                <section>
+                  <div className="text-[13px] font-bold text-slate-700 mb-3">Otros datos</div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {camposExtra.map(c => {
+                      const k = c.vars[0]
+                      return (
+                        <div key={c.id}><label className={labelCls}>{c.label}</label>
+                          <input value={extra[k] || ''} onChange={e => setExtra(x => ({ ...x, [k]: e.target.value }))} className={inputCls} /></div>
+                      )
+                    })}
+                  </div>
+                </section>
+              )}
+
               <section className="flex flex-wrap gap-2">
                 {plantillas.map(p => (
                   <span key={p.id} className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11.5px] font-medium bg-slate-100 text-slate-600">
@@ -272,7 +306,7 @@ export default function FirmaActas({ ordenId, entregaId = null, titulo = 'Firmar
           {base && docActual && (
             <div className="bg-slate-100 p-3 md:p-6">
               <div className="text-[12.5px] text-slate-500 mb-3">Documento {paso} de {plantillas.length}: <b className="text-slate-700">{docActual.nombre}</b> · revisa los datos; la firma se recoge al final, una sola vez.</div>
-              <VistaActa bloques={docActual.bloques} ctx={ctx} />
+              <VistaActa bloques={docActual.bloques} ctx={conManuales(ctx, docActual.id)} />
             </div>
           )}
 

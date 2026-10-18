@@ -146,7 +146,9 @@ export const AYUDA = {
         'Categorías y tipos de equipo.',
       ] },
       { titulo: 'Documentos', pasos: [
-        'Plantillas de actas y datos de la empresa.',
+        'Plantillas: «Nueva plantilla» importa un Word o arma una en blanco; «Editar» la cambia.',
+        'En el Word, los datos van entre corchetes: [Nombre del paciente].',
+        'Datos de la empresa y logos (normal y para modo oscuro).',
       ] },
       { titulo: 'Preferencias', pasos: [
         'Modo oscuro y navegación del celular.',

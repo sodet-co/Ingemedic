@@ -22,6 +22,8 @@ import { equiposDeTipos } from '@/lib/equipos'
 import ModalEliminarEquipos from '@/components/inventario/ModalEliminarEquipos'
 import PreviaActas from '@/components/actas/PreviaActas'
 import AsignarPlantilla from '@/components/actas/AsignarPlantilla'
+import EditorPlantilla from '@/components/actas/EditorPlantilla'
+import NuevaPlantilla from '@/components/actas/NuevaPlantilla'
 import AccesoPortal from '@/components/clientes/AccesoPortal'
 import { contextoEjemplo } from '@/lib/actas/ejemplo'
 
@@ -351,6 +353,8 @@ export default function ConfiguracionClient({
   const [vistaActa, setVistaActa] = useState(null)
   const [plantillasActa, setPlantillasActa] = useState(plantillasActaIniciales)
   const [asignando, setAsignando] = useState(null) // plantilla cuyos clientes se están editando
+  const [editorPlantilla, setEditorPlantilla] = useState(null) // { plantilla } o { inicial, avisos } (nueva)
+  const [nuevaPlantilla, setNuevaPlantilla] = useState(false)
   const [clienteAcceso, setClienteAcceso] = useState(null) // Acceso de clientes: el elegido
   const [buscarAcceso, setBuscarAcceso] = useState('')
   // Tipo o categoría por eliminar: { nivel: 'tipo' | 'categoria', item }
@@ -671,15 +675,28 @@ export default function ConfiguracionClient({
     showToast('Actividad eliminada')
   }
 
-  async function subirLogo(file) {
-    setSubiendoLogo(true)
+  // campo: 'logo_url' (normal; los PDF lo leen como logo-ingemedic.png) o
+  // 'logo_oscuro_url' (modo oscuro). Se guarda de una vez; ?v= evita que el
+  // navegador siga mostrando el anterior, que tenía la misma dirección.
+  async function subirLogo(file, campo = 'logo_url') {
+    setSubiendoLogo(campo)
     const supabase = await getSupabase()
-    const ext = file.name.split('.').pop()
-    const { error: uploadError } = await supabase.storage.from('logos').upload(`logo-ingemedic.${ext}`, file, { upsert: true })
+    const ext = file.name.split('.').pop().toLowerCase()
+    const ruta = `${campo === 'logo_url' ? 'logo-ingemedic' : 'logo-ingemedic-oscuro'}.${ext}`
+    const { error: uploadError } = await supabase.storage.from('logos').upload(ruta, file, { upsert: true, cacheControl: '60' })
     if (uploadError) { showToast('Error subiendo logo: ' + uploadError.message, 'error'); setSubiendoLogo(false); return }
-    const { data: { publicUrl } } = supabase.storage.from('logos').getPublicUrl(`logo-ingemedic.${ext}`)
-    setEmpresa(p => ({ ...p, logo_url: publicUrl })); setSubiendoLogo(false)
-    showToast('Logo actualizado')
+    const { data: { publicUrl } } = supabase.storage.from('logos').getPublicUrl(ruta)
+    await cambiarLogo(campo, `${publicUrl}?v=${file.lastModified}-${file.size}`)
+    setSubiendoLogo(false)
+  }
+
+  async function cambiarLogo(campo, url) {
+    const supabase = await getSupabase()
+    const { error } = await supabase.from('configuracion_empresa').update({ [campo]: url }).eq('id', empresa.id)
+    if (error) { showToast('Error: ' + error.message, 'error'); return }
+    setEmpresa(p => ({ ...p, [campo]: url }))
+    showToast(url ? 'Logo actualizado' : 'Logo quitado')
+    router.refresh()
   }
 
   async function guardarEmpresa() {
@@ -1227,22 +1244,30 @@ export default function ConfiguracionClient({
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
-                  {/* Logo */}
-                  <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
-                    <div className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-3">Logo</div>
-                    <div className="h-[150px] rounded-xl border-2 border-dashed border-slate-200 bg-slate-50 flex items-center justify-center overflow-hidden mb-3">
-                      {empresa.logo_url
-                        ? <Image src={empresa.logo_url} alt="Logo" width={240} height={150} className="object-contain max-h-full max-w-full w-auto h-auto p-3" />
-                        : <Building2 size={36} className="text-slate-300" />}
-                    </div>
-                    <div className="flex items-center gap-3 flex-wrap">
-                      <label className={`flex items-center gap-1.5 px-3 py-2 border border-slate-200 rounded-[8px] text-[12.5px] font-medium transition-all cursor-pointer w-fit ${subiendoLogo ? 'opacity-50 pointer-events-none text-slate-400' : 'text-slate-600 hover:border-[#D81B43] hover:text-[#D81B43]'}`}>
-                        <Upload size={13} /> {subiendoLogo ? 'Subiendo...' : 'Cambiar logo'}
-                        <input type="file" accept="image/*" className="hidden" onChange={e => { const f = e.target.files[0]; if (f) subirLogo(f); e.target.value = '' }} />
-                      </label>
-                      {empresa.logo_url && <button onClick={() => setEmpresa(p => ({ ...p, logo_url: null }))} className="text-[12px] text-red-400 hover:text-red-600">Quitar logo</button>}
-                    </div>
-                    <p className="text-[11.5px] text-slate-400 mt-3">Aparece en el encabezado de actas y documentos.</p>
+                  {/* Logo: normal y para modo oscuro */}
+                  <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 space-y-5">
+                    {[
+                      { campo: 'logo_url', titulo: 'Logo', fondo: 'bg-slate-50 border-slate-200', ayuda: 'Panel, actas y documentos.' },
+                      { campo: 'logo_oscuro_url', titulo: 'Logo para modo oscuro', fondo: 'siempre-claro bg-[#0F172A] border-slate-700', ayuda: 'Opcional. Sin él, el logo normal va sobre fondo blanco.' },
+                    ].map(l => (
+                      <div key={l.campo}>
+                        <div className={`${ui.tituloSeccion} mb-3`}>{l.titulo}</div>
+                        <div className={`h-[120px] rounded-xl border-2 border-dashed flex items-center justify-center overflow-hidden mb-3 ${l.fondo}`}>
+                          {empresa[l.campo]
+                            ? <Image src={empresa[l.campo]} alt={l.titulo} width={240} height={120} className="object-contain max-h-full max-w-full w-auto h-auto p-3" />
+                            : <Building2 size={32} className="text-slate-400" />}
+                        </div>
+                        <div className="flex items-center gap-3 flex-wrap">
+                          <label className={`${ui.btnChico} cursor-pointer ${subiendoLogo ? 'opacity-50 pointer-events-none' : ''}`}>
+                            <Upload size={13} /> {subiendoLogo === l.campo ? 'Subiendo...' : empresa[l.campo] ? 'Cambiar' : 'Subir'}
+                            <input type="file" accept="image/png,image/svg+xml,image/webp,image/jpeg" className="hidden" onChange={e => { const f = e.target.files[0]; if (f) subirLogo(f, l.campo); e.target.value = '' }} />
+                          </label>
+                          {empresa[l.campo] && <button onClick={() => cambiarLogo(l.campo, null)} className="text-[12px] text-red-400 hover:text-red-600">Quitar</button>}
+                        </div>
+                        <p className={`${ui.ayudaCampo} mt-2`}>{l.ayuda}</p>
+                      </div>
+                    ))}
+                    <p className="text-[11.5px] text-slate-400 pt-3 border-t border-slate-100">Usa PNG con fondo transparente.</p>
                   </div>
 
                   {/* Datos legales y de contacto */}
@@ -1293,8 +1318,13 @@ export default function ConfiguracionClient({
             {/* PLANTILLAS — actas de entrega por cliente (lib/actas) */}
             {seccionActiva === 'plantillas' && (
               <div>
-                <h2 className={ui.tituloBloque}>Plantillas de actas</h2>
-                <p className="text-[13px] text-slate-400 mt-0.5 mb-5">Formatos que se firman al entregar.</p>
+                <div className="flex items-start justify-between gap-3 mb-5">
+                  <div>
+                    <h2 className={ui.tituloBloque}>Plantillas de actas</h2>
+                    <p className={ui.subtituloBloque}>Formatos que se firman al entregar.</p>
+                  </div>
+                  <button onClick={() => setNuevaPlantilla(true)} className={ui.btnPrimario}><Plus size={14} strokeWidth={2.5} /> Nueva plantilla</button>
+                </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
                   {plantillasActa.map(p => {
                     const clientesP = (p.clientes || []).map(c => c.cliente?.nombre).filter(Boolean)
@@ -1315,6 +1345,9 @@ export default function ConfiguracionClient({
                           {!p.uso_general && clientesP.length === 0 && <span className="text-[11px] text-slate-400">Sin cliente asignado</span>}
                         </div>
                         <div className="flex items-center gap-2 pt-1">
+                          <button onClick={() => setEditorPlantilla({ plantilla: p })} className="flex-1 px-3 py-1.5 border border-slate-200 rounded-[7px] text-[12px] font-medium text-slate-600 hover:border-[#1B3A6B] hover:text-[#1B3A6B] transition-all">
+                            Editar
+                          </button>
                           <button onClick={() => setAsignando(p)} className="flex-1 px-3 py-1.5 border border-slate-200 rounded-[7px] text-[12px] font-medium text-slate-600 hover:border-[#1B3A6B] hover:text-[#1B3A6B] transition-all">
                             Clientes
                           </button>
@@ -1775,6 +1808,21 @@ export default function ConfiguracionClient({
             setPlantillasActa(l => l.map(p => p.id === asignando.id ? { ...p, ...cambios } : p))
             registrarBitacora({ modulo: 'configuracion', accion: 'editar', entidad: 'plantilla de acta', entidad_id: asignando.id, detalle: { nombre: asignando.nombre, uso_general: cambios.uso_general, clientes: cambios.clientes.length } })
             setAsignando(null); showToast('Clientes de la plantilla guardados')
+          }} />
+      )}
+
+      {nuevaPlantilla && (
+        <NuevaPlantilla plantillas={plantillasActa} onCerrar={() => setNuevaPlantilla(false)}
+          onListo={x => { setNuevaPlantilla(false); setEditorPlantilla(x) }} />
+      )}
+      {editorPlantilla && (
+        <EditorPlantilla {...editorPlantilla} empresa={empresa} onCerrar={() => setEditorPlantilla(null)}
+          onGuardado={(fila, nueva) => {
+            setEditorPlantilla(null)
+            if (fila.activo === false) { setPlantillasActa(l => l.filter(p => p.id !== fila.id)); showToast('Plantilla desactivada'); return }
+            setPlantillasActa(l => nueva ? [...l, { ...fila, clientes: [] }] : l.map(p => p.id === fila.id ? { ...p, ...fila, clientes: p.clientes } : p))
+            showToast(nueva ? 'Plantilla creada. Asígnala con «Clientes».' : 'Plantilla guardada')
+            router.refresh()
           }} />
       )}
 
