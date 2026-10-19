@@ -25,6 +25,8 @@ import { useOrdenable } from '@/hooks/useOrdenable'
 import { usePaginacion } from '@/hooks/usePaginacion'
 import { formatear, formatearSoloFecha, hoyBogota } from '@/lib/fechas'
 import { devolverEquipo as devolverEquipoLib } from '@/lib/prestamos'
+import { capturarHTML } from '@/lib/capturar'
+import LogoCliente from '@/components/clientes/LogoCliente'
 import { buscarCedulaDuplicada, mensajeCedulaDuplicada, esErrorCedulaDuplicada, MENSAJE_CEDULA_DUPLICADA } from '@/lib/pacientes'
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -403,7 +405,6 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
       if (error) throw error
 
       const { default: jsPDF }       = await import('jspdf')
-      const { default: html2canvas } = await import('html2canvas')
 
       async function toB64(url) {
         const res  = await fetch(url)
@@ -412,6 +413,8 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
       }
       let logoB64 = ''
       try { logoB64 = await toB64(LOGO_URL) } catch { /* sin logo */ }
+      let logoClienteB64 = ''
+      if (esCliente && seleccionado.logo_url) { try { logoClienteB64 = await toB64(seleccionado.logo_url) } catch { /* sin logo del cliente */ } }
 
       const fechaHoy = formatear(new Date().toISOString(), { month: 'long' })
       const titulo   = esCliente ? 'INFORME DEL CLIENTE' : 'INFORME DEL PACIENTE'
@@ -477,7 +480,9 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
           </div>
           <div style="padding:20px 24px 28px">
             <div style="display:flex;align-items:center;gap:14px">
-              <div style="width:52px;height:52px;border-radius:50%;background:#F1F5F9;color:#475569;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:700">${inicial}</div>
+              ${logoClienteB64
+                ? `<div style="width:84px;height:52px;border:1px solid #E2E8F0;border-radius:8px;display:flex;align-items:center;justify-content:center;padding:4px"><img src="${logoClienteB64}" style="max-width:100%;max-height:100%;object-fit:contain"></div>`
+                : `<div style="width:52px;height:52px;border-radius:50%;background:#F1F5F9;color:#475569;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:700">${inicial}</div>`}
               <div style="font-size:17px;font-weight:700;color:#0F172A">${esc(seleccionado.nombre)}</div>
             </div>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px">${identificacionHTML}</div>
@@ -488,14 +493,10 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
           </div>
         </div>`
 
-      const contenedor = document.createElement('div')
-      contenedor.style.cssText = 'position:fixed;top:0;left:-720px;width:720px;pointer-events:none'
-      contenedor.innerHTML     = html
-      document.body.appendChild(contenedor)
-
-      try {
+      {
+        // lib/capturar.js: el texto lo dibuja el navegador (no queda corrido en celular)
         const isMobile      = typeof window !== 'undefined' && window.innerWidth < 768
-        const canvas        = await html2canvas(contenedor, { scale: isMobile ? 1 : 2, useCORS: true, allowTaint: false, backgroundColor: '#ffffff', logging: false })
+        const canvas        = await capturarHTML(html, { ancho: 720, escala: isMobile ? 1 : 2 })
         const pdf           = new jsPDF('p', 'mm', 'a4')
         const anchoPDF      = 210
         const pageHeightPx  = Math.round(canvas.width * (297 / 210))
@@ -522,8 +523,6 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
 
         pdf.save(`Informe_${(seleccionado.nombre || tipo).replace(/\s+/g, '_')}.pdf`)
         showToast('PDF generado')
-      } finally {
-        document.body.removeChild(contenedor)
       }
     } catch (e) {
       showToast('Error generando el PDF', 'error')
@@ -1237,7 +1236,7 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
           {drawer && (
             <VentanaDetalle onCerrar={() => setDrawer(null)} ancho={1280}>
             <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
-              <EncabezadoDetalle icono={drawer.nombre?.charAt(0)?.toUpperCase()} titulo={drawer.nombre}
+              <EncabezadoDetalle icono={drawer.nombre?.charAt(0)?.toUpperCase()} imagen={drawer.logo_url} titulo={drawer.nombre}
                 subtitulo={`Persona ${drawer.tipo_persona || '—'}${(conteoEquiposPorCliente[drawer.id] || 0) ? ` · ${conteoEquiposPorCliente[drawer.id]} equipos` : ''}`}
                 onCerrar={() => setDrawer(null)}
                 acciones={<>
@@ -1269,6 +1268,12 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
                   </div>
                   {editando === 'cliente' ? (
                     <>
+                      <div className="mb-5 pb-4 border-b border-slate-100">
+                        <LogoCliente cliente={drawer} onToast={showToast} onCambio={url => {
+                          setDrawer(d => ({ ...d, logo_url: url }))
+                          setClientes(prev => prev.map(c => c.id === drawer.id ? { ...c, logo_url: url } : c))
+                        }} />
+                      </div>
                       {camposCliente}
                       <div className="flex flex-wrap items-center gap-2 mt-5 pt-4 border-t border-slate-100">
                         {drawer.activo !== false && <button onClick={() => setModalEliminar(drawer)} className={ui.btnPeligro}>Desactivar cliente</button>}

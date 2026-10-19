@@ -18,6 +18,7 @@ import Modal from '@/components/ui/Modal'
 import ConfirmDialog from '@/components/ui/ConfirmDialog'
 import { ui } from '@/lib/ui'
 import { describirBitacora } from '@/lib/bitacora-texto'
+import { capturarHTML } from '@/lib/capturar'
 import { useOrdenable } from '@/hooks/useOrdenable'
 import { usePaginacion } from '@/hooks/usePaginacion'
 
@@ -382,7 +383,6 @@ export default function InventarioClient({ categorias: catsIniciales, tipos: tip
   async function generarHojaVidaPDF(equipo) {
     setPdfGenerando(true)
     const { default: jsPDF }       = await import('jspdf')
-    const { default: html2canvas } = await import('html2canvas')
 
     async function toB64(url) {
       const res  = await fetch(url)
@@ -517,14 +517,10 @@ export default function InventarioClient({ categorias: catsIniciales, tipos: tip
 
       </div>`
 
-    const contenedor = document.createElement('div')
-    contenedor.style.cssText = 'position:fixed;top:0;left:-680px;width:680px;pointer-events:none'
-    contenedor.innerHTML     = html
-    document.body.appendChild(contenedor)
-
     try {
+      // lib/capturar.js: el texto lo dibuja el navegador (no queda corrido en celular)
       const isMobile    = typeof window !== 'undefined' && window.innerWidth < 768
-      const canvas      = await html2canvas(contenedor, { scale: isMobile ? 1 : 2, useCORS: true, allowTaint: false, backgroundColor: '#ffffff', logging: false })
+      const canvas      = await capturarHTML(html, { ancho: 680, escala: isMobile ? 1 : 2 })
       const pdf         = new jsPDF('p', 'mm', 'a4')
       const anchoPDF    = 210
       const pageHeightPx = Math.round(canvas.width * (297 / 210))
@@ -552,7 +548,6 @@ export default function InventarioClient({ categorias: catsIniciales, tipos: tip
       pdf.save(`HojaVida_${equipo.codigo || 'equipo'}.pdf`)
       showToast('PDF generado')
     } finally {
-      document.body.removeChild(contenedor)
       setPdfGenerando(false)
     }
   }

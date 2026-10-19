@@ -42,10 +42,16 @@ export function Columnas({ izquierda, derecha, className = '' }) {
 // Encabezado estándar de una ventana de detalle: ícono o inicial, título,
 // subtítulo, acciones y cerrar. Blanco en todos los módulos (antes Entregas lo
 // tenía rojo y Mantenimientos azul).
-export function EncabezadoDetalle({ icono, titulo, subtitulo, etiqueta, acciones, onCerrar }) {
+// imagen: logo (p. ej. del cliente) en lugar del círculo con la inicial
+export function EncabezadoDetalle({ icono, imagen, titulo, subtitulo, etiqueta, acciones, onCerrar }) {
   return (
     <div className="px-5 md:px-6 py-4 border-b border-slate-200 flex items-start gap-3 flex-shrink-0">
-      {icono && <div className="w-10 h-10 rounded-full bg-[#D81B43]/10 text-[#D81B43] flex items-center justify-center text-[15px] font-bold flex-shrink-0">{icono}</div>}
+      {imagen ? (
+        <div className="siempre-claro w-14 h-10 rounded-lg border border-slate-200 bg-white flex items-center justify-center p-1 flex-shrink-0">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={imagen} alt="" className="max-w-full max-h-full object-contain" />
+        </div>
+      ) : icono && <div className="w-10 h-10 rounded-full bg-[#D81B43]/10 text-[#D81B43] flex items-center justify-center text-[15px] font-bold flex-shrink-0">{icono}</div>}
       <div className="min-w-0 flex-1">
         {etiqueta && <div className="text-[11px] text-slate-400 truncate">{etiqueta}</div>}
         <div className="text-[16px] font-bold text-slate-800 leading-tight truncate">{titulo}</div>

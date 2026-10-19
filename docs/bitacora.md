@@ -59,6 +59,22 @@ Lo que está sin resolver, ordenado por prioridad.
 
 # Entradas
 
+## 2026-10-18 — Logo por cliente y captura de PDF compartida
+**Qué se hizo:**
+- **Captura de PDF en un solo lugar** (`lib/capturar.js → capturarHTML`): iframe
+  aparte, texto dibujado por el navegador (foreignObject) con las imágenes
+  incrustadas antes, y vuelta al dibujo normal si el navegador no lo soporta. La
+  usan las actas (`lib/actas/pdf.js`), el informe de Clientes, la hoja de vida de
+  Inventario y el acta antigua de Entregas. Así ya no salen textos corridos en
+  celular en ninguno.
+- **Logo por cliente** (`clientes.logo_url`, `components/clientes/LogoCliente.js`):
+  se sube en el detalle del cliente al darle Editar en "Datos" y se guarda al
+  subirlo (`logos/clientes/logo-<id>`, con `?v=`).
+  - Se ve en el encabezado del detalle (`EncabezadoDetalle` acepta `imagen`).
+  - Va en el informe PDF, junto al nombre, en lugar del círculo con la inicial.
+**SQL:** `clientes.logo_url` entregado, sin correr.
+**Pendiente:** no se vio en pantalla ni se generaron los PDF en el navegador.
+
 ## 2026-10-18 — PDF de actas sin hojas en blanco; el repartidor lo descarga
 **Qué se hizo:**
 - **Hojas en blanco** (`lib/actas/pdf.js`): el alto de una hoja A4 en píxeles

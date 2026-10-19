@@ -14,6 +14,7 @@ import Modal from '@/components/ui/Modal'
 import { ui } from '@/lib/ui'
 import { formatear, soloDia, hoyBogota } from '@/lib/fechas'
 import FirmaActas from '@/components/actas/FirmaActas'
+import { capturarHTML } from '@/lib/capturar'
 import ActasPrestamo from '@/components/actas/ActasPrestamo'
 import VentanaDetalle, { Columnas, EncabezadoDetalle } from '@/components/ui/VentanaDetalle'
 import EntregaEnCurso, { RutaAnimada } from '@/components/entregas/EntregaEnCurso'
@@ -502,39 +503,8 @@ export default function EntregasClient({ entregasIniciales, ordenesEnReparto, es
         // aunque la extracción de texto siga funcionando porque el texto en sí
         // no se borra, solo queda el stream inconsistente).
         try {
-          const { default: html2canvas } = await import('html2canvas')
-          const ANCHO_RENDER = 750
-
-          const iframe = document.createElement('iframe')
-          iframe.style.position = 'fixed'
-          iframe.style.left = '-9999px'
-          iframe.style.top = '0'
-          iframe.style.width = `${ANCHO_RENDER}px`
-          iframe.style.height = '1px'
-          iframe.style.border = 'none'
-          document.body.appendChild(iframe)
-
-          const idoc = iframe.contentDocument
-          idoc.open()
-          idoc.write(html.trim().startsWith('<!DOCTYPE') || html.trim().startsWith('<html')
-            ? html
-            : `<!DOCTYPE html><html><head><meta charset="utf-8"></head><body>${html}</body></html>`)
-          idoc.close()
-
-          await new Promise(r => setTimeout(r, 150))
-
-          const alturaReal = Math.max(idoc.body.scrollHeight, idoc.documentElement.scrollHeight)
-          iframe.style.height = `${alturaReal}px`
-
-          const canvas = await html2canvas(idoc.body, {
-            width: ANCHO_RENDER,
-            windowWidth: ANCHO_RENDER,
-            height: alturaReal,
-            scale: 2,
-            useCORS: true,
-            backgroundColor: '#ffffff',
-          })
-          document.body.removeChild(iframe)
+          // lib/capturar.js: iframe aparte y texto dibujado por el navegador
+          const canvas = await capturarHTML(html, { ancho: 750 })
 
           const imgData = canvas.toDataURL('image/png')
           const imgHmm = (canvas.height * CW) / canvas.width
