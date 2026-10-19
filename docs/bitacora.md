@@ -72,7 +72,7 @@ Lo que está sin resolver, ordenado por prioridad.
   subirlo (`logos/clientes/logo-<id>`, con `?v=`).
   - Se ve en el encabezado del detalle (`EncabezadoDetalle` acepta `imagen`).
   - Va en el informe PDF, junto al nombre, en lugar del círculo con la inicial.
-**SQL:** `clientes.logo_url` entregado, sin correr.
+**SQL:** `clientes.logo_url` corrido el 2026-10-18.
 **Pendiente:** no se vio en pantalla ni se generaron los PDF en el navegador.
 
 ## 2026-10-18 — PDF de actas sin hojas en blanco; el repartidor lo descarga
