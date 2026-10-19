@@ -11,7 +11,7 @@ export default async function OrdenesPage() {
   const resultados = await Promise.all([
     supabase.from('ordenes_servicio').select(`
       *,
-      cliente:clientes(id, nombre, tipo_persona, nit_cc),
+      cliente:clientes(id, nombre, tipo_persona, nit_cc, logo_url),
       paciente:pacientes(id, nombre, cedula, direccion),
       estado:estados_orden(id, nombre),
       repartidor:usuarios!ordenes_servicio_repartidor_id_fkey(id, nombre),

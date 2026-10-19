@@ -16,6 +16,7 @@ import EncabezadoModulo from '@/components/ui/EncabezadoModulo'
 import VentanaDetalle, { EncabezadoDetalle } from '@/components/ui/VentanaDetalle'
 import { ui } from '@/lib/ui'
 import ActasPrestamo from '@/components/actas/ActasPrestamo'
+import AvatarCliente from '@/components/clientes/AvatarCliente'
 import ControlVigencia from '@/components/prestamos/ControlVigencia'
 import NuevoPrestamo from '@/components/prestamos/NuevoPrestamo'
 import { useOrdenable } from '@/hooks/useOrdenable'
@@ -725,9 +726,7 @@ export default function OrdenesClient({
                               }`}>
                               <td className="px-4 py-3">
                                 <div className="flex items-center gap-2.5">
-                                  <div className="w-8 h-8 rounded-full bg-[#D81B43]/10 flex items-center justify-center text-[12px] font-bold text-[#D81B43] flex-shrink-0">
-                                    {o.cliente?.nombre?.charAt(0)?.toUpperCase() || '?'}
-                                  </div>
+                                  <AvatarCliente cliente={o.cliente} tamano={32} />
                                   <div>
                                     <div className="text-[13px] font-semibold text-slate-700">{o.cliente?.nombre || '—'}</div>
                                     <div className="text-[11px] font-mono text-slate-400">{o.codigo || '—'}</div>
@@ -797,7 +796,7 @@ export default function OrdenesClient({
           {drawer && (
             <VentanaDetalle onCerrar={() => setDrawer(null)} ancho={860}>
             <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
-              <EncabezadoDetalle icono={drawer.cliente?.nombre?.charAt(0)?.toUpperCase() || '?'}
+              <EncabezadoDetalle icono={drawer.cliente?.nombre?.charAt(0)?.toUpperCase() || '?'} imagen={drawer.cliente?.logo_url}
                 etiqueta={<span className="font-mono">{drawer.codigo}</span>} titulo={drawer.cliente?.nombre || '—'}
                 subtitulo={drawer.paciente?.nombre ? `Paciente: ${drawer.paciente.nombre}` : undefined}
                 onCerrar={() => setDrawer(null)} />

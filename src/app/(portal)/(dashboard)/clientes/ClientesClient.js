@@ -27,6 +27,7 @@ import { formatear, formatearSoloFecha, hoyBogota } from '@/lib/fechas'
 import { devolverEquipo as devolverEquipoLib } from '@/lib/prestamos'
 import { capturarHTML } from '@/lib/capturar'
 import LogoCliente from '@/components/clientes/LogoCliente'
+import AvatarCliente from '@/components/clientes/AvatarCliente'
 import { buscarCedulaDuplicada, mensajeCedulaDuplicada, esErrorCedulaDuplicada, MENSAJE_CEDULA_DUPLICADA } from '@/lib/pacientes'
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -1002,10 +1003,7 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
                         <div key={c.id} onClick={() => abrirDrawer(c)}
                           className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 cursor-pointer active:bg-slate-50 transition-colors">
                           <div className="flex items-center gap-3 mb-2.5">
-                            <div className="w-10 h-10 rounded-full flex items-center justify-center text-[14px] font-bold flex-shrink-0"
-                              style={{ background: st.bg, color: st.color }}>
-                              {c.nombre?.charAt(0)?.toUpperCase()}
-                            </div>
+                            <AvatarCliente cliente={c} tamano={40} estilo={st} />
                             <div className="flex-1 min-w-0">
                               <div className="text-[14px] font-semibold text-slate-700 truncate">{c.nombre}</div>
                               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold mt-0.5"
@@ -1078,10 +1076,7 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
                               className="border-b border-slate-100 hover:bg-slate-50 transition-colors cursor-pointer">
                               <td className="px-4 py-3">
                                 <div className="flex items-center gap-2.5">
-                                  <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-[12px] font-bold"
-                                    style={{ background: st.bg, color: st.color }}>
-                                    {c.nombre?.charAt(0)?.toUpperCase()}
-                                  </div>
+                                  <AvatarCliente cliente={c} tamano={32} estilo={st} />
                                   <span className="text-[13px] font-semibold text-slate-700">{c.nombre}</span>
                                 </div>
                               </td>
@@ -1145,10 +1140,7 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
                                 <div key={c.id} onClick={() => abrirDrawer(c)}
                                   className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 cursor-pointer opacity-60 hover:opacity-80 transition-opacity">
                                   <div className="flex items-center gap-3">
-                                    <div className="w-10 h-10 rounded-full flex items-center justify-center text-[14px] font-bold flex-shrink-0"
-                                      style={{ background: st.bg, color: st.color }}>
-                                      {c.nombre?.charAt(0)?.toUpperCase()}
-                                    </div>
+                                    <AvatarCliente cliente={c} tamano={40} estilo={st} />
                                     <div className="flex-1 min-w-0">
                                       <div className="text-[14px] font-semibold text-slate-600 truncate">{c.nombre}</div>
                                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold mt-0.5"
@@ -1185,10 +1177,7 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
                                       className="border-b border-slate-100 hover:bg-slate-50 transition-colors cursor-pointer">
                                       <td className="px-4 py-3">
                                         <div className="flex items-center gap-2.5">
-                                          <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-[12px] font-bold"
-                                            style={{ background: st.bg, color: st.color }}>
-                                            {c.nombre?.charAt(0)?.toUpperCase()}
-                                          </div>
+                                          <AvatarCliente cliente={c} tamano={32} estilo={st} />
                                           <span className="text-[13px] font-semibold text-slate-500">{c.nombre}</span>
                                         </div>
                                       </td>
