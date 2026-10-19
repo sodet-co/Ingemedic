@@ -44,7 +44,8 @@ export const EMPRESA = {
   // Igual que la tarjeta "Horarios de Atención" de /contacto
   horario: [
     { dias: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'], abre: '08:00', cierra: '12:00' },
-    { dias: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'], abre: '14:00', cierra: '18:00' },
+    { dias: ['Monday'], abre: '14:00', cierra: '18:00' },
+    { dias: ['Tuesday', 'Wednesday', 'Thursday', 'Friday'], abre: '14:00', cierra: '17:30' },
     { dias: ['Saturday'], abre: '08:00', cierra: '12:00' },
   ],
   invima: { resolucion: '2026013255', url: 'https://www.invima.gov.co/establecimiento/2345g-ingemedic-de-colombia-sas' },

@@ -43,7 +43,7 @@ const CAROUSEL_EQUIPOS = [
     badge: 'O2 Type',
     nombre: 'Concentrador Portátil',
     desc: 'Oxigenoterapia domiciliaria compacta, ligera y recargable para mantener la autonomía de movimiento del paciente.',
-    img: '/images/ingemedic-conc-tiger.png',
+    img: '/images/ingemedic-concentrador-portatil.png',
   },
 ]
 
@@ -86,7 +86,7 @@ const PORTAFOLIO_CARDS = [
     subtitulo: 'AUTONOMÍA Y MOVILIDAD COMPACTA',
     titulo: 'Concentrador de Oxígeno Portátil O2',
     desc: 'Oxigenoterapia domiciliaria compacta, ligera y recargable para mantener la autonomía de movimiento del paciente.',
-    img: '/images/ingemedic-conc-tiger.png',
+    img: '/images/ingemedic-concentrador-portatil.png',
     caracteristicas: [
       'Batería de larga duración recargable',
       'Diseño ultra compacto para transporte',

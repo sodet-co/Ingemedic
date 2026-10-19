@@ -132,7 +132,8 @@ export default function ContactoPage() {
                 </div>
                 <div>
                   <h4 className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-0.5">Horarios de Atención</h4>
-                  <p className="text-xs font-medium text-slate-900">Lunes a Viernes: 8:00 am - 12:00 pm / 2:00 pm - 6:00 pm</p>
+                  <p className="text-xs font-medium text-slate-900">Lunes: 8:00 am - 12:00 pm / 2:00 pm - 6:00 pm</p>
+                  <p className="text-xs font-medium text-slate-900 mt-0.5">Martes a Viernes: 8:00 am - 12:00 pm / 2:00 pm - 5:30 pm</p>
                   <p className="text-xs font-medium text-slate-900 mt-0.5">Sábados: 8:00 am - 12:00 pm</p>
                 </div>
               </div>

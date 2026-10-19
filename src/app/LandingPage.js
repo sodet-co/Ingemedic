@@ -58,7 +58,7 @@ const EQUIPOS = [
   { nombre: 'Concentrador Respironics', linea: 'Oxigenoterapia domiciliaria', img: '/images/ingemedic-concentrador-oxigeno.png' },
   { nombre: 'Aspirador ADS100', linea: 'Succión de secreciones', img: '/images/ingemedic-aspirador-secreciones.png' },
   { nombre: 'Soporte CPAP / BiPAP', linea: 'Presión positiva no invasiva', img: '/images/ingemedic-cpap.png' },
-  { nombre: 'Concentrador portátil', linea: 'Oxigenoterapia compacta', img: '/images/ingemedic-conc-tiger.png' },
+  { nombre: 'Concentrador portátil', linea: 'Oxigenoterapia compacta', img: '/images/ingemedic-concentrador-portatil.png' },
 ]
 
 function WhatsappIcon({ size = 18, className = '' }) {
