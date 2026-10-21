@@ -28,7 +28,7 @@ export const EMPRESA = {
   nombre: 'Ingemedic de Colombia S.A.S.',
   nombreCorto: 'Ingemedic',
   descripcion:
-    'Alquiler de equipos biomédicos y suministro de oxígeno medicinal domiciliario en Valledupar y todo el departamento del Cesar, con servicio técnico 24/7.',
+    'Alquiler de equipos biomédicos y suministro de oxígeno medicinal domiciliario en Valledupar y todo el departamento del Cesar, con soporte técnico de lunes a sábado.',
   telefonos: ['+57 310 3861480', '+57 310 3636481'],
   email: 'ingemedicsas@hotmail.com',
   // PENDIENTE: NIT real. Mientras esté vacío no se muestra (footer y páginas legales).
@@ -41,15 +41,24 @@ export const EMPRESA = {
     region: 'Cesar',
     pais: 'CO',
   },
-  // Igual que la tarjeta "Horarios de Atención" de /contacto
-  horario: [
-    { dias: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'], abre: '08:00', cierra: '12:00' },
-    { dias: ['Monday'], abre: '14:00', cierra: '18:00' },
-    { dias: ['Tuesday', 'Wednesday', 'Thursday', 'Friday'], abre: '14:00', cierra: '17:30' },
-    { dias: ['Saturday'], abre: '08:00', cierra: '12:00' },
-  ],
-  invima: { resolucion: '2026013255', url: 'https://www.invima.gov.co/establecimiento/2345g-ingemedic-de-colombia-sas' },
+  invima: { resolucion: '2026013255', vigencia: 'Abril de 2029', url: 'https://www.invima.gov.co/establecimiento/2345g-ingemedic-de-colombia-sas' },
 }
+
+// Horario de atención: lo muestran el pie de página, Inicio, Nosotros y
+// Contacto, y Google lo lee de los datos estructurados (EMPRESA.horario).
+export const HORARIO = [
+  { etiqueta: 'Lunes', dias: ['Monday'], franjas: [['08:00', '12:00'], ['14:00', '18:00']] },
+  { etiqueta: 'Martes a viernes', dias: ['Tuesday', 'Wednesday', 'Thursday', 'Friday'], franjas: [['08:00', '12:00'], ['14:00', '17:30']] },
+  { etiqueta: 'Sábados', dias: ['Saturday'], franjas: [['08:00', '12:00']] },
+]
+EMPRESA.horario = HORARIO.flatMap(h => h.franjas.map(([abre, cierra]) => ({ dias: h.dias, abre, cierra })))
+
+// '17:30' → '5:30 p.m.'
+export function hora12(hhmm) {
+  const [h, m] = hhmm.split(':').map(Number)
+  return `${h % 12 || 12}:${String(m).padStart(2, '0')} ${h < 12 ? 'a.m.' : 'p.m.'}`
+}
+export const franjaTexto = ([abre, cierra]) => `${hora12(abre)} – ${hora12(cierra)}`
 
 // Metadata completa de una página pública. Next reemplaza (no fusiona)
 // openGraph/twitter del layout cuando la página los define, así que aquí van

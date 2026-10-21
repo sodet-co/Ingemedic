@@ -14,7 +14,7 @@ export const NOMBRE_ORIGEN = {
   contacto: 'Página de contacto',
   contacto_error_formulario: 'Contacto · tras error del formulario',
   portafolio_equipo: 'Portafolio · tarjeta de equipo',
-  portafolio_asesoria: 'Portafolio · asesoría',
+  portafolio_asesoria: 'Portafolio · otro equipo',
 }
 
 const NOMBRE_PAGINA = {

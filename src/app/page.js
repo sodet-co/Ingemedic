@@ -11,7 +11,7 @@ export const metadata = metadatosPagina({
   titulo: 'Alquiler de equipos biomédicos y oxígeno en Valledupar | Ingemedic',
   tituloAbsoluto: true,
   descripcion:
-    'Alquiler de concentradores de oxígeno, CPAP/BiPAP y aspiradores, y oxígeno medicinal domiciliario en Valledupar y todo el Cesar. Certificados por INVIMA. Servicio técnico 24/7.',
+    'Alquiler de concentradores de oxígeno, CPAP/BiPAP y aspiradores, y oxígeno medicinal domiciliario en Valledupar y todo el Cesar. Certificados por INVIMA. Soporte técnico de lunes a sábado.',
   ruta: '/',
 })
 

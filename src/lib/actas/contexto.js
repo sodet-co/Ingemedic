@@ -31,7 +31,7 @@ export const VARIABLES = {
     equipo_descripcion: 'Equipo principal', equipo_marca: 'Marca', equipo_modelo: 'Modelo', equipo_serie: 'Serie',
     equipo_codigo: 'Código interno', cilindro_tamano: 'Cilindro: tamaño', cilindro_serie: 'Cilindro: serie',
     regulador_marca: 'Regulador: marca', regulador_serie: 'Regulador: serie',
-    otros_equipos: 'Los demás equipos (sin el principal)', equipos_resumen: 'Todos los equipos en una línea', insumos_resumen: 'Todos los insumos en una línea',
+    otros_equipos: 'Los demás equipos (sin el principal)', equipos_adicionales: 'Equipos que no caben en el recuadro (sin principal, cilindro ni regulador)', equipos_resumen: 'Todos los equipos en una línea', insumos_resumen: 'Todos los insumos en una línea',
     observaciones: 'Observaciones de la entrega',
   },
 }
@@ -45,7 +45,10 @@ export function filaEquipo(eq) {
   // En los tipos, atributos.nombre a veces es el nombre genérico ("Cilindro de
   // Oxígeno", tipo "Cilindro 3.5 M3") y a veces repite la marca ("O2 Tiger").
   // El tipo.nombre es la marca (o el tamaño, en cilindros).
-  const generico = tipo.atributos?.nombre && tipo.atributos.nombre !== tipo.nombre ? tipo.atributos.nombre : null
+  // La unidad trae su nombre genérico en atributos.nombre ("Aspirador de Secreciones",
+  // en 1.700 de 1.709 equipos): es el más confiable; el del tipo a veces es el
+  // modelo ("GMR-SM") o la marca ("Long Fian")
+  const generico = atr.nombre || (tipo.atributos?.nombre && tipo.atributos.nombre !== tipo.nombre ? tipo.atributos.nombre : null)
   // Si el tipo repite la palabra del genérico ("Cilindro 3.5 M3" / "Cilindro de
   // Oxígeno") no es una marca sino el modelo o tamaño
   const primera = generico?.split(/\s+/)[0]?.toLowerCase()
@@ -87,7 +90,11 @@ export function construirContexto({ empresa = {}, orden = {}, equipos = [], dato
   const filas = equipos.map(filaEquipo).map(f => ({ ...f, estado: t(datos.estados?.[f.codigo]) || f.estado }))
   const cat = (re) => filas.find(x => re.test(x.categoria) || re.test(x.descripcion))
   const cilindro = cat(/cilindro/i), regulador = cat(/regulador/i)
-  const principal = filas.find(x => x !== cilindro && x !== regulador) || filas[0] || {}
+  // El principal es el equipo (concentrador, aspirador, CPAP…), no un segundo
+  // cilindro o regulador: con dos cilindros, el segundo quedaba como "EQUIPO"
+  const accesorio = x => /cilindro|regulador/i.test(`${x.categoria} ${x.descripcion}`)
+  const principal = filas.find(x => !accesorio(x)) || filas.find(x => x !== cilindro && x !== regulador) || filas[0] || {}
+  const linea = x => [x.descripcion, x.marca || x.modelo, x.serie && `serie ${x.serie}`].filter(Boolean).join(' ')
   const insumos = (datos.insumos || []).map(i => ({
     descripcion: t(i.descripcion), cantidad: t(i.cantidad), lote: t(i.lote), invima: t(i.invima),
     marca: t(i.marca), modelo: t(i.modelo), estado: t(i.estado) || 'Nuevo',
@@ -122,7 +129,9 @@ export function construirContexto({ empresa = {}, orden = {}, equipos = [], dato
     cilindro_tamano: t((cilindro?.modelo || '').match(/\d+([.,]\d+)?\s*m3/i)?.[0] || cilindro?.modelo),
     cilindro_serie: t(cilindro?.serie),
     regulador_marca: t(regulador?.marca), regulador_serie: t(regulador?.serie),
-    otros_equipos: filas.filter(x => x !== principal).map(x => [x.descripcion, x.marca || x.modelo, x.serie && `serie ${x.serie}`].filter(Boolean).join(' ')).join('; '),
+    otros_equipos: filas.filter(x => x !== principal).map(linea).join('; '),
+    // Los que no caben en las casillas de equipo, cilindro y regulador del recuadro
+    equipos_adicionales: filas.filter(x => x !== principal && x !== cilindro && x !== regulador).map(linea).join('; '),
     equipos_resumen: filas.map(x => [x.descripcion, x.marca, x.serie && `serie ${x.serie}`].filter(Boolean).join(' ')).join('; '),
     insumos_resumen: insumos.map(i => [i.cantidad, i.descripcion].filter(Boolean).join(' ')).join(', '),
     observaciones: t(datos.observaciones),

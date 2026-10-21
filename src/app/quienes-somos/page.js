@@ -27,6 +27,56 @@ export default function QuienesSomosPage() {
         </div>
       </section>
 
+      {/* Certificación INVIMA — lo principal: va justo después del banner */}
+      <section className="max-w-[1920px] mx-auto px-4 md:px-10 2xl:px-16 pt-14 lg:pt-20">
+        <div className="bg-slate-950 text-white rounded-3xl p-8 lg:p-12 relative overflow-hidden grid grid-cols-1 lg:grid-cols-12 gap-8 items-center shadow-2xl">
+          <div className="lg:col-span-7">
+            <div className="inline-block px-4 py-1 rounded-full bg-blue-500/20 text-blue-300 text-xs font-medium uppercase tracking-wider mb-4 border border-blue-400/30">
+              GARANTÍA SANITARIA
+            </div>
+            <h2 className="text-3xl font-medium tracking-[-0.02em] text-white mb-3">
+              Certificación Oficial <span className="text-blue-400">INVIMA</span>
+            </h2>
+            <p className="text-sm text-slate-300 leading-relaxed mb-6">
+              Nuestra planta de producción y procesos de envasado cumplen rigurosamente con las Buenas Prácticas de Manufactura (BPM) exigidas en Colombia para gases medicinales.
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 border-t border-white/15 pt-6">
+              <div className="flex items-center gap-3">
+                <ShieldCheck size={24} className="text-blue-400 flex-shrink-0" />
+                <span className="text-xs font-medium">Pureza certificada</span>
+              </div>
+              <div className="flex items-center gap-3">
+                <FlaskConical size={24} className="text-blue-400 flex-shrink-0" />
+                <span className="text-xs font-medium">Control de calidad</span>
+              </div>
+              <div className="flex items-center gap-3">
+                <FileText size={24} className="text-blue-400 flex-shrink-0" />
+                <span className="text-xs font-medium">Normativa legal</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="lg:col-span-5 flex justify-center">
+            <div className="bg-white/5 border border-white/15 rounded-2xl p-6 lg:p-8 max-w-[340px] backdrop-blur-sm">
+              <h3 className="text-lg font-medium tracking-[-0.01em] text-white mb-2 leading-snug">
+                Certificados en Buenas Prácticas de Manufactura — INVIMA
+              </h3>
+              <p className="text-sm text-slate-300 mb-5">
+                Vigente hasta abril de 2029 · Resolución 2026013255
+              </p>
+              <a
+                href="https://www.invima.gov.co/establecimiento/2345g-ingemedic-de-colombia-sas"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 px-6 py-2.5 rounded-full text-xs font-medium text-white bg-blue-600 hover:bg-blue-500 transition-all shadow-md whitespace-nowrap"
+              >
+                Verificar en el INVIMA →
+              </a>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* Historia & Presentación */}
       <section className="max-w-[1920px] mx-auto px-4 md:px-10 2xl:px-16 py-20">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
@@ -36,11 +86,11 @@ export default function QuienesSomosPage() {
               Compromiso, Calidad y Humanización en la Salud
             </h2>
             <div className="w-14 h-1 rounded-full bg-blue-600 mb-6" />
-            <p className="text-sm text-slate-600 leading-relaxed mb-4 text-justify">
+            <p className="text-sm text-slate-600 leading-relaxed mb-4 sm:text-justify">
               <strong className="font-medium">INGEMEDIC DE COLOMBIA S.A.S.</strong> nació con la misión de proporcionar soluciones integrales de oxigenoterapia y tecnología biomédica para pacientes en hospitalización domiciliaria.
             </p>
-            <p className="text-sm text-slate-600 leading-relaxed mb-6 text-justify">
-              Con sede principal en Valledupar, cubrimos las necesidades respiratorias de más de 20,000 pacientes con un equipo técnico capacitado y una flota capacitada para el transporte seguro de gases medicinales.
+            <p className="text-sm text-slate-600 leading-relaxed mb-6 sm:text-justify">
+              Con sede principal en Valledupar, cubrimos las necesidades respiratorias de más de 20.000 pacientes con un equipo técnico capacitado y vehículos adecuados para el transporte seguro de gases medicinales.
             </p>
 
             <div className="grid grid-cols-2 gap-4 pt-4 border-t border-slate-200">
@@ -74,7 +124,7 @@ export default function QuienesSomosPage() {
               <Target size={28} />
             </div>
             <h3 className="text-xl font-medium tracking-[-0.01em] text-[#0B2656] mb-3 uppercase">MISIÓN</h3>
-            <p className="text-xs sm:text-sm text-slate-600 leading-relaxed text-justify">
+            <p className="text-xs sm:text-sm text-slate-600 leading-relaxed sm:text-justify">
               Somos una empresa especializada en el suministro y comercialización de oxígeno medicinal y en el alquiler, mantenimiento y calibración de equipos Biomédicos para la hospitalización domiciliaria, enfocada en mejorar la calidad de vida de las personas en el departamento del Cesar.
             </p>
           </div>
@@ -84,7 +134,7 @@ export default function QuienesSomosPage() {
               <Eye size={28} />
             </div>
             <h3 className="text-xl font-medium tracking-[-0.01em] text-[#0B2656] mb-3 uppercase">VISIÓN</h3>
-            <p className="text-xs sm:text-sm text-slate-600 leading-relaxed text-justify">
+            <p className="text-xs sm:text-sm text-slate-600 leading-relaxed sm:text-justify">
               Para el año 2027 Ingemedic planea ser la empresa líder en el departamento del Cesar en el suministro y comercialización de oxígeno medicinal y equipos biomédicos para la hospitalización domiciliaria.
             </p>
           </div>
@@ -92,7 +142,7 @@ export default function QuienesSomosPage() {
       </section>
 
       {/* ── SECCIÓN ¿POR QUÉ ELEGIRNOS? ── */}
-      <section className="max-w-[1920px] mx-auto px-8 md:px-10 2xl:px-16 py-20">
+      <section className="max-w-[1920px] mx-auto px-4 md:px-10 2xl:px-16 py-20">
         <div className="mb-10 text-left max-w-4xl">
           <h2 className="text-3xl sm:text-4xl font-medium tracking-[-0.02em] text-[#0B2656] uppercase mb-4">
             ¿Por qué elegirnos?
@@ -116,16 +166,16 @@ export default function QuienesSomosPage() {
             </p>
           </div>
 
-          {/* Card 2: Disponibilidad 24h */}
+          {/* Card 2: Horario de atención */}
           <div className="bg-white border border-slate-200/90 rounded-3xl p-8 shadow-sm hover:shadow-xl transition-all flex flex-col items-center text-center">
             <div className="w-14 h-14 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center mb-6 shadow-inner">
               <Clock size={26} />
             </div>
             <h3 className="text-lg font-medium tracking-[-0.01em] text-[#0B2656] mb-3">
-              Disponibilidad las 24 horas al día
+              Atención de lunes a sábado
             </h3>
             <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
-              Entendemos que las necesidades médicas no tienen horario. Por eso, contamos con un esquema de atención continua que asegura el suministro oportuno de oxígeno y el soporte técnico de equipos en cualquier momento.
+              Lunes de 8:00 a.m. a 12:00 p.m. y de 2:00 a 6:00 p.m.; martes a viernes de 8:00 a.m. a 12:00 p.m. y de 2:00 a 5:30 p.m.; sábados de 8:00 a.m. a 12:00 p.m.
             </p>
           </div>
 
@@ -173,7 +223,7 @@ export default function QuienesSomosPage() {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-y-10 lg:gap-y-12 gap-x-12 lg:gap-x-16 items-start">
               {/* STEP 01 - Left */}
               <div className="relative group">
-                <div className="absolute -top-4 -right-3 lg:-right-5 w-12 h-12 rounded-full bg-[#1D4ED8] text-white font-medium text-lg flex items-center justify-center shadow-lg border-2 border-white z-20 group-hover:scale-110 transition-transform">
+                <div className="absolute -top-4 -right-2 lg:-right-5 w-12 h-12 rounded-full bg-[#1D4ED8] text-white font-medium text-lg flex items-center justify-center shadow-lg border-2 border-white z-20 group-hover:scale-110 transition-transform">
                   01
                 </div>
                 <div className="bg-white rounded-[22px] border border-blue-200/90 p-6 sm:p-7 shadow-[0_4px_20px_rgba(29,78,216,0.06)] hover:shadow-xl hover:border-blue-400 transition-all duration-300 flex flex-col sm:flex-row items-start sm:items-center gap-5">
@@ -193,7 +243,7 @@ export default function QuienesSomosPage() {
 
               {/* STEP 02 - Right */}
               <div className="relative group lg:mt-24">
-                <div className="absolute -top-4 -left-3 lg:-left-5 w-12 h-12 rounded-full bg-[#1D4ED8] text-white font-medium text-lg flex items-center justify-center shadow-lg border-2 border-white z-20 group-hover:scale-110 transition-transform">
+                <div className="absolute -top-4 -left-2 lg:-left-5 w-12 h-12 rounded-full bg-[#1D4ED8] text-white font-medium text-lg flex items-center justify-center shadow-lg border-2 border-white z-20 group-hover:scale-110 transition-transform">
                   02
                 </div>
                 <div className="bg-white rounded-[22px] border border-blue-200/90 p-6 sm:p-7 shadow-[0_4px_20px_rgba(29,78,216,0.06)] hover:shadow-xl hover:border-blue-400 transition-all duration-300 flex flex-col sm:flex-row items-start sm:items-center gap-5">
@@ -213,7 +263,7 @@ export default function QuienesSomosPage() {
 
               {/* STEP 03 - Left */}
               <div className="relative group">
-                <div className="absolute -top-4 -right-3 lg:-right-5 w-12 h-12 rounded-full bg-[#1D4ED8] text-white font-medium text-lg flex items-center justify-center shadow-lg border-2 border-white z-20 group-hover:scale-110 transition-transform">
+                <div className="absolute -top-4 -right-2 lg:-right-5 w-12 h-12 rounded-full bg-[#1D4ED8] text-white font-medium text-lg flex items-center justify-center shadow-lg border-2 border-white z-20 group-hover:scale-110 transition-transform">
                   03
                 </div>
                 <div className="bg-white rounded-[22px] border border-blue-200/90 p-6 sm:p-7 shadow-[0_4px_20px_rgba(29,78,216,0.06)] hover:shadow-xl hover:border-blue-400 transition-all duration-300 flex flex-col sm:flex-row items-start sm:items-center gap-5">
@@ -233,7 +283,7 @@ export default function QuienesSomosPage() {
 
               {/* STEP 04 - Right */}
               <div className="relative group lg:mt-24">
-                <div className="absolute -top-4 -left-3 lg:-left-5 w-12 h-12 rounded-full bg-[#1D4ED8] text-white font-medium text-lg flex items-center justify-center shadow-lg border-2 border-white z-20 group-hover:scale-110 transition-transform">
+                <div className="absolute -top-4 -left-2 lg:-left-5 w-12 h-12 rounded-full bg-[#1D4ED8] text-white font-medium text-lg flex items-center justify-center shadow-lg border-2 border-white z-20 group-hover:scale-110 transition-transform">
                   04
                 </div>
                 <div className="bg-white rounded-[22px] border border-blue-200/90 p-6 sm:p-7 shadow-[0_4px_20px_rgba(29,78,216,0.06)] hover:shadow-xl hover:border-blue-400 transition-all duration-300 flex flex-col sm:flex-row items-start sm:items-center gap-5">
@@ -253,7 +303,7 @@ export default function QuienesSomosPage() {
 
               {/* STEP 05 - Left */}
               <div className="relative group">
-                <div className="absolute -top-4 -right-3 lg:-right-5 w-12 h-12 rounded-full bg-[#1D4ED8] text-white font-medium text-lg flex items-center justify-center shadow-lg border-2 border-white z-20 group-hover:scale-110 transition-transform">
+                <div className="absolute -top-4 -right-2 lg:-right-5 w-12 h-12 rounded-full bg-[#1D4ED8] text-white font-medium text-lg flex items-center justify-center shadow-lg border-2 border-white z-20 group-hover:scale-110 transition-transform">
                   05
                 </div>
                 <div className="bg-white rounded-[22px] border border-blue-200/90 p-6 sm:p-7 shadow-[0_4px_20px_rgba(29,78,216,0.06)] hover:shadow-xl hover:border-blue-400 transition-all duration-300 flex flex-col sm:flex-row items-start sm:items-center gap-5">
@@ -273,74 +323,23 @@ export default function QuienesSomosPage() {
 
               {/* STEP 06 - Right */}
               <div className="relative group lg:mt-24">
-                <div className="absolute -top-4 -left-3 lg:-left-5 w-12 h-12 rounded-full bg-[#1D4ED8] text-white font-medium text-lg flex items-center justify-center shadow-lg border-2 border-white z-20 group-hover:scale-110 transition-transform">
+                <div className="absolute -top-4 -left-2 lg:-left-5 w-12 h-12 rounded-full bg-[#1D4ED8] text-white font-medium text-lg flex items-center justify-center shadow-lg border-2 border-white z-20 group-hover:scale-110 transition-transform">
                   06
                 </div>
                 <div className="bg-white rounded-[22px] border border-blue-200/90 p-6 sm:p-7 shadow-[0_4px_20px_rgba(29,78,216,0.06)] hover:shadow-xl hover:border-blue-400 transition-all duration-300 flex flex-col sm:flex-row items-start sm:items-center gap-5">
                   <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-blue-50/80 border border-blue-100 flex items-center justify-center flex-shrink-0 text-[#1D4ED8] relative">
                     <Clock size={32} />
-                    <span className="absolute bottom-1 right-1 text-[9px] font-semibold bg-[#1D4ED8] text-white px-1 rounded">24h</span>
                   </div>
                   <div className="flex-1">
                     <h3 className="text-lg font-medium tracking-[-0.01em] text-[#0B2656] mb-2 leading-snug">
                       Seguimiento y Soporte Continuo
                     </h3>
                     <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
-                      Realizamos acompañamiento periódico para verificar el estado de los equipos, la evolución del servicio y la satisfacción del paciente. Ante cualquier eventualidad, nuestro equipo técnico responde de manera oportuna, con disponibilidad las 24 horas del día.
+                      Realizamos acompañamiento periódico para verificar el estado de los equipos, la evolución del servicio y la satisfacción del paciente. Ante cualquier eventualidad, nuestro equipo técnico responde de manera oportuna dentro de nuestro horario de atención, de lunes a sábado.
                     </p>
                   </div>
                 </div>
               </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Certificación INVIMA */}
-      <section className="max-w-[1920px] mx-auto px-4 md:px-10 2xl:px-16 py-20">
-        <div className="bg-slate-950 text-white rounded-3xl p-8 lg:p-12 relative overflow-hidden grid grid-cols-1 lg:grid-cols-12 gap-8 items-center shadow-2xl">
-          <div className="lg:col-span-7">
-            <div className="inline-block px-4 py-1 rounded-full bg-blue-500/20 text-blue-300 text-xs font-medium uppercase tracking-wider mb-4 border border-blue-400/30">
-              GARANTÍA SANITARIA
-            </div>
-            <h2 className="text-3xl font-medium tracking-[-0.02em] text-white mb-3">
-              Certificación Oficial <span className="text-blue-400">INVIMA</span>
-            </h2>
-            <p className="text-sm text-slate-300 leading-relaxed mb-6">
-              Nuestra planta de producción y procesos de envasado cumplen rigurosamente con las Buenas Prácticas de Manufactura (BPM) exigidas en Colombia para gases medicinales.
-            </p>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 border-t border-white/15 pt-6">
-              <div className="flex items-center gap-3">
-                <ShieldCheck size={24} className="text-blue-400 flex-shrink-0" />
-                <span className="text-xs font-medium">Pureza certificada</span>
-              </div>
-              <div className="flex items-center gap-3">
-                <FlaskConical size={24} className="text-blue-400 flex-shrink-0" />
-                <span className="text-xs font-medium">Control de calidad</span>
-              </div>
-              <div className="flex items-center gap-3">
-                <FileText size={24} className="text-blue-400 flex-shrink-0" />
-                <span className="text-xs font-medium">Normativa legal</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="lg:col-span-5 flex justify-center">
-            <div className="bg-white/5 border border-white/15 rounded-2xl p-6 lg:p-8 max-w-[340px] backdrop-blur-sm">
-              <h3 className="text-lg font-medium tracking-[-0.01em] text-white mb-2 leading-snug">
-                Certificados en Buenas Prácticas de Manufactura — INVIMA
-              </h3>
-              <p className="text-sm text-slate-300 mb-5">
-                Vigente hasta abril de 2029 · Resolución 2026013255
-              </p>
-              <a
-                href="https://www.invima.gov.co/establecimiento/2345g-ingemedic-de-colombia-sas"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 px-6 py-2.5 rounded-full text-xs font-medium text-white bg-blue-600 hover:bg-blue-500 transition-all shadow-md"
-              >
-                Verificar certificación en INVIMA →
-              </a>
             </div>
           </div>
         </div>

@@ -59,6 +59,26 @@ Lo que está sin resolver, ordenado por prioridad.
 
 # Entradas
 
+## 2026-10-21 — Equipos entregados: una tabla por tipo de equipo
+**Qué se hizo:** ORD-2026-505 tiene 6 equipos (aspirador, concentrador, 2 cilindros, 2 reguladores) y el acta estándar mostraba 3: el recuadro copiado del formato impreso tiene una casilla de equipo, una de cilindro y una de regulador. Decisión de Sofía: dejar el recuadro y usar una tabla estándar por tipo. Tabla nueva `{ tipo: 'tabla', fuente: 'equipos', agrupar: 'tipo', accesorios: [...] }` (render.js → `tablasPorTipo`): una tabla por categoría, solo con las columnas que esos equipos traen (marca, modelo —"TAMAÑO" en cilindros—, serial, código), cilindros y reguladores al final, y una fila de accesorios para marcar (HUMIDIFICADOR, CANULA, CIRCUITOS, OTROS = insumos; claves manuales `bloque.aN`). La devolución sigue con el recuadro (se llena a mano). En el editor: Lista → "Equipos por tipo". Además: el equipo principal (`{{equipo_*}}`) es el primero que no sea cilindro ni regulador, y la descripción sale de `equipos.atributos.nombre` (nombre genérico, en 1.700 de 1.709 unidades; el del tipo a veces es modelo o marca).
+**Archivos:** `src/lib/actas/render.js`, `campos.js`, `contexto.js`, `plantillas-base.js`, `nombres.js`, `components/actas/EditorPlantilla.js`.
+**SQL:** cambia el bloque 4 del estándar y el 2 de Family, y mueve las marcas a mano (`4.3`/`4.7`/`4.11` → `4.a0`/`4.a1`/`4.a2`; ídem bloque 2). Respaldo `bkp_plantillas_acta_20261021` y `bkp_datos_acta_20261021`. Corrido el 2026-10-21 y verificado (las dos plantillas con `agrupar: tipo`; la 505 con sus X en `4.a0`/`4.a1`). Borrar los respaldos cuando se confirme en el PDF.
+**Pendiente:** Las actas ya firmadas guardan su copia de la plantilla y no cambian.
+
+## 2026-10-19 — PDF de actas desde el celular: texto al doble, logos perdidos y cortes a mitad de línea
+**Qué se hizo:** (1) `capturar.js` apaga el agrandado de texto de Chrome Android con `text-size-adjust:100%` en el iframe. (2) Las imágenes se capturan ocultas y se dibujan encima en su lugar exacto (con `setTransform` reiniciado: html2canvas deja el lienzo escalado). (3) `pdf.js` arma las hojas con `armarHojas()`: si una página no cabe, corta solo en cortes seguros (entre bloques, filas o renglones de párrafo, medidos en el iframe) y repite el margen de arriba en las hojas siguientes. (4) `.texto` con `overflow-wrap:anywhere`: las rayas largas "____" del pagaré ya no se salen del margen.
+**Por qué:** Acta_ORD-2026-504 (descargada en el celular desde la pantalla de éxito del repartidor) salió con los párrafos al ~1,9× (760 px de acta / ~393 de pantalla), sin logo en 2 de 3 encabezados, con títulos y renglones partidos entre hojas y las firmas solas en otra hoja.
+**Archivos:** `src/lib/capturar.js`, `src/lib/actas/pdf.js`, `src/lib/actas/render.js`.
+**Pendiente:** El agrandado no se pudo reproducir en Puppeteer (ni con `--blink-settings`); la causa se dedujo por el patrón (solo párrafos largos y proporción de anchos). Confirmar descargando el acta desde un celular Android. Logos, firmas y cortes sí se verificaron con los datos reales de la 504.
+
+## 2026-10-19 — Sitio público: horario en vez de 24/7, portafolio sin carrusel, INVIMA arriba en Nosotros
+**Qué se hizo:** Cambios mínimos sobre el diseño que ya había (un primer rediseño completo se descartó: a Sofía le gustaba más el original). Se quitó "24/7 / 24 horas" de Inicio, Nosotros, Contacto y los metadatos (soporte de lunes a sábado, con el horario). Inicio: sin "Servicios destacados"; "Equipos disponibles" queda como sección. Portafolio: sin carrusel 3D (el banner azul se mantiene) y el banner "¿Dudas…?" pasó a ser una tarjeta "Consulta por más equipos" con el mismo estilo de las tarjetas. Nosotros: la sección de certificación INVIMA sube justo después del banner. Celular y contraste: botones de WhatsApp en verde oscuro (#128C7E; el verde claro con letra blanca no se leía), rótulos de Contacto más oscuros, horario de Contacto en renglones, párrafos sin justificar en celular, margen igual en "¿Por qué elegirnos?".
+**Archivos:** `LandingPage.js`, `portafolio/page.js`, `quienes-somos/page.js` y su layout, `contacto/page.js` y su layout, `Footer.js`, `app/page.js`, `lib/sitio.js` (HORARIO: fuente única de los datos estructurados de Google), `lib/interes-web.js`.
+
+## 2026-10-19 — Vistas previas de actas con el alto real de la hoja
+**Qué se hizo:** Auditoría de las 4 plantillas activas (datos de ejemplo y extremos) y de las 24 actas firmadas: sin variables sin reemplazar, sin imágenes rotas, sin desbordes. Con datos extremos dos hojas pasan del A4 (estándar pág. 1, Family pág. 6): el PDF las parte bien, pero las vistas en pantalla (VistaActa, PreviaActas, hoja de LlenarFormatos) tenían alto fijo A4 y cortaban el sobrante; ahora miden la hoja. `render.js` también lleva `text-size-adjust:100%` (agrandado de Chrome Android en las vistas previas).
+**Archivos:** `components/actas/VistaActa.js`, `PreviaActas.js`, `LlenarFormatos.js`, `lib/actas/render.js`.
+
 ## 2026-10-18 — Logo por cliente y captura de PDF compartida
 **Qué se hizo:**
 - **Captura de PDF en un solo lugar** (`lib/capturar.js → capturarHTML`): iframe

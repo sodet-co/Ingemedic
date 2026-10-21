@@ -33,7 +33,7 @@ export const NOMBRES = {
     equipo_descripcion: 'Equipo', equipo_marca: 'Marca del equipo', equipo_modelo: 'Modelo del equipo',
     equipo_serie: 'Serie del equipo', equipo_codigo: 'Código del equipo', cilindro_tamano: 'Tamaño del cilindro',
     cilindro_serie: 'Serie del cilindro', regulador_marca: 'Marca del regulador', regulador_serie: 'Serie del regulador',
-    otros_equipos: 'Otros equipos', equipos_resumen: 'Lista de equipos', insumos_resumen: 'Lista de insumos',
+    otros_equipos: 'Otros equipos', equipos_adicionales: 'Equipos adicionales', equipos_resumen: 'Lista de equipos', insumos_resumen: 'Lista de insumos',
     observaciones: 'Observaciones',
   },
 }

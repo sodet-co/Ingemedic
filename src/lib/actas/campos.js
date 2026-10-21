@@ -183,6 +183,11 @@ export function camposDelFormato(plantilla, { conPaciente = true } = {}) {
       if ((b.fuente === 'insumos' || b.fuente === 'ambos') && !vistos.has('insumos')) {
         vistos.add('insumos'); out.push({ clave: 'insumos', tipo: 'insumos', etiqueta: 'Insumos', seccion: sec, pagina, conEstado: (b.columnas || []).some(c => c.clave === 'estado') })
       }
+      // Fila de accesorios de la tabla por tipo (HUMIDIFICADOR, CANULA…): se marcan a mano
+      ;(b.accesorios || []).forEach((c, ci) => {
+        if (c.valor) agregarVars(c.valor, sinDosPuntos(c.etiqueta))
+        else if (limpio(c.etiqueta)) out.push({ clave: `m:${bi}.a${ci}`, tipo: 'manual', manual: `${bi}.a${ci}`, etiqueta: sinDosPuntos(c.etiqueta), seccion: sec, pagina })
+      })
       return
     }
     if (b.tipo === 'firmas') {

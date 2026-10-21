@@ -248,6 +248,8 @@ function HojaMarcada({ html, activo, onElegir }) {
   const [ancho, setAncho] = useState(0)
   const [cargas, setCargas] = useState(0) // cada vez que el iframe (re)carga
   const [inicial] = useState(html)
+  // Alto real de la hoja: si el contenido pasa de A4 (en el PDF sigue en otra hoja), aquí se ve entero
+  const [alto, setAlto] = useState(ALTO_A4)
   useEffect(() => { elegirRef.current = onElegir })
 
   useLayoutEffect(() => {
@@ -264,6 +266,8 @@ function HojaMarcada({ html, activo, onElegir }) {
     if (!cargas || !doc?.body || !html) return
     const cuerpo = html.match(/<body[^>]*>([\s\S]*)<\/body>/i)?.[1] ?? ''
     if (doc.body.innerHTML !== cuerpo) doc.body.innerHTML = cuerpo
+    const medido = Math.max(ALTO_A4, doc.body.scrollHeight)
+    requestAnimationFrame(() => setAlto(medido))
     const marcados = activo ? [...doc.querySelectorAll(`[data-campo~="${CSS.escape(activo)}"]`)] : []
     doc.querySelectorAll('.activo').forEach(el => { if (!marcados.includes(el)) el.classList.remove('activo') })
     marcados.forEach(el => el.classList.add('activo'))
@@ -290,9 +294,9 @@ function HojaMarcada({ html, activo, onElegir }) {
   return (
     <div ref={caja} className="flex-1 min-h-0 overflow-auto p-3">
       {escala > 0 && (
-        <div className="siempre-claro mx-auto bg-white shadow-md ring-1 ring-slate-200 overflow-hidden" style={{ width: ANCHO_PAGINA * escala, height: ALTO_A4 * escala }}>
+        <div className="siempre-claro mx-auto bg-white shadow-md ring-1 ring-slate-200 overflow-hidden" style={{ width: ANCHO_PAGINA * escala, height: alto * escala }}>
           <iframe ref={marco} srcDoc={inicial} onLoad={alCargar} title="Hoja del formato"
-            style={{ width: ANCHO_PAGINA, height: ALTO_A4, border: 0, transform: `scale(${escala})`, transformOrigin: 'top left' }} />
+            style={{ width: ANCHO_PAGINA, height: alto, border: 0, transform: `scale(${escala})`, transformOrigin: 'top left' }} />
         </div>
       )}
     </div>

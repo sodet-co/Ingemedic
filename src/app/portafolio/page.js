@@ -1,8 +1,6 @@
 'use client'
-import { useState } from 'react'
 import Header from '@/components/Header'
 import Footer from '@/components/Footer'
-import { ChevronRight, ChevronLeft } from 'lucide-react'
 import { clicWhatsapp } from '@/lib/analitica'
 
 function WhatsappIcon({ size = 18, className = '' }) {
@@ -18,34 +16,6 @@ function WhatsappIcon({ size = 18, className = '' }) {
     </svg>
   )
 }
-
-// 4 Equipos Biomédicos para el Carrusel 3D
-const CAROUSEL_EQUIPOS = [
-  {
-    badge: 'Respironics',
-    nombre: 'Concentrador Respironics',
-    desc: 'Concentrador de oxígeno de alto rendimiento (5L a 10L/min) diseñado para oxigenoterapia domiciliaria continua.',
-    img: '/images/ingemedic-concentrador-oxigeno.png',
-  },
-  {
-    badge: 'ADS100',
-    nombre: 'Aspirador de Secreciones ADS100',
-    desc: 'Dispositivo de succión de grado médico de alta eficiencia para la remoción segura de fluidos en adultos y niños.',
-    img: '/images/ingemedic-aspirador-secreciones.png',
-  },
-  {
-    badge: 'ResMed',
-    nombre: 'Soporte CPAP / BiPAP',
-    desc: 'Dispositivos de presión positiva no invasiva para el tratamiento de apneas del sueño e insuficiencia respiratoria.',
-    img: '/images/ingemedic-cpap.png',
-  },
-  {
-    badge: 'O2 Type',
-    nombre: 'Concentrador Portátil',
-    desc: 'Oxigenoterapia domiciliaria compacta, ligera y recargable para mantener la autonomía de movimiento del paciente.',
-    img: '/images/ingemedic-concentrador-portatil.png',
-  },
-]
 
 // 4 Tarjetas de Equipos Biomédicos del Portafolio
 const PORTAFOLIO_CARDS = [
@@ -96,53 +66,14 @@ const PORTAFOLIO_CARDS = [
 ]
 
 export default function PortafolioPage() {
-  const [productoActivo, setProductoActivo] = useState(0)
-
-  // Drag handlers para el carrusel 3D
-  const [touchStart, setTouchStart] = useState(0)
-  const [touchEnd, setTouchEnd] = useState(0)
-  const [isDragging, setIsDragging] = useState(false)
-
-  const handleStart = (clientX) => {
-    setTouchStart(clientX)
-    setIsDragging(true)
-  }
-
-  const handleMove = (clientX) => {
-    if (!isDragging) return
-    setTouchEnd(clientX)
-  }
-
-  const handleEnd = () => {
-    if (!isDragging) return
-    setIsDragging(false)
-    if (!touchStart || !touchEnd) return
-    const distance = touchStart - touchEnd
-    if (distance > 35) {
-      setProductoActivo((p) => (p + 1) % CAROUSEL_EQUIPOS.length)
-    } else if (distance < -35) {
-      setProductoActivo((p) => (p - 1 + CAROUSEL_EQUIPOS.length) % CAROUSEL_EQUIPOS.length)
-    }
-    setTouchStart(0)
-    setTouchEnd(0)
-  }
-
-  const getCardOffset = (index) => {
-    const total = CAROUSEL_EQUIPOS.length
-    let diff = index - productoActivo
-    while (diff < -1) diff += total
-    while (diff > 2) diff -= total
-    return diff
-  }
-
   return (
     <div className="min-h-screen bg-white text-slate-800 font-body selection:bg-blue-600 selection:text-white">
       <Header />
 
-      {/* ── HERO UNIFICADO CON CARRUSEL 3D INTEGRADO ── */}
-      <section className="relative overflow-hidden bg-gradient-to-b from-[#0B2656] via-[#0D2E68] to-[#071C40] text-white pt-14 pb-16 lg:pt-18 lg:pb-20">
+      {/* ── HERO ── */}
+      <section className="relative overflow-hidden bg-gradient-to-b from-[#0B2656] via-[#0D2E68] to-[#071C40] text-white py-16 lg:py-24">
         <div className="max-w-[1920px] mx-auto px-4 md:px-10 2xl:px-16 relative z-10">
-          <div className="text-center max-w-3xl mx-auto mb-10">
+          <div className="text-center max-w-3xl mx-auto">
             <div className="inline-block px-4 py-1.5 rounded-full bg-blue-500/20 border border-blue-400/30 text-blue-200 text-xs font-medium uppercase tracking-wider mb-4 shadow-sm">
               PORTAFOLIO DE EQUIPOS BIOMÉDICOS
             </div>
@@ -154,123 +85,6 @@ export default function PortafolioPage() {
             </p>
           </div>
 
-          {/* Container del Carrusel 3D */}
-          <div className="relative w-full overflow-hidden min-h-[400px] lg:min-h-[420px] flex items-center justify-center">
-
-            {/* Flecha Izquierda */}
-            <button
-              type="button"
-              onMouseDown={(e) => e.stopPropagation()}
-              onTouchStart={(e) => e.stopPropagation()}
-              onClick={(e) => {
-                e.stopPropagation()
-                setProductoActivo((p) => (p - 1 + CAROUSEL_EQUIPOS.length) % CAROUSEL_EQUIPOS.length)
-              }}
-              aria-label="Equipo anterior"
-              className="absolute left-2 md:left-6 top-1/2 -translate-y-1/2 z-50 w-12 h-12 rounded-full border border-white/40 bg-white/20 backdrop-blur-md text-white shadow-2xl flex items-center justify-center hover:bg-white/40 hover:scale-110 active:scale-95 transition-all cursor-pointer"
-            >
-              <ChevronLeft size={24} />
-            </button>
-
-            {/* Flecha Derecha */}
-            <button
-              type="button"
-              onMouseDown={(e) => e.stopPropagation()}
-              onTouchStart={(e) => e.stopPropagation()}
-              onClick={(e) => {
-                e.stopPropagation()
-                setProductoActivo((p) => (p + 1) % CAROUSEL_EQUIPOS.length)
-              }}
-              aria-label="Siguiente equipo"
-              className="absolute right-2 md:left-auto md:right-6 top-1/2 -translate-y-1/2 z-50 w-12 h-12 rounded-full border border-white/40 bg-white/20 backdrop-blur-md text-white shadow-2xl flex items-center justify-center hover:bg-white/40 hover:scale-110 active:scale-95 transition-all cursor-pointer"
-            >
-              <ChevronRight size={24} />
-            </button>
-
-            <div
-              onTouchStart={(e) => handleStart(e.touches[0].clientX)}
-              onTouchMove={(e) => handleMove(e.touches[0].clientX)}
-              onTouchEnd={handleEnd}
-              onMouseDown={(e) => handleStart(e.clientX)}
-              onMouseMove={(e) => handleMove(e.clientX)}
-              onMouseUp={handleEnd}
-              onMouseLeave={handleEnd}
-              className="carousel-perspective-container relative py-4 select-none cursor-grab active:cursor-grabbing w-full flex items-center justify-center"
-            >
-              <div className="relative w-full max-w-6xl h-[360px] flex items-center justify-center">
-                {CAROUSEL_EQUIPOS.map((item, index) => {
-                  const offset = getCardOffset(index)
-                  const isCenter = offset === 0
-                  const isLeft = offset === -1
-                  const isRight = offset === 1
-                  const isVisible = isCenter || isLeft || isRight
-
-                  const rotateY = isCenter ? 0 : isLeft ? 25 : isRight ? -25 : 0
-                  const translateZ = isCenter ? 0 : isVisible ? -80 : -200
-
-                  return (
-                    <div
-                      key={index}
-                      onClick={() => isVisible && setProductoActivo(index)}
-                      style={{
-                        transform: `translate3d(calc(${offset} * min(470px, 68vw)), 0, ${translateZ}px) rotateY(${rotateY}deg) scale(${
-                          isCenter ? 1 : 0.85
-                        })`,
-                        opacity: isCenter ? 1 : isVisible ? 0.5 : 0,
-                        visibility: isVisible ? 'visible' : 'hidden',
-                        transitionDuration: isVisible ? '0.8s' : '0s',
-                        transitionProperty: isVisible ? 'transform, opacity, box-shadow' : 'none',
-                        zIndex: isCenter ? 30 : isVisible ? 10 : 0,
-                        pointerEvents: isVisible ? 'auto' : 'none',
-                      }}
-                      className={`carousel-slide-item absolute rounded-[28px] overflow-hidden ${
-                        isCenter
-                          ? 'w-full max-w-[320px] sm:max-w-[460px] lg:max-w-[540px] h-[340px] lg:h-[355px] border border-white/35 bg-gradient-to-br from-[#0F3B8C] via-[#0B2A66] to-[#071C44] backdrop-blur-xl shadow-[0_25px_60px_rgba(0,0,0,0.6)] cursor-default'
-                          : 'w-full max-w-[320px] sm:max-w-[460px] lg:max-w-[540px] h-[340px] lg:h-[355px] border border-white/15 bg-white/10 backdrop-blur-md cursor-pointer hover:opacity-75'
-                      }`}
-                    >
-                      <div className="w-full h-full flex flex-col sm:flex-row items-center p-6 sm:p-7 gap-5">
-                        <div className="w-full sm:w-[48%] h-[170px] sm:h-full flex items-center justify-center p-2 relative flex-shrink-0">
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img
-                            src={item.img}
-                            alt={item.nombre}
-                            className="max-h-full w-auto max-w-full object-contain filter drop-shadow-[0_15px_25px_rgba(0,0,0,0.45)]"
-                          />
-                        </div>
-
-                        <div className="w-full sm:w-[52%] flex flex-col justify-center items-start text-left gap-2">
-                          <span className="bg-[#1D4ED8] text-white text-[11px] font-medium px-3.5 py-0.5 rounded-full uppercase tracking-wider shadow-md">
-                            {item.badge}
-                          </span>
-                          <h3 className="font-medium tracking-[-0.01em] text-white text-xl lg:text-2xl leading-tight">
-                            {item.nombre}
-                          </h3>
-                          <div className="w-8 h-[2px] bg-white/60 rounded-full my-0.5" />
-                          <p className="text-blue-100/90 text-xs leading-relaxed">
-                            {item.desc}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-          </div>
-
-          <div className="flex items-center justify-center gap-2 mt-4 relative z-50">
-            {CAROUSEL_EQUIPOS.map((_, i) => (
-              <button
-                key={i}
-                type="button"
-                onClick={() => setProductoActivo(i)}
-                className={`h-2.5 rounded-full transition-all duration-500 cursor-pointer ${
-                  i === productoActivo ? 'w-7 bg-white shadow-md' : 'w-2.5 bg-white/35 hover:bg-white/60'
-                }`}
-              />
-            ))}
-          </div>
         </div>
       </section>
 
@@ -329,30 +143,38 @@ export default function PortafolioPage() {
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={() => clicWhatsapp('portafolio_equipo', item.titulo)}
-                className="w-full h-12 rounded-xl bg-[#25D366] hover:bg-[#128C7E] text-white text-xs font-medium flex items-center justify-center gap-2 shadow-md hover:scale-[1.01] active:scale-95 transition-all cursor-pointer"
+                className="w-full h-12 rounded-xl bg-[#128C7E] hover:bg-[#0f7566] text-white text-xs font-medium flex items-center justify-center gap-2 shadow-md hover:scale-[1.01] active:scale-95 transition-all cursor-pointer"
               >
                 <WhatsappIcon size={18} />
                 <span>Consultar disponibilidad</span>
               </a>
             </div>
           ))}
-        </div>
-      </section>
 
-      {/* Banner de Asesoría Rápida */}
-      <section className="bg-[#0B2656] text-white py-12">
-        <div className="max-w-[1920px] mx-auto px-4 md:px-10 2xl:px-16 text-center flex flex-col items-center">
-          <h2 className="text-xl sm:text-3xl font-medium tracking-[-0.02em] mb-3">¿Dudas sobre el equipo o servicio indicado?</h2>
-          <p className="text-xs sm:text-sm text-blue-100/90 max-w-xl mb-6">Nuestro equipo técnico responde tus preguntas de forma inmediata y coordina la entrega en tu domicilio.</p>
-          <a
-            href="https://wa.me/573103861480?text=Hola,%20requiero%20asesoría%20sobre%20los%20equipos%20del%20portafolio"
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={() => clicWhatsapp('portafolio_asesoria')}
-            className="h-12 px-8 rounded-full bg-[#25D366] hover:bg-[#128C7E] text-white text-xs font-medium flex items-center gap-2 shadow-xl hover:scale-105 transition-all"
-          >
-            <WhatsappIcon size={18} /> Hablar con un Asesor
-          </a>
+          {/* Consultar más equipos — mismo estilo de las tarjetas, a lo ancho */}
+          <div className="md:col-span-2 bg-white rounded-3xl border border-slate-200/90 shadow-sm hover:shadow-xl transition-all p-6 sm:p-8 flex flex-col md:flex-row md:items-center gap-5 md:gap-8">
+            <div className="flex-1">
+              <span className="text-[11px] font-medium text-blue-600 uppercase tracking-widest block mb-1">
+                ¿No encuentras el equipo?
+              </span>
+              <h3 className="text-xl font-medium tracking-[-0.01em] text-[#0B2656] mb-2 leading-snug">
+                Consulta por más equipos
+              </h3>
+              <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
+                Manejamos más equipos biomédicos para hospitalización domiciliaria. Cuéntanos qué necesitas y te confirmamos disponibilidad.
+              </p>
+            </div>
+            <a
+              href="https://wa.me/573103861480?text=Hola,%20quiero%20consultar%20por%20otros%20equipos%20biomédicos"
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => clicWhatsapp('portafolio_asesoria')}
+              className="w-full md:w-auto md:px-8 h-12 rounded-xl bg-[#128C7E] hover:bg-[#0f7566] text-white text-xs font-medium flex items-center justify-center gap-2 shadow-md hover:scale-[1.01] active:scale-95 transition-all cursor-pointer flex-shrink-0"
+            >
+              <WhatsappIcon size={18} />
+              <span>Consultar más equipos</span>
+            </a>
+          </div>
         </div>
       </section>
 

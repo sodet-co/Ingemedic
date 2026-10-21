@@ -14,6 +14,13 @@ export default function VistaActa({ bloques, ctx }) {
   const ref = useRef(null)
   const [ancho, setAncho] = useState(0) // 0 = aún sin medir: no se pinta a tamaño real por un instante
   const [ampliado, setAmpliado] = useState(false)
+  // Alto real de cada hoja (si pasa de A4, en el PDF sigue en otra hoja; aquí se ve entera)
+  const [altos, setAltos] = useState({})
+  const altoDe = i => Math.max(ALTO_A4, altos[paginas[i]] || 0)
+  const medir = (i, e) => {
+    const h = e.currentTarget.contentDocument?.body?.scrollHeight || 0
+    setAltos(a => a[paginas[i]] === h ? a : { ...a, [paginas[i]]: h })
+  }
 
   useLayoutEffect(() => {
     if (!ref.current) return
@@ -39,9 +46,9 @@ export default function VistaActa({ bloques, ctx }) {
         <div className="space-y-4" style={{ width: ampliado ? ANCHO_PAGINA : undefined }}>
           {ancho > 0 && paginas.map((html, i) => (
             <div key={i} className="siempre-claro mx-auto bg-white shadow-md ring-1 ring-slate-200 overflow-hidden"
-              style={{ width: ANCHO_PAGINA * escala, height: ALTO_A4 * escala }}>
-              <iframe srcDoc={html} title={`Página ${i + 1}`} tabIndex={-1}
-                style={{ width: ANCHO_PAGINA, height: ALTO_A4, border: 0, transform: `scale(${escala})`, transformOrigin: 'top left', pointerEvents: 'none' }} />
+              style={{ width: ANCHO_PAGINA * escala, height: altoDe(i) * escala }}>
+              <iframe srcDoc={html} title={`Página ${i + 1}`} tabIndex={-1} onLoad={e => medir(i, e)}
+                style={{ width: ANCHO_PAGINA, height: altoDe(i), border: 0, transform: `scale(${escala})`, transformOrigin: 'top left', pointerEvents: 'none' }} />
             </div>
           ))}
         </div>

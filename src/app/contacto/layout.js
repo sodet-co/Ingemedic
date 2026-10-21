@@ -4,7 +4,7 @@ import { metadatosPagina } from '@/lib/sitio'
 export const metadata = metadatosPagina({
   titulo: 'Contacto y cotizaciones en Valledupar',
   descripcion:
-    'Cotiza el alquiler de equipos biomédicos u oxígeno medicinal. Calle 14C # 20-14, La Popa, Valledupar. WhatsApp 310 3861480. Lunes a viernes y sábados en la mañana.',
+    'Cotiza el alquiler de equipos biomédicos u oxígeno medicinal. Calle 14C # 20-14, La Popa, Valledupar. WhatsApp 310 3861480. Atención de lunes a sábado.',
   ruta: '/contacto',
 })
 

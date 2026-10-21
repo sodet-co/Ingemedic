@@ -95,25 +95,30 @@ const manual = (ctx, clave) => {
   return v != null && String(v).trim() ? esc(String(v).trim()) : ''
 }
 
+// Celdas de un recuadro (campos en tabla): etiqueta en negrita y el valor o lo
+// escrito a mano. clave(ci) = clave del renglón en blanco (datos_acta.manuales)
+function celdasGrilla(lista, cols, ctx, clave) {
+  const vars = ctx.variables || {}
+  const celdas = []
+  let fila = [], usadas = 0
+  for (const [ci, c] of (lista || []).entries()) {
+    const span = Math.min(c.span || 1, cols)
+    if (usadas + span > cols) { celdas.push(fila); fila = []; usadas = 0 }
+    const escrito = !c.valor && !c.firma ? manual(ctx, clave(ci)) : ''
+    const valor = (c.firma ? imgFirma(c.firma, ctx) : '') + (escrito || (c.valor || !c.firma ? interpolar(c.valor || '', vars, { raya: 10 }) : ''))
+    const marca = !c.valor && !c.firma && !esFirma(c) ? attrCampo(ctx, `m:${clave(ci)}`, !!escrito) : ''
+    fila.push(`<td colspan="${span}"${marca}><span class="et">${esc(c.etiqueta)}</span> ${valor}</td>`)
+    usadas += span
+  }
+  if (fila.length) celdas.push(fila)
+  return `<table class="grilla">${celdas.map(f => `<tr>${f.join('')}</tr>`).join('')}</table>`
+}
+
 function campos(b, ctx, bi) {
   const vars = ctx.variables || {}
   const cols = b.columnas || 1
   const titulo = b.titulo ? `<div class="sub">${esc(b.titulo)}</div>` : ''
-  if (b.estilo === 'tabla') {
-    const celdas = []
-    let fila = [], usadas = 0
-    for (const [ci, c] of (b.campos || []).entries()) {
-      const span = Math.min(c.span || 1, cols)
-      if (usadas + span > cols) { celdas.push(fila); fila = []; usadas = 0 }
-      const escrito = !c.valor && !c.firma ? manual(ctx, `${bi}.${ci}`) : ''
-      const valor = (c.firma ? imgFirma(c.firma, ctx) : '') + (escrito || (c.valor || !c.firma ? interpolar(c.valor || '', vars, { raya: 10 }) : ''))
-      const marca = !c.valor && !c.firma && !esFirma(c) ? attrCampo(ctx, `m:${bi}.${ci}`, !!escrito) : ''
-      fila.push(`<td colspan="${span}"${marca}><span class="et">${esc(c.etiqueta)}</span> ${valor}</td>`)
-      usadas += span
-    }
-    if (fila.length) celdas.push(fila)
-    return titulo + `<table class="grilla">${celdas.map(f => `<tr>${f.join('')}</tr>`).join('')}</table>`
-  }
+  if (b.estilo === 'tabla') return titulo + celdasGrilla(b.campos, cols, ctx, ci => `${bi}.${ci}`)
   // 'lineas': etiqueta y el valor sobre una raya, como los formularios impresos
   const items = (b.campos || []).map((c, ci) => {
     const texto = c.valor ? interpolar(c.valor, vars, { raya: 3 }) : (!c.firma ? manual(ctx, `${bi}.${ci}`) : '')
@@ -136,7 +141,46 @@ const COLUMNAS_TABLA = {
   codigo: 'CÓDIGO', estado: 'ESTADO', cantidad: 'CANT.', lote: 'LOTE', invima: 'REG. INVIMA',
 }
 
-function tabla(b, ctx) {
+// Equipos agrupados por tipo: una tabla por categoría (cilindros, reguladores,
+// concentradores…) con solo las columnas que esos equipos traen. Los equipos van
+// primero y los cilindros y reguladores al final.
+const ES_ACCESORIO = /cilindro|regulador/i
+function tablasPorTipo(b, ctx, bi) {
+  const grupos = []
+  for (const f of ctx.equipos || []) {
+    const nombre = f.categoria || f.descripcion || 'Equipos'
+    const g = grupos.find(x => x.nombre === nombre)
+    if (g) g.filas.push(f)
+    else grupos.push({ nombre, filas: [f] })
+  }
+  grupos.sort((x, y) => ES_ACCESORIO.test(x.nombre) - ES_ACCESORIO.test(y.nombre))
+  const tablas = grupos.map(g => {
+    const cilindros = /cilindro/i.test(g.nombre)
+    const hay = clave => g.filas.some(f => String(f[clave] ?? '').trim())
+    // La descripción solo si cambia dentro del grupo (si no, ya la dice el título)
+    const distintas = new Set(g.filas.map(f => f.descripcion)).size > 1
+    const cols = [
+      { clave: 'item', etiqueta: 'ÍTEM', ancho: 7 },
+      distintas && { clave: 'descripcion', etiqueta: 'DESCRIPCIÓN' },
+      hay('marca') && { clave: 'marca', etiqueta: 'MARCA' },
+      hay('modelo') && { clave: 'modelo', etiqueta: cilindros ? 'TAMAÑO' : 'MODELO' },
+      { clave: 'serie', etiqueta: 'SERIAL' },
+      hay('codigo') && { clave: 'codigo', etiqueta: 'CÓDIGO', ancho: 14 },
+    ].filter(Boolean)
+    const cuerpo = g.filas.map((f, i) => `<tr>${cols.map(c => `<td>${esc(c.clave === 'item' ? i + 1 : f[c.clave] ?? '')}&nbsp;</td>`).join('')}</tr>`).join('')
+    return `<div class="grupo-eq"><div class="grupo-titulo">${esc(g.nombre.toUpperCase())}</div><table class="tabla"><thead><tr>${cols.map(c =>
+      `<th${c.ancho ? ` style="width:${c.ancho}%"` : ''}>${c.etiqueta}</th>`).join('')}</tr></thead><tbody>${cuerpo}</tbody></table></div>`
+  })
+  if (!tablas.length) tablas.push(`<table class="tabla"><tbody><tr><td>&nbsp;</td></tr></tbody></table>`)
+  // Accesorios que se marcan con X (HUMIDIFICADOR, CANULA…): una fila aparte
+  const accesorios = b.accesorios?.length
+    ? celdasGrilla(b.accesorios, b.accesorios.length, ctx, ci => `${bi}.a${ci}`).replace('class="grilla"', 'class="grilla grilla-acc"')
+    : ''
+  return (b.titulo ? `<div class="sub">${esc(b.titulo)}</div>` : '') + tablas.join('') + accesorios
+}
+
+function tabla(b, ctx, bi) {
+  if (b.agrupar === 'tipo') return tablasPorTipo(b, ctx, bi)
   const filas = (b.fuente === 'insumos' ? ctx.insumos
     : b.fuente === 'ambos' ? [...(ctx.equipos || []), ...(ctx.insumos || []).map(i => ({ ...i, estado: i.estado || 'Nuevo' }))]
     : ctx.equipos) || []
@@ -212,7 +256,7 @@ function bloque(b, ctx, bi) {
       return caja(b, `<div class="texto" style="text-align:${alinear(b.alineacion || 'justificado')};font-size:${b.tamano || 12}px">${formato(interpolar(b.texto, vars, { marcar: true }))}</div>`)
     case 'campos': return caja(b, campos(b, ctx, bi))
     case 'tabla': {
-      const html = tabla(b, ctx)
+      const html = tabla(b, ctx, bi)
       if (!ctx.marcar || !html) return caja(b, html)
       // Claves separadas por espacio: una tabla de equipos e insumos con Estado lleva las dos
       const claves = [(b.columnas || []).some(c => c.clave === 'estado') && b.fuente !== 'insumos' && 'estados', (b.fuente === 'insumos' || b.fuente === 'ambos') && 'insumos'].filter(Boolean)
@@ -230,6 +274,7 @@ function bloque(b, ctx, bi) {
 
 const CSS = `
 *{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
 body{font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#111;background:#fff;width:${ANCHO_PAGINA}px;padding:28px 34px}
 .bloque{margin-bottom:10px}
 .caja{border:1.2px solid #222;padding:8px 10px}
@@ -253,7 +298,7 @@ body{font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#111;background
 .enc-filas .enc-et{border-right:1px solid #222;font-size:10px;width:22%;vertical-align:bottom}
 .enc-pie span{margin-right:28px}
 .titulo{font-size:13px;font-weight:bold;margin:6px 0}
-.texto{line-height:1.45}
+.texto{line-height:1.45;overflow-wrap:anywhere}
 .valor{text-decoration:underline;font-weight:bold}
 .raya{display:inline-block;border-bottom:1px solid #111;min-width:60px}
 .sub{font-weight:bold;text-align:center;font-size:11.5px;margin-bottom:5px}
@@ -269,6 +314,10 @@ body{font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#111;background
 .grilla{width:100%;border-collapse:collapse}
 .grilla td{border:1px solid #222;padding:4px 6px;font-size:11px;vertical-align:top}
 .grilla .et{font-weight:bold}
+.grupo-eq{margin-bottom:6px}
+.grupo-titulo{font-size:10.5px;font-weight:bold;margin:0 0 2px 1px}
+.grilla-acc{margin-top:2px}
+.grilla-acc td{width:25%}
 .tabla{width:100%;border-collapse:collapse}
 .tabla th{border:1px solid #222;background:#f0f0f0;font-size:10.5px;padding:4px}
 .tabla td{border:1px solid #222;font-size:11px;padding:4px;height:20px}

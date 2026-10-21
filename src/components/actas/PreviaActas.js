@@ -32,7 +32,10 @@ export default function PreviaActas({ actas, inicial = 0, titulo, descargando, o
     obs.observe(area.current)
     return () => obs.disconnect()
   }, [])
-  const ajuste = caja ? Math.min(1, (caja.w - 16) / ANCHO_PAGINA, (caja.h - 16) / ALTO_A4) : 0
+  // Alto real de la hoja (si pasa de A4, en el PDF sigue en otra hoja; aquí se ve entera)
+  const [altos, setAltos] = useState({})
+  const alto = Math.max(ALTO_A4, altos[hoja?.html] || 0)
+  const ajuste = caja ? Math.min(1, (caja.w - 16) / ANCHO_PAGINA, (caja.h - 16) / alto) : 0
   const escala = ampliado ? 1 : ajuste
 
   // Teclado: Esc cierra solo esta ventana (no el detalle de abajo), ← → pasan hoja
@@ -111,9 +114,10 @@ export default function PreviaActas({ actas, inicial = 0, titulo, descargando, o
             className={`absolute inset-0 ${ampliado ? 'overflow-auto' : 'overflow-hidden flex items-center justify-center'}`}>
             {escala > 0 && (
               <div className={`siempre-claro bg-white shadow-md ring-1 ring-slate-200 overflow-hidden ${ampliado ? 'm-2' : ''}`}
-                style={{ width: ANCHO_PAGINA * escala, height: ALTO_A4 * escala, flexShrink: 0 }}>
+                style={{ width: ANCHO_PAGINA * escala, height: alto * escala, flexShrink: 0 }}>
                 <iframe key={actual} srcDoc={hoja.html} title={`Hoja ${actual + 1}`} tabIndex={-1}
-                  style={{ width: ANCHO_PAGINA, height: ALTO_A4, border: 0, transform: `scale(${escala})`, transformOrigin: 'top left', pointerEvents: 'none' }} />
+                  onLoad={e => { const h = e.currentTarget.contentDocument?.body?.scrollHeight || 0; const k = hoja.html; setAltos(a => a[k] === h ? a : { ...a, [k]: h }) }}
+                  style={{ width: ANCHO_PAGINA, height: alto, border: 0, transform: `scale(${escala})`, transformOrigin: 'top left', pointerEvents: 'none' }} />
               </div>
             )}
           </div>

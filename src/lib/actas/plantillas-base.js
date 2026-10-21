@@ -8,8 +8,14 @@
 const logo = (base, ruta, alto) => ({ url: `${base}/storage/v1/object/public/logos/${ruta}`, alto })
 const sinLogo = texto => ({ texto })
 
-// Recuadro de equipos con cilindro, regulador y accesorios (Excel de Ingemedic y comodato de Family)
-const recuadroEquipos = (titulo, llenar) => ({
+// Equipos entregados: una tabla por tipo de equipo (cilindros, reguladores…) con
+// sus columnas, y los accesorios que se marcan con X (render.js → tablasPorTipo)
+const ACCESORIOS = [{ etiqueta: 'HUMIDIFICADOR' }, { etiqueta: 'CANULA' }, { etiqueta: 'CIRCUITOS' }, { etiqueta: 'OTROS', valor: '{{insumos_resumen}}' }]
+const equiposPorTipo = titulo => ({ tipo: 'tabla', fuente: 'equipos', agrupar: 'tipo', titulo, accesorios: ACCESORIOS })
+
+// Recuadro de equipos con cilindro, regulador y accesorios, como el formato impreso:
+// queda para la devolución, que se llena a mano (Excel de Ingemedic y comodato de Family)
+const recuadroEquipos = (titulo, llenar) => llenar ? equiposPorTipo(titulo) : ({
   tipo: 'campos', estilo: 'tabla', columnas: 4, titulo, campos: [
     { etiqueta: 'EQUIPO:', valor: llenar ? '{{equipo_descripcion}}' : '' }, { etiqueta: llenar ? 'CILINDRO: DE OXIGENO' : 'CILINDRO:' },
     { etiqueta: llenar ? 'REGULADOR: DE OXIGENO' : 'REGULADOR:' }, { etiqueta: 'HUMIDIFICADOR' },

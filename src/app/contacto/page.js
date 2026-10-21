@@ -84,7 +84,7 @@ export default function ContactoPage() {
       <section className="max-w-[1920px] mx-auto px-4 md:px-10 2xl:px-16 py-16 lg:py-24">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-start">
 
-          {/* Columna Izquierda: Información de Contacto + Asesoría 24h */}
+          {/* Columna Izquierda: Información de Contacto + Asesoría */}
           <div className="lg:col-span-6 space-y-6">
             <div>
               <span className="text-xs font-medium text-blue-600 uppercase tracking-widest block mb-1">Atención Inmediata</span>
@@ -98,7 +98,7 @@ export default function ContactoPage() {
                   <Phone size={20} />
                 </div>
                 <div>
-                  <h4 className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-0.5">Teléfonos Directos</h4>
+                  <h4 className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-0.5">Teléfonos Directos</h4>
                   <p className="text-sm font-medium text-slate-900 leading-snug">310 3636481</p>
                   <p className="text-sm font-medium text-slate-900 leading-snug">310 3861480</p>
                 </div>
@@ -109,7 +109,7 @@ export default function ContactoPage() {
                   <Mail size={20} />
                 </div>
                 <div>
-                  <h4 className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-0.5">Correo Electrónico</h4>
+                  <h4 className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-0.5">Correo Electrónico</h4>
                   <p className="text-xs font-medium text-slate-900 break-all">ingemedicsas@hotmail.com</p>
                   <p className="text-[11px] text-slate-500 mt-1">Atención administrativa</p>
                 </div>
@@ -120,7 +120,7 @@ export default function ContactoPage() {
                   <MapPin size={20} />
                 </div>
                 <div>
-                  <h4 className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-0.5">Sede Principal</h4>
+                  <h4 className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-0.5">Sede Principal</h4>
                   <p className="text-sm font-medium text-slate-900">Calle 14C # 20-14 Barrio la Popa</p>
                   <p className="text-xs text-slate-600 font-medium">Valledupar - Cesar, Colombia</p>
                 </div>
@@ -131,10 +131,10 @@ export default function ContactoPage() {
                   <Clock size={20} />
                 </div>
                 <div>
-                  <h4 className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-0.5">Horarios de Atención</h4>
-                  <p className="text-xs font-medium text-slate-900">Lunes: 8:00 am - 12:00 pm / 2:00 pm - 6:00 pm</p>
-                  <p className="text-xs font-medium text-slate-900 mt-0.5">Martes a Viernes: 8:00 am - 12:00 pm / 2:00 pm - 5:30 pm</p>
-                  <p className="text-xs font-medium text-slate-900 mt-0.5">Sábados: 8:00 am - 12:00 pm</p>
+                  <h4 className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-0.5">Horarios de Atención</h4>
+                  {[['Lunes', '8:00 am - 12:00 pm · 2:00 pm - 6:00 pm'], ['Martes a viernes', '8:00 am - 12:00 pm · 2:00 pm - 5:30 pm'], ['Sábados', '8:00 am - 12:00 pm']].map(([dia, horas]) => (
+                    <p key={dia} className="text-xs text-slate-900 mt-1 first:mt-0"><span className="font-semibold">{dia}</span><span className="block font-medium text-slate-600">{horas}</span></p>
+                  ))}
                 </div>
               </div>
             </div>
@@ -145,8 +145,8 @@ export default function ContactoPage() {
                 <Headphones size={30} />
               </div>
               <div>
-                <span className="text-[10px] font-medium text-blue-200 uppercase tracking-widest block mb-1">Soporte Continuo</span>
-                <h4 className="text-base font-medium text-white">Asesoría Personalizada 24h</h4>
+                <span className="text-[10px] font-medium text-blue-200 uppercase tracking-widest block mb-1">Lunes a sábado</span>
+                <h4 className="text-base font-medium text-white">Asesoría Personalizada</h4>
                 <p className="text-xs text-blue-100/85 mt-1 leading-relaxed">
                   Te orientamos en la selección de concentradores, cilindros de oxígeno y repuestos médicos.
                 </p>
@@ -159,7 +159,7 @@ export default function ContactoPage() {
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={() => clicWhatsapp('contacto')}
-                className="w-full h-12 rounded-2xl bg-[#25D366] hover:bg-[#128C7E] text-white text-xs font-medium flex items-center justify-center gap-2.5 shadow-lg hover:scale-[1.01] active:scale-95 transition-all cursor-pointer"
+                className="w-full h-12 rounded-2xl bg-[#128C7E] hover:bg-[#0f7566] text-white text-xs font-medium flex items-center justify-center gap-2.5 shadow-lg hover:scale-[1.01] active:scale-95 transition-all cursor-pointer"
               >
                 <WhatsappIcon size={18} /> Escribir a WhatsApp
               </a>

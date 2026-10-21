@@ -26,8 +26,8 @@ const CIFRAS = [
 const POR_QUE = [
   {
     icon: Clock,
-    titulo: 'Servicio técnico 24/7',
-    desc: 'Atención permanente para mantenimiento correctivo en todo el departamento.',
+    titulo: 'Soporte técnico de lunes a sábado',
+    desc: 'Atendemos mantenimientos correctivos en todo el departamento, en nuestro horario de atención.',
   },
   {
     icon: ShieldCheck,
@@ -38,19 +38,6 @@ const POR_QUE = [
     icon: Users2,
     titulo: 'Personal calificado',
     desc: 'Ingenieros y técnicos biomédicos con entrenamiento específico por equipo.',
-  },
-]
-
-const SERVICIOS = [
-  {
-    titulo: 'Alquiler de equipos',
-    desc: 'Alquiler flexible, sin tiempos mínimos rígidos, ajustado a la indicación médica de cada paciente.',
-    img: '/images/ingemedic-cpap.png',
-  },
-  {
-    titulo: 'Oxígeno domiciliario',
-    desc: 'Oxígeno medicinal con instalación en el hogar y capacitación al paciente y sus cuidadores.',
-    img: '/images/ingemedic-planta-oxigeno.jpg',
   },
 ]
 
@@ -151,7 +138,7 @@ export default function LandingPage() {
           <div className="max-w-xl mb-11">
             <div className="w-[52px] h-[3px] bg-[#1E9FC4] rounded-full mb-[18px]" />
             <h2 className="font-display text-[28px] md:text-[34px] font-medium tracking-[-0.02em] text-[#0E2A4D]">Por qué elegir Ingemedic</h2>
-            <p className="mt-3 font-light text-[17px] text-[#5D6F86]">Respaldo técnico permanente para instituciones de salud y pacientes en casa.</p>
+            <p className="mt-3 font-light text-[17px] text-[#5D6F86]">Respaldo técnico para instituciones de salud y pacientes en casa.</p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 bg-white border border-[#DDE5EE] rounded-[10px] overflow-hidden">
             {POR_QUE.map((p, i) => (
@@ -167,35 +154,14 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ── SERVICIOS DESTACADOS + EQUIPOS ── */}
+      {/* ── EQUIPOS ── */}
       <section className="bg-white py-20 md:py-24" id="servicios">
         <div className="max-w-[1920px] mx-auto px-5 md:px-10 2xl:px-16">
-          <div className="max-w-xl mb-11">
-            <div className="w-[52px] h-[3px] bg-[#1E9FC4] rounded-full mb-[18px]" />
-            <h2 className="font-display text-[28px] md:text-[34px] font-medium tracking-[-0.02em] text-[#0E2A4D]">Servicios destacados</h2>
-            <p className="mt-3 font-light text-[17px] text-[#5D6F86]">Del suministro del equipo al soporte técnico durante toda su vida útil.</p>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-            {SERVICIOS.map(s => (
-              <Link href="/portafolio" key={s.titulo}
-                className="border border-[#DDE5EE] rounded-[10px] overflow-hidden bg-white flex flex-col sm:flex-row sm:min-h-[200px] 2xl:min-h-[260px] hover:shadow-md transition-shadow">
-                <div className="relative aspect-[16/10] sm:aspect-auto sm:w-[42%] flex-shrink-0">
-                  <Image src={s.img} alt={s.titulo} fill sizes="(min-width: 640px) 21vw, 100vw" className="object-cover" />
-                </div>
-                <div className="p-6 flex flex-col gap-2.5 flex-1">
-                  <h3 className="font-display text-[19px] font-medium tracking-[-0.01em] text-[#0E2A4D]">{s.titulo}</h3>
-                  <p className="text-[14px] text-[#5D6F86] flex-1">{s.desc}</p>
-                  <span className="text-[13.5px] font-medium text-[#1E9FC4] mt-1">Conoce más</span>
-                </div>
-              </Link>
-            ))}
-          </div>
-
-          <div className="mt-[52px] pt-11 border-t border-[#DDE5EE]" id="equipos">
+          <div id="equipos">
             <div className="flex items-end justify-between gap-6 flex-wrap mb-6">
               <div>
-                <h3 className="font-display text-[22px] font-medium tracking-[-0.01em] text-[#0E2A4D]">Equipos disponibles</h3>
+                <div className="w-[52px] h-[3px] bg-[#1E9FC4] rounded-full mb-[18px]" />
+                <h2 className="font-display text-[28px] md:text-[34px] font-medium tracking-[-0.02em] text-[#0E2A4D]">Equipos disponibles</h2>
                 <p className="mt-1.5 text-[15px] text-[#5D6F86]">Los que más solicitan nuestros clientes.</p>
               </div>
               <Link href="/portafolio"

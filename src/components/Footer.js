@@ -66,7 +66,7 @@ export default function Footer() {
             <ul className="space-y-2 md:space-y-2.5 text-[14px]">
               <li className="flex items-start gap-2">
                 <MapPin size={15} className="text-[#1E9FC4] flex-shrink-0 mt-0.5" />
-                <span>Calle 14C # 20-14 Barrio la Popa, Valledupar - César</span>
+                <span>Calle 14C # 20-14 Barrio La Popa, Valledupar - Cesar</span>
               </li>
               <li className="flex items-center gap-2">
                 <Phone size={15} className="text-[#1E9FC4] flex-shrink-0" />
