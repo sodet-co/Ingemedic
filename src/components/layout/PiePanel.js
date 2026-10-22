@@ -3,8 +3,8 @@ import { ULTIMA_ACTUALIZACION } from '@/lib/ultima-actualizacion'
 // Pie del panel (solo md+): derechos, fecha de la versión y crédito de SODET.
 // Vivían al fondo del Sidebar, debajo del usuario, donde ya no cabían.
 export default function PiePanel() {
-  const actualizado = new Date(ULTIMA_ACTUALIZACION).toLocaleDateString('es-CO', {
-    day: 'numeric', month: 'short', year: 'numeric', timeZone: 'America/Bogota',
+  const actualizado = new Date(ULTIMA_ACTUALIZACION).toLocaleString('es-CO', {
+    day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'America/Bogota',
   })
   return (
     <footer className="hidden md:flex flex-shrink-0 items-center justify-between gap-4 h-8 px-7 border-t border-slate-200 bg-white text-[11px] text-slate-400">

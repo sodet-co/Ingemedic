@@ -1542,7 +1542,7 @@ export default function ConfiguracionClient({
                   </div>
                 </div>
                 <p className="mt-4 text-[11.5px] text-slate-400">
-                  Versión del {new Date(ULTIMA_ACTUALIZACION).toLocaleDateString('es-CO', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'America/Bogota' })}
+                  Versión del {new Date(ULTIMA_ACTUALIZACION).toLocaleString('es-CO', { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'America/Bogota' })}
                 </p>
               </div>
             )}

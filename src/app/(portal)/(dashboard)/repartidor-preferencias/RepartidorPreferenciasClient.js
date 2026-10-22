@@ -152,7 +152,7 @@ export default function RepartidorPreferenciasClient({ usuario }) {
       </button>
 
       <p className="text-center text-[11.5px] text-slate-400">
-        Versión del {new Date(ULTIMA_ACTUALIZACION).toLocaleDateString('es-CO', { day: 'numeric', month: 'short', year: 'numeric' })}
+        Versión del {new Date(ULTIMA_ACTUALIZACION).toLocaleString('es-CO', { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'America/Bogota' })}
       </p>
 
       <ConfirmDialog
