@@ -28,7 +28,7 @@ export default async function OrdenesPage() {
         id, plantilla_id, firmado, firmado_por, firma_iniciales, fecha_firma,
         plantilla:plantillas_orden(id, nombre)
       ),
-      visitas:entregas(id, codigo, tipo, modo, fecha_programada, fecha_completada, recibido_por, datos,
+      visitas:entregas(id, codigo, tipo, modo, fecha_programada, fecha_completada, fecha_creacion, duracion_minutos, recibido_por, datos,
         estado:estados_entrega(id, nombre), repartidor:usuarios!entregas_repartidor_id_fkey(id, nombre))
     `).order('fecha_creacion', { ascending: false }),
     supabase.from('clientes').select('id, nombre, tipo_persona, nit_cc').eq('activo', true).order('nombre'),

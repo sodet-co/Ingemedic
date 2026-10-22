@@ -20,6 +20,7 @@ import AvatarCliente from '@/components/clientes/AvatarCliente'
 import ControlVigencia from '@/components/prestamos/ControlVigencia'
 import NuevoPrestamo from '@/components/prestamos/NuevoPrestamo'
 import AccionPrestamo from '@/components/prestamos/AccionPrestamo'
+import HistorialPrestamo from '@/components/prestamos/HistorialPrestamo'
 import { seRecarga } from '@/lib/actas/acciones'
 import { cancelarAccion, proximaRecarga, NOMBRE_ACCION, accionDeEntrega } from '@/lib/accionesPrestamo'
 import { useOrdenable } from '@/hooks/useOrdenable'
@@ -1272,6 +1273,12 @@ export default function OrdenesClient({
                 <div className="p-5">
                   <div className="text-[10.5px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-3">Actas</div>
                   <ActasPrestamo key={drawer.id} ordenId={drawer.id} ordenCodigo={drawer.codigo} onToast={showToast} />
+                </div>
+
+                {/* Historial: todo lo que le pasó al préstamo, con quién y su acta */}
+                <div className="p-5">
+                  <div className="text-[10.5px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-3">Historial</div>
+                  <HistorialPrestamo key={drawer.id} orden={drawer} />
                 </div>
               </div>
             </div>
