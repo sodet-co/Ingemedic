@@ -279,8 +279,11 @@ export default function OrdenesClient({
       }
       if (search) {
         const q = search.toLowerCase()
-        const pasa = [o.codigo, o.cliente?.nombre, o.paciente?.nombre, o.repartidor?.nombre]
-          .some(v => v?.toLowerCase().includes(q))
+        // También por cédula/NIT y por el código o serial de un equipo del préstamo
+        // (quien llama dice "soy fulano" o "el cilindro RL975")
+        const pasa = [o.codigo, o.cliente?.nombre, o.cliente?.nit_cc, o.paciente?.nombre, o.paciente?.cedula, o.repartidor?.nombre,
+          ...(o.equipos || []).flatMap(oe => [oe.equipo?.codigo, oe.equipo?.atributos?.serie, oe.equipo?.atributos?.codigo_inventario])]
+          .some(v => v != null && String(v).toLowerCase().includes(q))
         if (!pasa) return false
       }
       if (filtroEstadoDetalle && o.estado?.nombre !== filtroEstadoDetalle) return false
@@ -552,7 +555,7 @@ export default function OrdenesClient({
                 <div className="relative w-full md:w-[340px] md:flex-shrink-0">
                   <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                   <input value={search} onChange={e => setSearch(e.target.value)}
-                    placeholder="Buscar por código o cliente..."
+                    placeholder="Buscar por paciente, cédula, cliente, código o serial…"
                     className="w-full pl-9 pr-4 h-[38px] border border-slate-200 rounded-[9px] text-[13px] text-slate-800 bg-white outline-none focus:border-[#D81B43] focus:ring-2 focus:ring-[#D81B43]/10 placeholder:text-slate-400" />
                 </div>
                 <div className="flex items-center gap-2 md:gap-3 md:flex-1 min-w-0">

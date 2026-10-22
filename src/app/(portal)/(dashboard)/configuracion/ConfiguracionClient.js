@@ -22,6 +22,7 @@ import { equiposDeTipos } from '@/lib/equipos'
 import ModalEliminarEquipos from '@/components/inventario/ModalEliminarEquipos'
 import PreviaActas from '@/components/actas/PreviaActas'
 import AsignarPlantilla from '@/components/actas/AsignarPlantilla'
+import { ACCIONES, accionDe } from '@/lib/actas/acciones'
 import EditorPlantilla from '@/components/actas/EditorPlantilla'
 import NuevaPlantilla from '@/components/actas/NuevaPlantilla'
 import AccesoPortal from '@/components/clientes/AccesoPortal'
@@ -1321,12 +1322,12 @@ export default function ConfiguracionClient({
                 <div className="flex items-start justify-between gap-3 mb-5">
                   <div>
                     <h2 className={ui.tituloBloque}>Plantillas de actas</h2>
-                    <p className={ui.subtituloBloque}>Formatos que se firman al entregar.</p>
+                    <p className={ui.subtituloBloque}>Formatos que se firman al prestar, recoger, recargar o cambiar un equipo.</p>
                   </div>
                   <button onClick={() => setNuevaPlantilla(true)} className={ui.btnPrimario}><Plus size={14} strokeWidth={2.5} /> Nueva plantilla</button>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-                  {plantillasActa.map(p => {
+                  {[...plantillasActa].sort((a, b) => Object.keys(ACCIONES).indexOf(accionDe(a)) - Object.keys(ACCIONES).indexOf(accionDe(b))).map(p => {
                     const clientesP = (p.clientes || []).map(c => c.cliente?.nombre).filter(Boolean)
                     return (
                       <div key={p.id} className="bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col gap-2 px-4 py-3.5 hover:border-slate-300 transition-colors">
@@ -1338,7 +1339,8 @@ export default function ConfiguracionClient({
                           </div>
                         </div>
                         <div className="flex items-center gap-2 flex-wrap">
-                          {p.es_estandar && <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-[#1B3A6B]/10 text-[#1B3A6B]">Estándar</span>}
+                          <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-[#2EB5D4]/12 text-[#0E7490]">{ACCIONES[accionDe(p)]}</span>
+                          {p.es_estandar && <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-[#1B3A6B]/10 text-[#1B3A6B]">De Ingemedic</span>}
                           {clientesP.map(n => <span key={n} className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-slate-100 text-slate-600">{n}</span>)}
                           {p.tipo === 'anexo' && <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-700">Anexo opcional</span>}
                           {p.uso_general && <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-[#0F7B55]/10 text-[#0F7B55]">Uso general</span>}
@@ -1805,7 +1807,9 @@ export default function ConfiguracionClient({
       {asignando && (
         <AsignarPlantilla plantilla={asignando} clientes={clientes} onCerrar={() => setAsignando(null)}
           onGuardado={cambios => {
-            setPlantillasActa(l => l.map(p => p.id === asignando.id ? { ...p, ...cambios } : p))
+            // Solo una de Ingemedic por acción: si esta pasó a serlo, las demás de su acción dejan de serlo
+            setPlantillasActa(l => l.map(p => p.id === asignando.id ? { ...p, ...cambios }
+              : cambios.es_estandar && accionDe(p) === accionDe(asignando) ? { ...p, es_estandar: false } : p))
             registrarBitacora({ modulo: 'configuracion', accion: 'editar', entidad: 'plantilla de acta', entidad_id: asignando.id, detalle: { nombre: asignando.nombre, uso_general: cambios.uso_general, clientes: cambios.clientes.length } })
             setAsignando(null); showToast('Clientes de la plantilla guardados')
           }} />

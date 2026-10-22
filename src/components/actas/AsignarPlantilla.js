@@ -1,18 +1,22 @@
 'use client'
 import { useMemo, useState } from 'react'
-import { Search, Globe } from 'lucide-react'
+import { Search, Globe, Star } from 'lucide-react'
 import Modal from '@/components/ui/Modal'
 import { ui } from '@/lib/ui'
 import { createClient } from '@/lib/supabase'
+import { ACCIONES, accionDe } from '@/lib/actas/acciones'
 
 // A qué clientes se ofrece una plantilla al crear un préstamo.
 //  - Uso general: sirve para cualquier cliente (la estándar, el pagaré…).
 //  - Clientes: la plantilla se ofrece y viene marcada para esos clientes.
-// Un cliente sin plantillas propias recibe la estándar como sugerencia.
+//  - De Ingemedic: la que se usa en su acción si el cliente no tiene una propia
+//    para esa acción (una por acción).
 export default function AsignarPlantilla({ plantilla, clientes, onCerrar, onGuardado }) {
   const supabase = useMemo(() => createClient(), [])
   const actuales = (plantilla.clientes || []).map(c => c.cliente_id || c.cliente?.id).filter(Boolean)
   const [general, setGeneral] = useState(!!plantilla.uso_general)
+  const [estandar, setEstandar] = useState(!!plantilla.es_estandar)
+  const accionTxt = ACCIONES[accionDe(plantilla)].toLowerCase()
   const [elegidos, setElegidos] = useState(actuales)
   const [buscar, setBuscar] = useState('')
   const [guardando, setGuardando] = useState(false)
@@ -39,11 +43,16 @@ export default function AsignarPlantilla({ plantilla, clientes, onCerrar, onGuar
       const { error } = await supabase.from('cliente_plantillas_acta').insert(filas)
       if (error) { setError(error.message); setGuardando(false); return }
     }
-    if (general !== !!plantilla.uso_general) {
-      const { error } = await supabase.from('plantillas_acta').update({ uso_general: general }).eq('id', plantilla.id)
+    if (estandar && !plantilla.es_estandar) {
+      // Solo una de Ingemedic por acción
+      const { error } = await supabase.from('plantillas_acta').update({ es_estandar: false }).eq('accion', accionDe(plantilla)).neq('id', plantilla.id)
       if (error) { setError(error.message); setGuardando(false); return }
     }
-    onGuardado({ uso_general: general, clientes: elegidos.map((id, i) => ({ cliente_id: id, orden: i, cliente: clientes.find(c => c.id === id) })) })
+    if (general !== !!plantilla.uso_general || estandar !== !!plantilla.es_estandar) {
+      const { error } = await supabase.from('plantillas_acta').update({ uso_general: general, es_estandar: estandar }).eq('id', plantilla.id)
+      if (error) { setError(error.message); setGuardando(false); return }
+    }
+    onGuardado({ uso_general: general, es_estandar: estandar, clientes: elegidos.map((id, i) => ({ cliente_id: id, orden: i, cliente: clientes.find(c => c.id === id) })) })
   }
 
   return (
@@ -53,11 +62,18 @@ export default function AsignarPlantilla({ plantilla, clientes, onCerrar, onGuar
         <button onClick={guardar} disabled={guardando} className={ui.btnPrimario}>{guardando ? 'Guardando…' : 'Guardar'}</button>
       </>}>
         <div className="space-y-4">
+          <label className={`flex items-start gap-3 p-3 rounded-[10px] border cursor-pointer ${estandar ? 'border-[#1B3A6B]/40 bg-[#1B3A6B]/[0.04]' : 'border-slate-200'}`}>
+            <input type="checkbox" className="mt-0.5" checked={estandar} onChange={e => setEstandar(e.target.checked)} />
+            <span>
+              <span className="flex items-center gap-1.5 text-[13.5px] font-semibold text-slate-800"><Star size={14} /> De Ingemedic para {accionTxt}</span>
+              <span className="block text-[12px] text-slate-500 mt-0.5">Se usa cuando el cliente no tiene una propia de {accionTxt}. Solo una por acción.</span>
+            </span>
+          </label>
           <label className={`flex items-start gap-3 p-3 rounded-[10px] border cursor-pointer ${general ? 'border-[#1B3A6B]/40 bg-[#1B3A6B]/[0.04]' : 'border-slate-200'}`}>
             <input type="checkbox" className="mt-0.5" checked={general} onChange={e => setGeneral(e.target.checked)} />
             <span>
               <span className="flex items-center gap-1.5 text-[13.5px] font-semibold text-slate-800"><Globe size={14} /> Uso general</span>
-              <span className="block text-[12px] text-slate-500 mt-0.5">Se puede elegir con cualquier cliente al crear un préstamo.</span>
+              <span className="block text-[12px] text-slate-500 mt-0.5">Se puede elegir con cualquier cliente.</span>
             </span>
           </label>
           <div>

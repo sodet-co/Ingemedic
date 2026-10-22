@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase'
 import { registrarBitacora } from '@/lib/bitacora'
 import { paraGuardar, hoyBogota, formatear, formatearSoloFecha } from '@/lib/fechas'
 import { buscarCedulaDuplicada, mensajeCedulaDuplicada, esErrorCedulaDuplicada, MENSAJE_CEDULA_DUPLICADA } from '@/lib/pacientes'
-import { plantillasSugeridas } from '@/lib/actas/firmar'
+import { plantillasSugeridas, plantillasOfrecidas } from '@/lib/actas/acciones'
 import { DATOS_ACTA_VACIO, leerDatosActa, camposPedidos, camposVacios } from '@/lib/actas/campos'
 import { construirContexto, conManuales } from '@/lib/actas/contexto'
 import LlenarFormatos, { VentanaLlenarFormatos } from '@/components/actas/LlenarFormatos'
@@ -284,10 +284,9 @@ export default function NuevoPrestamo({
   }
 
   // ── Render ───────────────────────────────────────────────
-  // Solo se ofrecen las plantillas del cliente, las de uso general y la estándar
-  // (Configuración → Plantillas → Clientes); así la lista no crece con cada cliente
-  const ofrecidas = plantillas.filter(p => p.uso_general || p.es_estandar || f.plantillas_acta.includes(p.id)
-    || (p.clientes || []).some(c => c.cliente_id === f.cliente_id))
+  // Solo se ofrecen las plantillas de préstamo del cliente, las de uso general y la
+  // de Ingemedic (Configuración → Plantillas → Clientes); así la lista no crece con cada cliente
+  const ofrecidas = plantillasOfrecidas(plantillas, f.cliente_id, 'prestamo', f.plantillas_acta)
   const formatosEntrega = ofrecidas.filter(p => (p.tipo || 'entrega') === 'entrega')
   const anexos = ofrecidas.filter(p => p.tipo === 'anexo')
 

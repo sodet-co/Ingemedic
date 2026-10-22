@@ -10,6 +10,7 @@ import { contextoEjemplo } from '@/lib/actas/ejemplo'
 import { subirImagen } from '@/lib/actas/imagenesPlantilla'
 import { registrarBitacora } from '@/lib/bitacora'
 import VistaActa from '@/components/actas/VistaActa'
+import { ACCIONES, accionDe } from '@/lib/actas/acciones'
 import ConfirmDialog from '@/components/ui/ConfirmDialog'
 import { ui } from '@/lib/ui'
 
@@ -332,6 +333,7 @@ export default function EditorPlantilla({ plantilla, inicial, empresa, avisos = 
   const origen = plantilla || inicial || {}
   const [nombre, setNombre] = useState(origen.nombre || '')
   const [descripcion, setDescripcion] = useState(origen.descripcion || '')
+  const [accion, setAccion] = useState(() => accionDe(origen))
   const [bloques, setBloques] = useState(() => paraEditar(origen.bloques))
   const [abierto, setAbierto] = useState(null) // bloque desplegado
   const [menuAgregar, setMenuAgregar] = useState(false)
@@ -411,7 +413,7 @@ export default function EditorPlantilla({ plantilla, inicial, empresa, avisos = 
       return
     }
     setGuardando(true); setError(null)
-    const datos = { nombre: nombre.trim(), descripcion: descripcion.trim() || null, bloques: paraGuardar(bloques) }
+    const datos = { nombre: nombre.trim(), descripcion: descripcion.trim() || null, accion, bloques: paraGuardar(bloques) }
     const res = plantilla?.id
       ? await supabase.from('plantillas_acta').update(datos).eq('id', plantilla.id).select('*').single()
       : await supabase.from('plantillas_acta').insert({ ...datos, tipo: 'entrega', es_estandar: false, uso_general: false, activo: true }).select('*').single()
@@ -445,6 +447,14 @@ export default function EditorPlantilla({ plantilla, inicial, empresa, avisos = 
           {errorNombre && <div className="text-[12px] font-medium text-[#D81B43]">Escribe el nombre de la plantilla</div>}
           <input value={descripcion} onChange={e => { setDescripcion(e.target.value); setCambios(true) }} placeholder="Descripción (opcional)"
             className="w-full text-[16px] md:text-[12.5px] text-slate-500 bg-transparent outline-none placeholder:text-slate-300" />
+          {/* Para qué acción es: préstamo, devolución, recarga o cambio de equipo */}
+          <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
+            <span className="text-[11.5px] text-slate-400 mr-0.5">Para</span>
+            {Object.entries(ACCIONES).map(([a, l]) => (
+              <button key={a} type="button" onClick={() => { setAccion(a); setCambios(true) }} aria-pressed={accion === a}
+                className={`px-2.5 py-0.5 rounded-full text-[11.5px] font-semibold border transition-colors ${accion === a ? 'bg-[#1B3A6B] border-[#1B3A6B] text-white' : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300'}`}>{l}</button>
+            ))}
+          </div>
         </div>
         <div className="flex gap-0.5 flex-shrink-0">
           <button onClick={deshacer} disabled={!historial.pasado.length} className={`${ui.btnIcono} disabled:opacity-30`} aria-label="Deshacer" title="Deshacer (Ctrl+Z)"><Undo2 size={16} /></button>

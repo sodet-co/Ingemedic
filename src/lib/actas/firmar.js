@@ -1,6 +1,7 @@
 // Datos y guardado de las actas de un préstamo. Lo usan el paso de firma
 // (components/actas/FirmaActas.js) —en Entregas, en la vista del repartidor y al
 // crear un préstamo en oficina— y la descarga del PDF.
+import { plantillasSugeridas } from './acciones.js'
 
 const SELECT_ORDEN = `
   id, codigo, diagnostico, plantillas_acta, datos_acta, cliente_id,
@@ -10,22 +11,10 @@ const SELECT_ORDEN = `
     tipo_equipo:tipos_equipo(nombre, atributos, categoria:categorias_equipo(nombre))))
 `
 
-export const SELECT_PLANTILLAS = 'id, nombre, descripcion, tipo, es_estandar, bloques, clientes:cliente_plantillas_acta(orden, cliente_id)'
+export const SELECT_PLANTILLAS = 'id, nombre, descripcion, tipo, es_estandar, accion, uso_general, bloques, clientes:cliente_plantillas_acta(orden, cliente_id)'
 
-// Formatos que se sugieren al crear un préstamo: los de entrega asignados al
-// cliente, en su orden; si no tiene ninguno, la plantilla estándar. Los anexos
-// (pagaré) nunca se sugieren: se agregan a mano.
-export function plantillasSugeridas(plantillas, clienteId) {
-  const entrega = (plantillas || []).filter(p => (p.tipo || 'entrega') === 'entrega')
-  const delCliente = entrega
-    .map(p => ({ p, rel: (p.clientes || []).find(c => c.cliente_id === clienteId) }))
-    .filter(x => x.rel)
-    .sort((a, b) => a.rel.orden - b.rel.orden)
-    .map(x => x.p.id)
-  if (delCliente.length) return delCliente
-  const estandar = entrega.find(p => p.es_estandar)
-  return estandar ? [estandar.id] : []
-}
+// Formatos que se sugieren al crear un préstamo (y en las demás acciones): lib/actas/acciones.js
+export { plantillasSugeridas }
 
 // Todo lo que necesita el paso de firma de un préstamo
 export async function cargarParaFirma(supabase, ordenId) {
@@ -55,12 +44,13 @@ export async function cargarParaFirma(supabase, ordenId) {
 // Guarda una fila de `actas` por plantilla, con copia de los bloques y del
 // contexto: el acta firmada no cambia aunque después se edite la plantilla, el
 // paciente o el equipo.
-export async function guardarActas(supabase, { ordenId, entregaId = null, plantillas, ctx, firmas }) {
+export async function guardarActas(supabase, { ordenId, entregaId = null, accion = 'prestamo', plantillas, ctx, firmas }) {
   const { data: { user } } = await supabase.auth.getUser()
   const filas = plantillas.map(p => ({
     orden_id: ordenId,
     entrega_id: entregaId,
     plantilla_id: p.id,
+    accion,
     nombre: p.nombre,
     bloques: p.bloques,
     datos: { variables: ctx.variables, equipos: ctx.equipos, insumos: ctx.insumos, manuales: ctx.manualesPorPlantilla?.[p.id] || {} },

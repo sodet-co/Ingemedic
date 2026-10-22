@@ -353,6 +353,60 @@ function family() {
   }
 }
 
+// ── Devolución y recarga Ingemedic (Excel "ACTA DE ENTREGA DE EQUIPOS INGEMEDIC",
+// que trae entrega, devolución y recarga en una hoja): una plantilla por acción, cada
+// una con su parte. Son las de Ingemedic para recoger y recargar.
+const encGeneral = base => ({ tipo: 'encabezado', logos: [logo(base, 'logo-ingemedic.png', 50)], ancho_logo: 28,
+  centro: [{ texto: 'ACTA GENERAL DE EQUIPOS MEDICOS DOMICILIARIOS O SUMINISTRO OXIGENO DOMICILIARIO', estilo: 'titulo' }] })
+const obsGeneral = momento => `OBSERVACIONES: ( Especifique en este campo las observaciones que tenga acerca del estado del equipo en el momento de la ${momento})`
+const tablaGeneral = titulo => ({ tipo: 'tabla', fuente: 'equipos', agrupar: 'tipo', titulo, accesorios: [{ etiqueta: 'ACCESORIOS:', valor: '{{insumos_resumen}}' }] })
+const constanciaGeneral = { tipo: 'texto', tamano: 11, texto: 'Por medio de la presente acta se hace constar la entrega, devolucion, recarga y tenencia actual de los equipos biomedicos y/o suministros de oxigeno domiciliario en calidad de prestamo . La custodia y buen uso de los equipos entregados antes descritos son responsalidad del paciente o familiar, a partir de la fecha de entrega asumen el compromiso de su cuidado.' }
+
+export function devolucionIngemedic(base) {
+  return {
+    nombre: 'Acta de devolución Ingemedic',
+    descripcion: 'Devolución de equipos médicos domiciliarios o suministro de oxígeno. Se usa al recoger con los clientes que no tienen formato propio.',
+    accion: 'devolucion', es_estandar: true,
+    bloques: [
+      encGeneral(base),
+      { tipo: 'titulo', texto: 'DEVOLUCION DE EQUIPOS' },
+      { tipo: 'campos', columnas: 3, campos: [{ etiqueta: 'CIUDAD', valor: '{{ciudad}}', span: 2 }, { etiqueta: 'FECHA', valor: '{{fecha}}' }] },
+      tablaGeneral('EQUIPOS EN DEVOLUCION'),
+      { tipo: 'campos', columnas: 3, campos: [
+        // En la devolución recibe Ingemedic y entrega el paciente o su familiar
+        { etiqueta: 'QUIEN RECIBE:', valor: '{{entrega_nombre}}', span: 2 }, { etiqueta: 'FIRMA:', firma: 'entrega' },
+        { etiqueta: 'QUIEN ENTREGA:', valor: '{{recibe_nombre}}', span: 2 }, { etiqueta: 'FIRMA:', firma: 'recibe' },
+        { etiqueta: 'NOMBRE DEL PACIENTE:', valor: '{{paciente_nombre}}', span: 3 },
+        { etiqueta: obsGeneral('devolucion'), valor: '{{observaciones}}', span: 3, arriba: true },
+      ] },
+      constanciaGeneral,
+    ],
+  }
+}
+
+export function recargaIngemedic(base) {
+  return {
+    nombre: 'Acta de recarga Ingemedic',
+    descripcion: 'Recarga de equipos (cilindros de oxígeno). Se usa al recargar con los clientes que no tienen formato propio.',
+    accion: 'recarga', es_estandar: true,
+    bloques: [
+      encGeneral(base),
+      { tipo: 'titulo', texto: 'RECARGA DE EQUIPOS' },
+      { tipo: 'campos', columnas: 3, campos: [{ etiqueta: 'CIUDAD', valor: '{{ciudad}}', span: 2 }, { etiqueta: 'FECHA', valor: '{{fecha}}' }] },
+      tablaGeneral('EQUIPOS RECARGADOS'),
+      { tipo: 'campos', columnas: 3, campos: [
+        { etiqueta: 'TENENCIA ACTUAL DE EQUIPOS / NOMBRE DEL PACIENTE ACTUAL:', valor: '{{paciente_nombre}}', span: 3 },
+        { etiqueta: 'QUIEN RECIBE:', valor: '{{recibe_nombre}}', span: 2 }, { etiqueta: 'FIRMA:', firma: 'recibe' },
+        { etiqueta: 'QUIEN ENTREGA:', valor: '{{entrega_nombre}}', span: 2 }, { etiqueta: 'FIRMA:', firma: 'entrega' },
+        { etiqueta: 'DIRECCION:', valor: '{{paciente_direccion}}', span: 3 },
+        { etiqueta: 'TELEFONO O CELULAR:', valor: '{{recibe_telefono}}', span: 2 }, { etiqueta: 'Correo Electronico:', valor: '{{recibe_correo}}' },
+        { etiqueta: obsGeneral('recarga'), valor: '{{observaciones}}', span: 3, arriba: true },
+      ] },
+      constanciaGeneral,
+    ],
+  }
+}
+
 // Plantillas y a qué cliente (por nombre en `clientes`) se asignan al cargarlas
 export function plantillasBase(supabaseUrl) {
   return [
