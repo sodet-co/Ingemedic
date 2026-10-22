@@ -1,23 +1,24 @@
 'use client'
 import { useMemo, useState } from 'react'
-import { Search, Package, HeartPulse, Layers, List, ChevronDown, ChevronLeft, ArrowDownLeft, CheckSquare, Square } from 'lucide-react'
+import { Search, Package, HeartPulse, Layers, List, ChevronDown, ChevronLeft, ArrowDownLeft, CheckSquare, Square, RefreshCw, ArrowLeftRight } from 'lucide-react'
 import { formatear } from '@/lib/fechas'
 import { ui } from '@/lib/ui'
 import { usePaginacion } from '@/hooks/usePaginacion'
 import Paginador from '@/components/ui/Paginador'
-import ConfirmarConEspera from '@/components/ui/ConfirmarConEspera'
+import { seRecarga } from '@/lib/actas/acciones'
 
 // Equipos que un cliente tiene en préstamo. Pensado para clientes con cien o
 // más (CUIDARTE, DUSAKAWI): resumen, chips por tipo que filtran, buscador,
 // lista paginada o agrupada por paciente / tipo.
-// "Devolver equipos" cambia la vista a un buscador con selección múltiple; se
-// confirma con espera de 5 s y el detalle llama a onDevolverVarios(items).
+// "Recoger, recargar o cambiar" cambia la vista a un buscador con selección
+// múltiple; el detalle llama a onAccion(accion, items), que lleva al asistente de
+// Préstamos con esos equipos (deben ser de un mismo préstamo).
 // equipos: filas de orden_equipos con { equipo, orden(paciente), fecha_entrega }
 const nombreTipo = oe => oe.equipo?.tipo_equipo?.atributos?.nombre || oe.equipo?.tipo_equipo?.nombre || 'Equipo'
 const nombrePaciente = oe => oe.orden?.paciente?.nombre || oe.equipo?.paciente_actual?.nombre || null
 const coincide = (oe, q) => !q || [oe.equipo?.codigo, nombreTipo(oe), nombrePaciente(oe)].some(v => v?.toLowerCase().includes(q))
 
-export default function EquiposDelCliente({ equipos, onDevolverVarios }) {
+export default function EquiposDelCliente({ equipos, onAccion }) {
   const [buscar, setBuscar] = useState('')
   const [tipo, setTipo] = useState(null)
   const [vista, setVista] = useState('lista') // 'lista' | 'paciente' | 'tipo'
@@ -25,7 +26,6 @@ export default function EquiposDelCliente({ equipos, onDevolverVarios }) {
   const [devolviendo, setDevolviendo] = useState(false)
   const [buscarDev, setBuscarDev] = useState('')
   const [elegidos, setElegidos] = useState([])
-  const [confirmar, setConfirmar] = useState(false)
 
   const resumen = useMemo(() => {
     const tipos = {}
@@ -108,25 +108,19 @@ export default function EquiposDelCliente({ equipos, onDevolverVarios }) {
           })}
           {candidatos.length > 100 && <div className="py-2 text-center text-[11.5px] text-slate-400">Escribe para encontrar los demás</div>}
         </div>
-        <div className="flex justify-end">
-          <button type="button" disabled={!elegidos.length} onClick={() => setConfirmar(true)} className={ui.btnPrimario}>
-            <ArrowDownLeft size={14} /> Devolver {elegidos.length || ''}
+        <div className="text-[12px] text-slate-400">Se abre el préstamo para llenar y firmar el acta. Elige equipos de un mismo paciente.</div>
+        <div className="flex flex-wrap justify-end gap-2">
+          <button type="button" disabled={!elegidos.length} onClick={() => onAccion('cambio', seleccion)} className={ui.btnSecundario}>
+            <ArrowLeftRight size={14} /> Cambiar
+          </button>
+          <button type="button" disabled={!elegidos.length || !seleccion.every(oe => seRecarga(oe.equipo?.tipo_equipo))} onClick={() => onAccion('recarga', seleccion)} className={ui.btnSecundario}
+            title="Solo equipos que se recargan">
+            <RefreshCw size={14} /> Recargar
+          </button>
+          <button type="button" disabled={!elegidos.length} onClick={() => onAccion('devolucion', seleccion)} className={ui.btnPrimario}>
+            <ArrowDownLeft size={14} /> Recoger {elegidos.length || ''}
           </button>
         </div>
-        {confirmar && (
-          <ConfirmarConEspera titulo={`¿Devolver ${seleccion.length} equipo${seleccion.length !== 1 ? 's' : ''}?`} textoConfirmar="Sí, devolver"
-            onCancelar={() => setConfirmar(false)}
-            onConfirmar={async () => {
-              const ok = await onDevolverVarios(seleccion)
-              setConfirmar(false)
-              if (ok !== false) { setDevolviendo(false); setElegidos([]); setBuscarDev('') }
-            }}>
-            <div className="space-y-1 max-h-[180px] overflow-y-auto">
-              {seleccion.map(oe => <div key={oe.id}><span className="font-mono font-semibold">{oe.equipo?.codigo}</span> · {nombreTipo(oe)}</div>)}
-            </div>
-            <div className="mt-3 text-[12.5px] text-slate-400">Quedan disponibles con fecha de hoy.</div>
-          </ConfirmarConEspera>
-        )}
       </div>
     )
   }
@@ -190,9 +184,9 @@ export default function EquiposDelCliente({ equipos, onDevolverVarios }) {
             </button>
           ))}
         </div>
-        {onDevolverVarios && (
+        {onAccion && (
           <button type="button" onClick={() => setDevolviendo(true)} className={ui.btnSecundario}>
-            <ArrowDownLeft size={14} /> Devolver equipos
+            <ArrowDownLeft size={14} /> Recoger, recargar o cambiar
           </button>
         )}
       </div>

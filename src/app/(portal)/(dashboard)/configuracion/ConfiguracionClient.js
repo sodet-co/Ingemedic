@@ -22,7 +22,7 @@ import { equiposDeTipos } from '@/lib/equipos'
 import ModalEliminarEquipos from '@/components/inventario/ModalEliminarEquipos'
 import PreviaActas from '@/components/actas/PreviaActas'
 import AsignarPlantilla from '@/components/actas/AsignarPlantilla'
-import { ACCIONES, accionDe } from '@/lib/actas/acciones'
+import { ACCIONES, accionDe, seRecarga } from '@/lib/actas/acciones'
 import EditorPlantilla from '@/components/actas/EditorPlantilla'
 import NuevaPlantilla from '@/components/actas/NuevaPlantilla'
 import AccesoPortal from '@/components/clientes/AccesoPortal'
@@ -1326,8 +1326,18 @@ export default function ConfiguracionClient({
                   </div>
                   <button onClick={() => setNuevaPlantilla(true)} className={ui.btnPrimario}><Plus size={14} strokeWidth={2.5} /> Nueva plantilla</button>
                 </div>
+                {/* Una sección por acción: préstamo, devolución, recarga, cambio de equipo */}
+                <div className="space-y-7">
+                {Object.entries(ACCIONES).map(([accion, etiqueta]) => {
+                  const deAccion = plantillasActa.filter(p => accionDe(p) === accion)
+                  return (
+                  <section key={accion}>
+                    <div className="flex items-baseline gap-2 mb-2.5">
+                      <h3 className="text-[14px] font-bold text-slate-700">Plantillas de {etiqueta.toLowerCase()}</h3>
+                      <span className="text-[12px] text-slate-400">{deAccion.length}</span>
+                    </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-                  {[...plantillasActa].sort((a, b) => Object.keys(ACCIONES).indexOf(accionDe(a)) - Object.keys(ACCIONES).indexOf(accionDe(b))).map(p => {
+                  {deAccion.map(p => {
                     const clientesP = (p.clientes || []).map(c => c.cliente?.nombre).filter(Boolean)
                     return (
                       <div key={p.id} className="bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col gap-2 px-4 py-3.5 hover:border-slate-300 transition-colors">
@@ -1339,7 +1349,6 @@ export default function ConfiguracionClient({
                           </div>
                         </div>
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-[#2EB5D4]/12 text-[#0E7490]">{ACCIONES[accionDe(p)]}</span>
                           {p.es_estandar && <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-[#1B3A6B]/10 text-[#1B3A6B]">De Ingemedic</span>}
                           {clientesP.map(n => <span key={n} className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-slate-100 text-slate-600">{n}</span>)}
                           {p.tipo === 'anexo' && <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-700">Anexo opcional</span>}
@@ -1360,7 +1369,11 @@ export default function ConfiguracionClient({
                       </div>
                     )
                   })}
-                  {plantillasActa.length === 0 && <div className="col-span-full bg-white rounded-xl border border-slate-200 shadow-sm text-center py-12 text-slate-400">Sin plantillas configuradas</div>}
+                  {deAccion.length === 0 && <div className="col-span-full rounded-xl border border-dashed border-slate-300 text-center py-6 text-[12.5px] text-slate-400">Aún no hay plantillas de {etiqueta.toLowerCase()}</div>}
+                </div>
+                  </section>
+                  )
+                })}
                 </div>
               </div>
             )}
@@ -1731,6 +1744,17 @@ export default function ConfiguracionClient({
                       placeholder="ej. Concentrador de Oxígeno EverFlo"
                       className={inputCls} />
                   </div>
+
+                  {/* Recargas (acta de recarga): por defecto, los cilindros */}
+                  <label className="flex items-start gap-3 p-3 rounded-[10px] border border-slate-200 cursor-pointer">
+                    <input type="checkbox" className="mt-0.5"
+                      checked={seRecarga({ atributos: form.atributos, categoria: cats.find(c => c.id === form.categoria_id) })}
+                      onChange={e => setForm(f => ({ ...f, atributos: { ...f.atributos, se_recarga: e.target.checked } }))} />
+                    <span>
+                      <span className="block text-[13px] font-semibold text-slate-700">Se recarga</span>
+                      <span className="block text-[12px] text-slate-500 mt-0.5">Los equipos de este tipo se pueden recargar en un préstamo, con su acta de recarga.</span>
+                    </span>
+                  </label>
 
                   {/* Imagen del tipo */}
                   <div>

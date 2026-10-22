@@ -67,7 +67,9 @@ function TarjetaGrupo({ icono, titulo, cantidad, onClick }) {
 // Préstamos. El buscador, fuera del nivel de unidades, busca en todo.
 // La fecha y el motivo solo aplican si el préstamo ya se entregó.
 // Se monta solo mientras está abierto, así el formulario arranca limpio cada vez.
-export default function ModalCambioEquipo({ equipoActual, disponibles, categorias, tiposEquipo, entregada, guardando, onConfirmar, onCancelar }) {
+// soloElegir: dentro del asistente de cambio de equipo (AccionPrestamo): solo se
+// elige el que entra; la fecha, el motivo y el acta van en el asistente.
+export default function ModalCambioEquipo({ equipoActual, disponibles, categorias, tiposEquipo, entregada, guardando, onConfirmar, onCancelar, soloElegir = false }) {
   const tipoActual = equipoActual?.tipo_equipo
   const [vista, setVista]               = useState('unidades') // 'categorias' | 'tipos' | 'unidades'
   const [categoriaId, setCategoriaId]   = useState(tipoActual?.categoria?.id || tipoActual?.categoria_id || null)
@@ -134,7 +136,7 @@ export default function ModalCambioEquipo({ equipoActual, disponibles, categoria
     else if (vista === 'tipos') irA('categorias')
   }
 
-  const puedeConfirmar = seleccionado && (!entregada || fecha) && !guardando
+  const puedeConfirmar = seleccionado && (soloElegir || !entregada || fecha) && !guardando
   const migas = [
     { label: 'Categorías', onClick: () => irA('categorias'), visible: true },
     { label: categoria?.nombre, onClick: () => irA('tipos'), visible: vista !== 'categorias' && categoria },
@@ -153,7 +155,8 @@ export default function ModalCambioEquipo({ equipoActual, disponibles, categoria
             <div className="min-w-0">
               <h3 id="cambio-equipo-titulo" className="text-[16px] font-bold text-slate-800 leading-tight">Cambiar equipo</h3>
               <p className="text-[12.5px] text-slate-400 mt-0.5">
-                {entregada
+                {soloElegir ? 'Elige el equipo que entra en lugar de este.'
+                  : entregada
                   ? 'El equipo actual queda como devuelto y el nuevo entra al préstamo con el mismo cliente y paciente.'
                   : 'El préstamo aún no se entrega: el equipo se reemplaza directamente y el actual vuelve a Disponible.'}
               </p>
@@ -283,7 +286,7 @@ export default function ModalCambioEquipo({ equipoActual, disponibles, categoria
 
           {/* Pie: fecha/motivo (solo entregado) + acciones */}
           <div className="bg-white border-t border-slate-200 px-5 md:px-7 py-4 flex-shrink-0">
-            {entregada && (
+            {entregada && !soloElegir && (
               <div className="grid grid-cols-1 sm:grid-cols-[180px_1fr] gap-3 mb-4">
                 <div>
                   <label htmlFor="cambio-fecha" className={labelCls}>Fecha del cambio <span className="text-[#D81B43]">*</span></label>
@@ -306,7 +309,7 @@ export default function ModalCambioEquipo({ equipoActual, disponibles, categoria
                 className="px-6 py-2.5 bg-[#D81B43] text-white rounded-[10px] text-[14px] font-semibold hover:bg-[#B0172F] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
                 {guardando
                   ? <><Loader2 size={16} className="animate-spin" /> Cambiando…</>
-                  : seleccionado ? <>Cambiar por {seleccionado.codigo}</> : 'Cambiar equipo'}
+                  : seleccionado ? <>{soloElegir ? 'Elegir' : 'Cambiar por'} {seleccionado.codigo}</> : soloElegir ? 'Elegir equipo' : 'Cambiar equipo'}
               </button>
             </div>
           </div>

@@ -24,7 +24,23 @@ const TIPOS_DOC = ['CC', 'TI', 'RC', 'CE', 'PA']
 //   N+2     firma de quien entrega (el repartidor o técnico, después)
 // Al confirmar corre `alFirmar` (p. ej. completar la entrega; si devuelve un
 // error no se guarda nada) y luego guarda una fila de `actas` por formato.
-export default function FirmaActas({ ordenId, entregaId = null, titulo = 'Firmar acta de entrega', alFirmar, onCancelar, onHecho }) {
+// alFirmar puede devolver { entregaId } (la fila de entregas que creó) para
+// relacionar las actas.
+//
+// Otras acciones (recogida, recarga, cambio; lib/accionesPrestamo.js): accion,
+// plantillaIds, los equipos del acta (equipos / retirados) y datosIniciales (lo
+// que se llenó al programarla). Ahí lo escrito no se guarda en el préstamo:
+// alFirmar recibe datosActa y lo guarda con la acción.
+const ROLES_ACCION = {
+  prestamo: { paciente: 'Quién recibe', firmaPaciente: 'Firma de quien recibe', firmaIngemedic: 'Firma de quien entrega', ingemedic: 'Quién entrega', obs: 'Observaciones (estado del equipo al entregar)' },
+  devolucion: { paciente: 'Quién entrega los equipos (paciente o familiar)', firmaPaciente: 'Firma de quien entrega los equipos', firmaIngemedic: 'Firma de quien recibe por Ingemedic', ingemedic: 'Quién recibe por Ingemedic', obs: 'Observaciones (estado del equipo al recogerlo)' },
+  recarga: { paciente: 'Quién recibe la recarga', firmaPaciente: 'Firma de quien recibe', firmaIngemedic: 'Firma de quien recarga', ingemedic: 'Quién recarga', obs: 'Observaciones de la recarga' },
+  cambio: { paciente: 'Quién recibe (paciente o familiar)', firmaPaciente: 'Firma de quien recibe', firmaIngemedic: 'Firma de quien hace el cambio', ingemedic: 'Quién hace el cambio', obs: 'Observaciones del cambio' },
+}
+
+export default function FirmaActas({ ordenId, entregaId = null, titulo = 'Firmar acta de entrega', alFirmar, onCancelar, onHecho,
+  accion = 'prestamo', plantillaIds, equipos: equiposActa, retirados = [], datosIniciales }) {
+  const roles = ROLES_ACCION[accion] || ROLES_ACCION.prestamo
   const supabase = useMemo(() => createClient(), [])
   const [base, setBase] = useState(null)
   const [error, setError] = useState(null)
@@ -50,15 +66,15 @@ export default function FirmaActas({ ordenId, entregaId = null, titulo = 'Firmar
 
   useEffect(() => {
     let cancelado = false
-    cargarParaFirma(supabase, ordenId)
+    cargarParaFirma(supabase, ordenId, { plantillaIds })
       .then(b => {
         if (cancelado) return
         const p = b.orden.paciente || {}
         setBase(b)
         setPac({ tipo_documento: p.tipo_documento || 'CC', cedula: p.cedula || '', barrio: p.barrio || '', eps: p.eps || '', fecha_nacimiento: p.fecha_nacimiento || '' })
         setDiagnostico(b.orden.diagnostico || '')
-        // Lo que se llenó al crear el préstamo
-        const d = leerDatosActa(b.orden.datos_acta)
+        // Lo que se llenó al crear el préstamo (o al programar la acción)
+        const d = leerDatosActa(datosIniciales || b.orden.datos_acta)
         setCiudad(d.ciudad || p.ciudad || '')
         setObservaciones(d.observaciones || '')
         setInsumos(d.insumos)
@@ -71,6 +87,7 @@ export default function FirmaActas({ ordenId, entregaId = null, titulo = 'Firmar
       })
       .catch(e => { if (!cancelado) setError(e.message || 'No se pudo cargar el préstamo') })
     return () => { cancelado = true }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [supabase, ordenId])
 
   const paciente = base?.orden.paciente
@@ -82,10 +99,10 @@ export default function FirmaActas({ ordenId, entregaId = null, titulo = 'Firmar
   const ctx = useMemo(() => base && construirContexto({
     empresa: base.empresa,
     orden: { ...base.orden, diagnostico, paciente: paciente ? { ...paciente, ...pac, ciudad } : null },
-    equipos: base.equipos,
-    datos: { ciudad, observaciones, recibe: datosRecibe, entrega, insumos, extra, ...opcionales },
+    equipos: equiposActa || base.equipos, retirados,
+    datos: { ciudad, observaciones, recibe: datosRecibe, entrega, insumos, extra, ...opcionales, motivo: datosIniciales?.motivo },
     firmas,
-  }), [base, paciente, pac, diagnostico, ciudad, observaciones, datosRecibe, entrega, insumos, extra, opcionales, firmas])
+  }), [base, paciente, pac, diagnostico, ciudad, observaciones, datosRecibe, entrega, insumos, extra, opcionales, firmas, equiposActa, retirados, datosIniciales])
 
   const plantillas = useMemo(() => base?.plantillas || [], [base])
   const pedidos = useMemo(() => camposPedidos(plantillas), [plantillas])
@@ -130,10 +147,11 @@ export default function FirmaActas({ ordenId, entregaId = null, titulo = 'Firmar
       }
     }
     // Diagnóstico y datos de los formatos quedan en el préstamo, como se firmaron
-    await supabase.from('ordenes_servicio').update({
-      diagnostico: diagnostico || null,
-      datos_acta: { recibe, ciudad, observaciones, insumos: insumos.filter(i => i.descripcion?.trim()), extra, ...opcionales },
-    }).eq('id', ordenId)
+    // (en otra acción, los datos se guardan con la acción: alFirmar → datosActa)
+    const datosActa = { recibe, ciudad, observaciones, insumos: insumos.filter(i => i.descripcion?.trim()), extra, ...opcionales, motivo: datosIniciales?.motivo }
+    await supabase.from('ordenes_servicio').update(accion === 'prestamo'
+      ? { diagnostico: diagnostico || null, datos_acta: datosActa }
+      : { diagnostico: diagnostico || null }).eq('id', ordenId)
 
     // Lo que faltaba en el perfil de quien entrega queda guardado (no se pisa lo que ya tenía)
     const u = base.usuario
@@ -144,12 +162,14 @@ export default function FirmaActas({ ordenId, entregaId = null, titulo = 'Firmar
       if (Object.keys(faltaba).length) await supabase.from('usuarios').update(faltaba).eq('id', u.id)
     }
 
-    const resumen = { recibidoPor: datosRecibe.nombre.trim(), firma: firmas.recibe, observaciones }
+    const resumen = { recibidoPor: datosRecibe.nombre.trim(), firma: firmas.recibe, observaciones, datosActa }
+    let idEntrega = entregaId
     if (alFirmar) {
-      const err = await alFirmar(resumen)
-      if (err) { setError(err.message || String(err)); setGuardando(false); return }
+      const r = await alFirmar(resumen)
+      if (r && !r.entregaId) { setError(r.message || String(r)); setGuardando(false); return }
+      if (r?.entregaId) idEntrega = r.entregaId
     }
-    const { data, error: errActas } = await guardarActas(supabase, { ordenId, entregaId, plantillas, ctx, firmas })
+    const { data, error: errActas } = await guardarActas(supabase, { ordenId, entregaId: idEntrega, accion, plantillas, ctx, firmas })
     if (errActas) { setError('No se guardaron las actas: ' + errActas.message); setGuardando(false); return }
     onHecho({ ...resumen, actas: data })
   }
@@ -186,11 +206,11 @@ export default function FirmaActas({ ordenId, entregaId = null, titulo = 'Firmar
           {base && paso === 0 && (
             <div className="p-5 md:p-6 space-y-6">
               <section>
-                <div className="text-[13px] font-bold text-slate-700 mb-3">Quién recibe</div>
+                <div className="text-[13px] font-bold text-slate-700 mb-3">{roles.paciente}</div>
                 {paciente && (
                   <label className="flex items-center gap-2 mb-3 cursor-pointer text-[13.5px] text-slate-700">
                     <input type="checkbox" checked={recibe.esPaciente} onChange={e => setRecibe(r => ({ ...r, esPaciente: e.target.checked }))} />
-                    Recibe el mismo paciente ({paciente.nombre})
+                    {accion === 'devolucion' ? 'Entrega' : 'Recibe'} el mismo paciente ({paciente.nombre})
                   </label>
                 )}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -236,7 +256,7 @@ export default function FirmaActas({ ordenId, entregaId = null, titulo = 'Firmar
 
               <section>
                 <div className="flex items-center justify-between mb-3">
-                  <div className="text-[13px] font-bold text-slate-700">Quién entrega</div>
+                  <div className="text-[13px] font-bold text-slate-700">{roles.ingemedic}</div>
                   {!editarEntrega && (
                     <button type="button" onClick={() => setEditarEntrega(true)} className="text-[12.5px] font-semibold text-[#1B3A6B] hover:underline">Cambiar</button>
                   )}
@@ -271,7 +291,7 @@ export default function FirmaActas({ ordenId, entregaId = null, titulo = 'Firmar
               </section>
 
               <section>
-                <label className={labelCls}>Observaciones (estado del equipo al entregar)</label>
+                <label className={labelCls}>{roles.obs}</label>
                 <textarea value={observaciones} onChange={e => setObservaciones(e.target.value)} rows={2}
                   className={`${inputCls} resize-none`} placeholder="Ej.: equipo en óptimas condiciones, se capacita en su manejo." />
               </section>
@@ -316,13 +336,13 @@ export default function FirmaActas({ ordenId, entregaId = null, titulo = 'Firmar
             return (
               <div className="p-5 md:p-6 flex flex-col flex-1 min-h-[340px]">
                 <div className="text-[11px] font-bold uppercase tracking-[0.08em] text-[#D81B43] mb-1">
-                  {rol === 'recibe' ? 'Firma de quien recibe' : 'Firma de quien entrega'}
+                  {rol === 'recibe' ? roles.firmaPaciente : roles.firmaIngemedic}
                 </div>
                 <div className="text-[18px] font-bold text-slate-800 leading-tight">{quien}</div>
                 <div className="text-[12.5px] text-slate-500 mt-1 mb-4">
                   {rol === 'recibe'
                     ? 'Pásale el dispositivo para que firme con el dedo.'
-                    : 'Ahora firma tú para cerrar la entrega.'}
+                    : `Ahora firma tú para cerrar ${accion === 'prestamo' ? 'la entrega' : 'el acta'}.`}
                   {' '}Aplica a {plantillas.length === 1 ? 'el documento' : `los ${plantillas.length} documentos`}.
                 </div>
                 {firmas[rol] && trazando !== rol ? (
@@ -351,7 +371,7 @@ export default function FirmaActas({ ordenId, entregaId = null, titulo = 'Firmar
             {paso < pasoFirmaEntrega
               ? <button onClick={siguiente} disabled={paso === pasoFirma && !firmas.recibe}
                   className={ui.btnAzul}>
-                  {paso === pasoFirma ? 'Listo, sigue quien entrega →' : 'Siguiente →'}
+                  {paso === pasoFirma ? `Listo, sigue ${accion === 'prestamo' ? 'quien entrega' : 'Ingemedic'} →` : 'Siguiente →'}
                 </button>
               : <button onClick={confirmar} disabled={guardando || !firmas.recibe || !firmas.entrega}
                   className={ui.btnPrimario}>

@@ -136,7 +136,9 @@ function SubirImagen({ onUrl, texto = 'Subir imagen' }) {
 }
 
 // Formulario de cada tipo de bloque
-const LISTAS_TABLA = { equipos: 'Equipos', tipo: 'Equipos por tipo (una tabla por tipo)', insumos: 'Insumos', ambos: 'Equipos e insumos' }
+const LISTAS_TABLA = { equipos: 'Equipos', tipo: 'Equipos por tipo (una tabla por tipo)', retirados: 'Equipos que se retiran, por tipo (cambio)', insumos: 'Insumos', ambos: 'Equipos e insumos' }
+// Tabla por tipo: la lista de equipos o la de los que se retiran en un cambio
+const listaTipo = b => (b.fuente === 'retirados' ? 'retirados' : 'tipo')
 
 function FormBloque({ b, set }) {
   const campo = (k, v) => set({ ...b, [k]: v })
@@ -249,7 +251,7 @@ function FormBloque({ b, set }) {
         <p className="px-3 py-2 rounded-[9px] bg-[#E8F7FB] text-[12.5px] text-[#0E7490]">Una tabla por cada tipo de equipo del préstamo (cilindros, reguladores…), con las columnas que esos equipos tengan. Debajo, una fila de accesorios para marcar.</p>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           <div className="col-span-2"><Etiqueta>Título (opcional)</Etiqueta><input value={b.titulo || ''} onChange={e => campo('titulo', e.target.value)} className={ui.input} /></div>
-          <div className="col-span-2"><Etiqueta>Lista</Etiqueta><Sel value="tipo" onChange={v => set(v === 'tipo' ? b : { ...b, agrupar: undefined, accesorios: undefined, fuente: v, filas_minimas: 3, columnas: b.columnas?.length ? b.columnas : [{ clave: 'item' }, { clave: 'descripcion' }, { clave: 'marca' }, { clave: 'modelo' }, { clave: 'serie' }] })} opciones={LISTAS_TABLA} /></div>
+          <div className="col-span-2"><Etiqueta>Lista</Etiqueta><Sel value={listaTipo(b)} onChange={v => set(v === 'tipo' || v === 'retirados' ? { ...b, fuente: v === 'retirados' ? 'retirados' : 'equipos' } : { ...b, agrupar: undefined, accesorios: undefined, fuente: v, filas_minimas: 3, columnas: b.columnas?.length ? b.columnas : [{ clave: 'item' }, { clave: 'descripcion' }, { clave: 'marca' }, { clave: 'modelo' }, { clave: 'serie' }] })} opciones={LISTAS_TABLA} /></div>
         </div>
         <Etiqueta>Accesorios (fila para marcar)</Etiqueta>
         <Lista items={b.accesorios || []} onChange={v => campo('accesorios', v)} textoAgregar="Agregar accesorio" nuevo={() => ({ etiqueta: '' })}
@@ -265,7 +267,7 @@ function FormBloque({ b, set }) {
         <p className="px-3 py-2 rounded-[9px] bg-[#E8F7FB] text-[12.5px] text-[#0E7490]">Se llena sola con los equipos (o insumos) del préstamo. Si son menos que las filas mínimas, quedan renglones en blanco.</p>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           <div className="col-span-2"><Etiqueta>Título (opcional)</Etiqueta><input value={b.titulo || ''} onChange={e => campo('titulo', e.target.value)} className={ui.input} /></div>
-          <div><Etiqueta>Lista</Etiqueta><Sel value={b.fuente || 'equipos'} onChange={v => set(v === 'tipo' ? { ...b, agrupar: 'tipo', fuente: 'equipos', accesorios: b.accesorios || [] } : { ...b, fuente: v })} opciones={LISTAS_TABLA} /></div>
+          <div><Etiqueta>Lista</Etiqueta><Sel value={b.fuente || 'equipos'} onChange={v => set(v === 'tipo' || v === 'retirados' ? { ...b, agrupar: 'tipo', fuente: v === 'retirados' ? 'retirados' : 'equipos', accesorios: b.accesorios || [] } : { ...b, fuente: v })} opciones={LISTAS_TABLA} /></div>
           <div><Etiqueta>Filas mínimas</Etiqueta><Numero value={b.filas_minimas} max={30} onChange={v => campo('filas_minimas', v)} /></div>
         </div>
         <Etiqueta>Columnas</Etiqueta>
@@ -320,7 +322,7 @@ function resumen(b) {
     case 'encabezado': return quitar(b.centro?.[0]?.texto)
     case 'titulo': case 'texto': case 'pie': return quitar(b.texto) || 'Vacío'
     case 'campos': return `${b.titulo ? b.titulo + ' · ' : ''}${(b.campos || []).length} campos`
-    case 'tabla': return LISTAS_TABLA[b.agrupar === 'tipo' ? 'tipo' : b.fuente || 'equipos'] + (b.titulo ? ` · ${b.titulo}` : '')
+    case 'tabla': return LISTAS_TABLA[b.agrupar === 'tipo' ? listaTipo(b) : b.fuente || 'equipos'] + (b.titulo ? ` · ${b.titulo}` : '')
     case 'firmas': return (b.firmas || []).map(f => f.titulo || ROLES[f.rol] || 'Raya').join(' · ')
     case 'imagen': return b.url ? 'Con imagen' : 'Sin imagen'
     case 'espacio': return `${b.alto || 16} px`

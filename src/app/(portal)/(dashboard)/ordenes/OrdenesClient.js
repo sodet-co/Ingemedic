@@ -3,7 +3,7 @@ import { registrarBitacora } from '@/lib/bitacora'
 import { useState, useMemo, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
-import { paraGuardar, paraInput, formatear, formatearSoloFecha, hoyBogota } from '@/lib/fechas'
+import { paraGuardar, paraInput, formatear, formatearSoloFecha, hoyBogota, sumarDias } from '@/lib/fechas'
 import { estaVencida, diasParaVencer } from '@/lib/vigencia'
 import { IconoTipo } from '@/components/inventario/IconoTipo'
 import ConfirmDialog from '@/components/ui/ConfirmDialog'
@@ -19,10 +19,13 @@ import ActasPrestamo from '@/components/actas/ActasPrestamo'
 import AvatarCliente from '@/components/clientes/AvatarCliente'
 import ControlVigencia from '@/components/prestamos/ControlVigencia'
 import NuevoPrestamo from '@/components/prestamos/NuevoPrestamo'
+import AccionPrestamo from '@/components/prestamos/AccionPrestamo'
+import { seRecarga } from '@/lib/actas/acciones'
+import { cancelarAccion, proximaRecarga, NOMBRE_ACCION, accionDeEntrega } from '@/lib/accionesPrestamo'
 import { useOrdenable } from '@/hooks/useOrdenable'
 import { usePaginacion } from '@/hooks/usePaginacion'
 import {
-  Plus, X, Search, FileText, CheckCircle2, AlertTriangle, Clock, User, Edit3, Truck, ChevronRight, Ban, ArrowLeftRight, Undo2
+  Plus, X, Search, FileText, CheckCircle2, AlertTriangle, Clock, User, Edit3, Truck, ChevronRight, Ban, ArrowLeftRight, Undo2, RefreshCw
 } from 'lucide-react'
 
 const E = {
@@ -183,7 +186,8 @@ export default function OrdenesClient({
     // en curso, así que no aplica el patrón de suscripción que pide la
     // regla del proyecto; deshabilitada a propósito, igual que otros
     // efectos de una sola vez en este archivo.
-    const desdeUrl = new URLSearchParams(window.location.search).get('atencion') || ''
+    const params = new URLSearchParams(window.location.search)
+    const desdeUrl = params.get('atencion') || ''
     // eslint-disable-next-line react-hooks/set-state-in-effect
     if (desdeUrl) setFiltroAtencion(desdeUrl)
   }, [])
@@ -214,7 +218,29 @@ export default function OrdenesClient({
     return () => window.removeEventListener('keydown', onEsc)
   }, [drawer])
 
-  const [vista, setVista]                   = useState('lista') // 'lista' | 'nuevo'
+  const [vista, setVista]                   = useState('lista') // 'lista' | 'nuevo' | 'accion'
+  // Recoger, recargar o cambiar con acta (components/prestamos/AccionPrestamo.js)
+  const [accionActiva, setAccionActiva]     = useState(null) // { orden, accion, preseleccion, volver }
+  const [editRecarga, setEditRecarga]       = useState(false)
+  const [nuevaFrecuencia, setNuevaFrecuencia] = useState('')
+
+  // Desde Clientes o el panel de atención (?abrir=<préstamo>&accion=devolucion&equipos=<oe,oe>&volver=<url>):
+  // abre el préstamo y, si viene, su acción. Se lee una sola vez al montar.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const abrir = params.get('abrir')
+    const orden = abrir && ordenesIniciales.find(o => o.id === abrir)
+    if (!orden) return
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setDrawer(orden)
+    const accion = params.get('accion')
+    if (['devolucion', 'recarga', 'cambio'].includes(accion) && orden.estado?.nombre === 'Entregada') {
+      setAccionActiva({ orden, accion, preseleccion: (params.get('equipos') || '').split(',').filter(Boolean), volver: params.get('volver') })
+      setVista('accion')
+    }
+    window.history.replaceState(null, '', window.location.pathname)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   const [toast, setToast]                   = useState(null)
   const [modalConfirm, setModalConfirm]     = useState(null)
   const [modalDevolucion, setModalDevolucion] = useState(null) // { ordenEquipoId, equipoId } o null
@@ -298,6 +324,10 @@ export default function OrdenesClient({
       }
       if (filtroPaciente && !o.paciente?.nombre?.toLowerCase().includes(filtroPaciente.toLowerCase())) return false
       if (filtroAtencion === 'prestamos_vencidos' && !estaVencida(o)) return false
+      if (filtroAtencion === 'recargas_pendientes') {
+        const proxima = proximaRecarga(o)
+        if (!proxima || proxima.slice(0, 10) > sumarDias(hoyBogota(), 1)) return false
+      }
       if (filtroAtencion === 'prestamos_por_vencer') {
         const dias = diasParaVencer(o)
         if (estaVencida(o) || dias === null || dias > 7) return false
@@ -429,6 +459,39 @@ export default function OrdenesClient({
     router.refresh()
   }
 
+  // ── RECOGER / RECARGAR / CAMBIAR CON ACTA ────────────────
+  function iniciarAccion(accion, preseleccion = []) {
+    setAccionActiva({ orden: drawer, accion, preseleccion })
+    setVista('accion')
+  }
+  function accionLista({ mensaje, error }) {
+    const volver = accionActiva?.volver
+    setAccionActiva(null)
+    setVista('lista')
+    if (volver) { window.location.assign(volver); return }
+    showToast(mensaje, error ? 'error' : 'success')
+    router.refresh()
+  }
+  async function cancelarVisita(v) {
+    const { error } = await cancelarAccion(supabase, v)
+    if (error) { showToast('Error: ' + error.message, 'error'); return }
+    registrarBitacora({ modulo: 'ordenes', accion: 'cancelar', entidad: NOMBRE_ACCION[accionDeEntrega(v)].toLowerCase(), entidad_id: v.id, detalle: { codigo: drawer?.codigo } })
+    showToast(`${NOMBRE_ACCION[accionDeEntrega(v)]} cancelada`)
+    router.refresh()
+  }
+  async function guardarFrecuencia() {
+    const dias = nuevaFrecuencia ? parseInt(nuevaFrecuencia, 10) : null
+    if (nuevaFrecuencia && !(dias > 0)) { showToast('Escribe cada cuántos días', 'error'); return }
+    const { error } = await supabase.from('ordenes_servicio').update({ recarga_cada_dias: dias }).eq('id', drawer.id)
+    if (error) { showToast('Error: ' + error.message, 'error'); return }
+    const upd = { ...drawer, recarga_cada_dias: dias }
+    setOrdenes(prev => prev.map(o => o.id === drawer.id ? upd : o))
+    setDrawer(upd)
+    setEditRecarga(false)
+    registrarBitacora({ modulo: 'ordenes', accion: 'editar', entidad: 'préstamo', entidad_id: drawer.id, detalle: { codigo: drawer.codigo, recarga_cada_dias: dias } })
+    showToast(dias ? `Recarga cada ${dias} días` : 'Sin recarga periódica')
+  }
+
   function abrirModalDevolucion(oe) {
     setModalDevolucion({ ordenEquipoId: oe.id, equipoId: oe.equipo_id || oe.equipo?.id })
     setFormDevolucion({ fecha: hoyBogota(), observaciones: '' })
@@ -523,6 +586,11 @@ export default function OrdenesClient({
   const puedeFinalizarUnico = esUnicoEquipo && !['Finalizada', 'Cancelada'].includes(drawerEstado)
   const puedeCambiarEquipo  = drawer && !['Finalizada', 'Cancelada'].includes(drawerEstado)
   const puedeCancelarOrden = drawer && !['Finalizada', 'Cancelada'].includes(drawerEstado)
+  // Con el préstamo ya entregado, recoger, recargar y cambiar van con acta
+  const conActa = drawerEstado === 'Entregada'
+  const recargables = equiposDrawer.filter(oe => seRecarga(oe.equipo?.tipo_equipo))
+  const visitasPendientes = (drawer?.visitas || []).filter(v => v.tipo !== 'entrega' && !['Completada', 'Cancelada'].includes(v.estado?.nombre))
+  const proxima = drawer ? proximaRecarga(drawer) : null
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
@@ -616,7 +684,7 @@ export default function OrdenesClient({
                 {filtroAtencion && (
                   <div className="flex items-center gap-1.5">
                     <span className="inline-flex items-center gap-1.5 bg-[#FFFBEB] border border-[#F59E0B]/40 text-[#B45309] text-[12px] font-medium px-3 py-1.5 rounded-full">
-                      Filtro: {filtroAtencion === 'prestamos_vencidos' ? 'préstamos vencidos' : 'préstamos por vencer'}
+                      Filtro: {{ prestamos_vencidos: 'préstamos vencidos', prestamos_por_vencer: 'préstamos por vencer', recargas_pendientes: 'recargas por hacer' }[filtroAtencion] || filtroAtencion}
                       <button type="button" onClick={() => setFiltroAtencion('')} className="hover:text-[#7C2D12]">
                         <X size={12} />
                       </button>
@@ -811,7 +879,25 @@ export default function OrdenesClient({
                   <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
                     <EstadoBadge orden={drawer} retrasada={drawerRetrasada} />
                     <div className="flex items-center gap-2">
-                      {puedeFinalizarUnico && (
+                      {conActa && equiposDrawer.length > 0 && (
+                        <>
+                          <button onClick={() => iniciarAccion('devolucion')}
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-[#D81B43] text-white text-[12px] font-semibold rounded-[7px] hover:bg-[#B0172F]">
+                            <Undo2 size={13} /> Recoger
+                          </button>
+                          {recargables.length > 0 && (
+                            <button onClick={() => iniciarAccion('recarga')}
+                              className="flex items-center gap-1.5 px-3 py-1.5 border border-[#0E86A0]/40 text-[#0E86A0] text-[12px] font-semibold rounded-[7px] hover:bg-[#E8F7FB]">
+                              <RefreshCw size={13} /> Recarga
+                            </button>
+                          )}
+                          <button onClick={() => iniciarAccion('cambio')}
+                            className="flex items-center gap-1.5 px-3 py-1.5 border border-[#1B3A6B]/25 text-[#1B3A6B] text-[12px] font-semibold rounded-[7px] hover:bg-[#1B3A6B]/[0.05]">
+                            <ArrowLeftRight size={13} /> Cambiar
+                          </button>
+                        </>
+                      )}
+                      {puedeFinalizarUnico && !conActa && (
                         <button onClick={() => abrirModalDevolucion(equiposDrawer[0])}
                           className="flex items-center gap-1.5 px-3 py-1.5 bg-[#D81B43] text-white text-[12px] font-semibold rounded-[7px] hover:bg-[#B0172F]">
                           <CheckCircle2 size={13} /> Finalizar préstamo
@@ -1042,6 +1128,67 @@ export default function OrdenesClient({
                   </div>
                 </div>
 
+                {/* Recogidas, recargas y cambios programados a domicilio */}
+                {visitasPendientes.length > 0 && (
+                  <div className="p-5">
+                    <div className="text-[10.5px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-3">Programado ({visitasPendientes.length})</div>
+                    <div className="space-y-2">
+                      {visitasPendientes.map(v => {
+                        const eqs = v.tipo === 'cambio' ? (v.datos?.cambios || []).map(c => `${c.sale?.codigo} → ${c.entra?.codigo}`) : (v.datos?.equipos || []).map(x => x.equipo?.codigo)
+                        return (
+                          <div key={v.id} className="flex items-start gap-3 p-3 rounded-[10px] border border-[#F59E0B]/30 bg-[#FFFBEB]">
+                            <Truck size={15} className="text-[#B45309] flex-shrink-0 mt-0.5" />
+                            <div className="min-w-0 flex-1">
+                              <div className="text-[13px] font-semibold text-slate-800">{NOMBRE_ACCION[accionDeEntrega(v)]} · {v.estado?.nombre === 'En progreso' ? 'en camino' : 'por iniciar'}</div>
+                              <div className="text-[12px] text-slate-500 truncate">{v.repartidor?.nombre || 'Sin repartidor'} · {formatear(v.fecha_programada, { month: '2-digit', hour: '2-digit', minute: '2-digit' })}</div>
+                              <div className="text-[11.5px] text-slate-400 font-mono truncate">{eqs.join(' · ')}</div>
+                            </div>
+                            {v.estado?.nombre !== 'En progreso' && (
+                              <button onClick={() => cancelarVisita(v)} className="text-[12px] font-semibold text-red-500 hover:underline flex-shrink-0">Cancelar</button>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Recarga periódica: solo si el préstamo tiene equipos que se recargan */}
+                {recargables.length > 0 && !['Finalizada', 'Cancelada'].includes(drawerEstado) && (
+                  <div className="p-5">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="text-[10.5px] font-bold uppercase tracking-[0.1em] text-slate-400">Recargas</div>
+                      {!editRecarga && (
+                        <button onClick={() => { setEditRecarga(true); setNuevaFrecuencia(drawer.recarga_cada_dias ? String(drawer.recarga_cada_dias) : '') }}
+                          className="flex items-center gap-1 text-[11.5px] text-[#D81B43] font-semibold hover:underline">
+                          <Edit3 size={11} /> {drawer.recarga_cada_dias ? 'Cambiar' : 'Definir frecuencia'}
+                        </button>
+                      )}
+                    </div>
+                    {!editRecarga ? (
+                      <div className="text-[13px] text-slate-700">
+                        {drawer.recarga_cada_dias
+                          ? <>Cada <b>{drawer.recarga_cada_dias} días</b>{proxima && <> · próxima <b className={new Date(proxima) < new Date() ? 'text-[#D81B43]' : ''}>{formatearSoloFecha(proxima.slice(0, 10))}</b></>}</>
+                          : <span className="text-slate-400">A demanda (sin frecuencia)</span>}
+                        {drawer.ultima_recarga && <div className="text-[12px] text-slate-400 mt-0.5">Última: {formatear(drawer.ultima_recarga)}</div>}
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[13px] text-slate-600">Cada</span>
+                          <input type="number" min={1} value={nuevaFrecuencia} onChange={e => setNuevaFrecuencia(e.target.value)} placeholder="15" className={`${inputCls} !w-24`} />
+                          <span className="text-[13px] text-slate-600">días</span>
+                        </div>
+                        <div className="text-[11.5px] text-slate-400">Déjalo vacío para recargas solo a demanda. Cuando toque, aparece en los avisos del inicio.</div>
+                        <div className="flex gap-2">
+                          <button onClick={guardarFrecuencia} className="flex-1 py-2 bg-[#D81B43] text-white rounded-[8px] text-[12.5px] font-semibold hover:bg-[#B0172F]">Guardar</button>
+                          <button onClick={() => setEditRecarga(false)} className="flex-1 py-2 border border-slate-200 text-slate-500 rounded-[8px] text-[12.5px] hover:border-slate-300">Cancelar</button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {/* Equipos — en grilla con ícono, mismo estilo que Cliente/Paciente */}
                 <div className="p-5">
                   <div className="text-[10.5px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-3">
@@ -1081,7 +1228,25 @@ export default function OrdenesClient({
                                     )}
                                   </div>
                                 )}
-                                {!devuelto && puedeCambiarEquipo && (
+                                {!devuelto && conActa && (
+                                  <div className="mt-2.5 flex flex-wrap gap-2">
+                                    <button type="button" onClick={() => iniciarAccion('devolucion', [oe.id])}
+                                      className="inline-flex items-center gap-1.5 h-8 px-3 rounded-[8px] border border-[#D81B43]/25 bg-[#D81B43]/[0.05] text-[12px] font-semibold text-[#D81B43] hover:bg-[#D81B43]/10 transition-colors">
+                                      <Undo2 size={13} /> Recoger
+                                    </button>
+                                    {seRecarga(oe.equipo?.tipo_equipo) && (
+                                      <button type="button" onClick={() => iniciarAccion('recarga', [oe.id])}
+                                        className="inline-flex items-center gap-1.5 h-8 px-3 rounded-[8px] border border-[#0E86A0]/25 bg-[#E8F7FB] text-[12px] font-semibold text-[#0E86A0] hover:border-[#0E86A0]/45 transition-colors">
+                                        <RefreshCw size={13} /> Recargar
+                                      </button>
+                                    )}
+                                    <button type="button" onClick={() => iniciarAccion('cambio', [oe.id])}
+                                      className="inline-flex items-center gap-1.5 h-8 px-3 rounded-[8px] border border-[#1B3A6B]/20 bg-[#1B3A6B]/[0.05] text-[12px] font-semibold text-[#1B3A6B] hover:bg-[#1B3A6B]/10 transition-colors">
+                                      <ArrowLeftRight size={13} /> Cambiar
+                                    </button>
+                                  </div>
+                                )}
+                                {!devuelto && puedeCambiarEquipo && !conActa && (
                                   <div className="mt-2.5 flex flex-wrap gap-2">
                                     <button type="button" onClick={() => setModalCambio(oe)}
                                       className="inline-flex items-center gap-1.5 h-8 px-3 rounded-[8px] border border-[#1B3A6B]/20 bg-[#1B3A6B]/[0.05] text-[12px] font-semibold text-[#1B3A6B] hover:bg-[#1B3A6B]/10 hover:border-[#1B3A6B]/35 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2EB5D4]">
@@ -1115,6 +1280,14 @@ export default function OrdenesClient({
           </div>
         </div>
         </div>
+      )}
+
+      {vista === 'accion' && accionActiva && (
+        <AccionPrestamo key={`${accionActiva.orden.id}-${accionActiva.accion}`}
+          orden={accionActiva.orden} accion={accionActiva.accion} preseleccion={accionActiva.preseleccion}
+          plantillas={plantillas} disponibles={equiposDisponibles} categorias={categorias} tiposEquipo={tiposEquipo} repartidores={usuarios}
+          onSalir={() => { const v = accionActiva.volver; setAccionActiva(null); setVista('lista'); if (v) window.location.assign(v) }}
+          onListo={accionLista} />
       )}
 
       {vista === 'nuevo' && (

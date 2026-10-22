@@ -1,5 +1,6 @@
 import { hoyBogota, sumarDias } from '@/lib/fechas'
 import { estaVencida, diasParaVencer } from '@/lib/vigencia'
+import { proximaRecarga } from '@/lib/accionesPrestamo'
 
 // Motor de reglas de atención — cada regla sabe consultar sus propios
 // candidatos y filtrarlos con precisión (ver crearReglaVigencia). Agregar
@@ -73,6 +74,29 @@ function crearReglaVigencia({ id, titulo, severidad, hasta, filtroPreciso }) {
   }
 }
 
+// Préstamos con recarga cada X días a los que ya les toca (o mañana) y no
+// tienen una recarga programada (lib/accionesPrestamo.js → proximaRecarga)
+const reglaRecargas = {
+  id: 'recargas_pendientes', titulo: 'Recargas por hacer', severidad: 'media', acciones: ['recargar', 'posponer'],
+  async consulta(supabase, { limite = 20 } = {}) {
+    const excluidos = await idsPospuestos(supabase, 'recargas_pendientes')
+    const { data, error } = await supabase.from('ordenes_servicio')
+      .select(`${SELECT_ORDEN_ATENCION}, fecha_entrega, recarga_cada_dias, ultima_recarga,
+        visitas:entregas(id, tipo, estado:estados_entrega(nombre))`)
+      .not('recarga_cada_dias', 'is', null)
+      .not('estado_id', 'in', `(${ESTADO_FINALIZADA},${ESTADO_CANCELADA})`)
+    if (error) { console.error('[atencion.js] Error consultando recargas_pendientes:', error.message); return [] }
+    const limiteDia = sumarDias(hoyBogota(), 1)
+    return (data || [])
+      .filter(o => !excluidos.includes(o.id))
+      .filter(o => !(o.visitas || []).some(v => v.tipo === 'recarga' && !['Completada', 'Cancelada'].includes(v.estado?.nombre)))
+      .map(o => ({ ...o, _proxima: proximaRecarga(o) }))
+      .filter(o => o._proxima && o._proxima.slice(0, 10) <= limiteDia)
+      .sort((a, b) => a._proxima.localeCompare(b._proxima))
+      .slice(0, limite)
+  },
+}
+
 export const REGLAS_ATENCION = [
   crearReglaVigencia({
     id: 'prestamos_vencidos',
@@ -88,6 +112,7 @@ export const REGLAS_ATENCION = [
     hasta: () => sumarDias(hoyBogota(), 7),
     filtroPreciso: o => !estaVencida(o) && diasParaVencer(o) <= 7,
   }),
+  reglaRecargas,
 ]
 
 export async function contarRegla(supabase, regla) {

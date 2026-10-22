@@ -7,8 +7,8 @@ const SELECT_ORDEN = `
   id, codigo, diagnostico, plantillas_acta, datos_acta, cliente_id,
   cliente:clientes(id, nombre, nit_cc),
   paciente:pacientes(id, nombre, cedula, tipo_documento, direccion, barrio, ciudad, telefono, correo, eps, fecha_nacimiento),
-  equipos:orden_equipos(id, fecha_devolucion, equipo:equipos(id, codigo, atributos,
-    tipo_equipo:tipos_equipo(nombre, atributos, categoria:categorias_equipo(nombre))))
+  equipos:orden_equipos(id, fecha_entrega, fecha_devolucion, equipo:equipos(id, codigo, atributos, tipo_equipo_id,
+    tipo_equipo:tipos_equipo(id, nombre, atributos, categoria:categorias_equipo(id, nombre))))
 `
 
 export const SELECT_PLANTILLAS = 'id, nombre, descripcion, tipo, es_estandar, accion, uso_general, bloques, clientes:cliente_plantillas_acta(orden, cliente_id)'
@@ -16,8 +16,9 @@ export const SELECT_PLANTILLAS = 'id, nombre, descripcion, tipo, es_estandar, ac
 // Formatos que se sugieren al crear un préstamo (y en las demás acciones): lib/actas/acciones.js
 export { plantillasSugeridas }
 
-// Todo lo que necesita el paso de firma de un préstamo
-export async function cargarParaFirma(supabase, ordenId) {
+// Todo lo que necesita el paso de firma de un préstamo. plantillaIds: los
+// formatos de otra acción (recogida, recarga, cambio); si no, los del préstamo.
+export async function cargarParaFirma(supabase, ordenId, { plantillaIds } = {}) {
   const [{ data: orden, error }, { data: plantillas, error: errP }, { data: empresa }, { data: { user } }] = await Promise.all([
     supabase.from('ordenes_servicio').select(SELECT_ORDEN).eq('id', ordenId).single(),
     supabase.from('plantillas_acta').select(SELECT_PLANTILLAS).eq('activo', true),
@@ -30,7 +31,7 @@ export async function cargarParaFirma(supabase, ordenId) {
     : { data: null }
 
   // Los formatos elegidos al crear el préstamo; los préstamos viejos no tienen y usan la sugerencia
-  const ids = orden.plantillas_acta?.length ? orden.plantillas_acta : plantillasSugeridas(plantillas, orden.cliente_id)
+  const ids = plantillaIds || (orden.plantillas_acta?.length ? orden.plantillas_acta : plantillasSugeridas(plantillas, orden.cliente_id))
   const elegidas = ids.map(id => plantillas.find(p => p.id === id)).filter(Boolean)
   return {
     orden,
@@ -53,7 +54,7 @@ export async function guardarActas(supabase, { ordenId, entregaId = null, accion
     accion,
     nombre: p.nombre,
     bloques: p.bloques,
-    datos: { variables: ctx.variables, equipos: ctx.equipos, insumos: ctx.insumos, manuales: ctx.manualesPorPlantilla?.[p.id] || {} },
+    datos: { variables: ctx.variables, equipos: ctx.equipos, insumos: ctx.insumos, retirados: ctx.retirados, manuales: ctx.manualesPorPlantilla?.[p.id] || {} },
     firma_recibe: firmas.recibe || null,
     firma_entrega: firmas.entrega || null,
     creado_por: user?.id || null,
@@ -69,6 +70,7 @@ export function contextoDeActa(acta) {
     variables: d.variables || {},
     equipos: d.equipos || [],
     insumos: d.insumos || [],
+    retirados: d.retirados || [],
     manuales: d.manuales || {},
     firmas: {
       recibe: acta.firma_recibe, entrega: acta.firma_entrega,

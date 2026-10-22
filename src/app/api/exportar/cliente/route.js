@@ -61,13 +61,18 @@ export async function GET(request) {
       supabase.from('ordenes_servicio').select(`
         id, fecha_creacion, estado:estados_orden(nombre), cliente:clientes(nombre), paciente:pacientes(nombre),
         equipos:orden_equipos(fecha_entrega, fecha_devolucion, observaciones_devolucion,
-          equipo:equipos(codigo, tipo_equipo:tipos_equipo(nombre, atributos)))
+          equipo:equipos(id, codigo, tipo_equipo:tipos_equipo(nombre, atributos)))
       `).eq(esCliente ? 'cliente_id' : 'paciente_id', id),
     ])
     if (error) throw error
     if (!persona) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
 
-    const inf = armarInforme(ordenes || [], { esCliente })
+    // Recogidas, recargas y cambios de esos préstamos (lib/accionesPrestamo.js)
+    const idsOrdenes = (ordenes || []).map(o => o.id)
+    const { data: entregas } = idsOrdenes.length
+      ? await supabase.from('entregas').select('id, tipo, modo, fecha_completada, recibido_por, datos, orden_id, estado:estados_entrega(nombre)').in('orden_id', idsOrdenes)
+      : { data: [] }
+    const inf = armarInforme(ordenes || [], { esCliente, entregas: (entregas || []).map(e => ({ ...e, orden: { id: e.orden_id } })) })
     const wb = new ExcelJS.Workbook()
     wb.creator = 'Ingemedic'
 
@@ -90,6 +95,9 @@ export async function GET(request) {
     hoja(wb, 'Línea de tiempo', `Línea de tiempo · ${persona.nombre}`,
       [{ titulo: 'Fecha', ancho: 16 }, { titulo: 'Qué pasó', ancho: 60 }, { titulo: 'Equipos / nota', ancho: 40 }],
       inf.eventos.map(e => [formatear(e.fecha), e.texto, e.detalle]))
+    hoja(wb, 'Historial por equipo', `Historial por equipo · ${persona.nombre}`,
+      [{ titulo: 'Código', ancho: 14 }, { titulo: 'Equipo', ancho: 30 }, { titulo: 'Fecha', ancho: 16 }, { titulo: 'Qué pasó', ancho: 60 }],
+      inf.porEquipo.flatMap(x => x.eventos.map(e => [x.codigo, x.tipo, formatear(e.fecha), e.texto])))
 
     const buffer = await wb.xlsx.writeBuffer()
     // Solo ASCII: el encabezado HTTP no admite cualquier carácter

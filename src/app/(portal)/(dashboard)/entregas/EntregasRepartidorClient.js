@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase'
 import { registrarBitacora } from '@/lib/bitacora'
 import { formatear, soloDia, hoyBogota, sumarDias } from '@/lib/fechas'
 import { crearEntrega, finalizarEntrega } from '@/lib/entregas'
+import { completarAccion, iniciarAccion, accionDeEntrega, equiposDelActa, NOMBRE_ACCION } from '@/lib/accionesPrestamo'
 import FirmaActas from '@/components/actas/FirmaActas'
 import Ayuda from '@/components/ui/Ayuda'
 import EntregaEnCurso, { RutaAnimada } from '@/components/entregas/EntregaEnCurso'
@@ -14,6 +15,12 @@ import { ui } from '@/lib/ui'
 import {
   Package, MapPin, Clock, CheckCircle2, Truck, Phone, Navigation, StickyNote, ChevronLeft, Download, Loader2,
 } from 'lucide-react'
+
+// Recogida, recarga o cambio (lib/accionesPrestamo.js); 'entrega' es la del préstamo
+const esAccion = e => !!e?.tipo && e.tipo !== 'entrega'
+const equiposDeAccion = e => e.tipo === 'cambio'
+  ? (e.datos?.cambios || []).map(c => ({ id: c.orden_equipo_id, equipo: c.entra, sale: c.sale }))
+  : (e.datos?.equipos || []).map(x => ({ id: x.orden_equipo_id, equipo: x.equipo }))
 
 function nombreEquipo(eq) {
   return eq?.tipo_equipo?.atributos?.nombre || eq?.tipo_equipo?.nombre || '—'
@@ -102,12 +109,15 @@ export default function EntregasRepartidorClient({ nombreRepartidor = '', entreg
   const ayer   = sumarDias(hoy, -1)
 
   const { grupos, completadas } = useMemo(() => {
-    const pendientes = ordenes.map(o => ({
-      key: `orden-${o.id}`, _tipo: 'pendiente', orden: o, fechaHora: o.fecha_entrega,
-    }))
+    const pendientes = [
+      ...ordenes.map(o => ({ key: `orden-${o.id}`, _tipo: 'pendiente', orden: o, fechaHora: o.fecha_entrega })),
+      // Recogidas, recargas y cambios programados
+      ...entregas.filter(e => esAccion(e) && e.estado?.nombre === 'No iniciada')
+        .map(e => ({ key: `entrega-${e.id}`, _tipo: 'pendiente', entrega: e, orden: e.orden, fechaHora: e.fecha_programada })),
+    ]
     const enCamino = entregas
       .filter(e => e.estado?.nombre === 'En progreso')
-      .map(e => ({ key: `entrega-${e.id}`, _tipo: 'en_progreso', entrega: e, orden: e.orden, fechaHora: e.orden?.fecha_entrega || e.fecha_inicio }))
+      .map(e => ({ key: `entrega-${e.id}`, _tipo: 'en_progreso', entrega: e, orden: e.orden, fechaHora: (esAccion(e) ? e.fecha_programada : e.orden?.fecha_entrega) || e.fecha_inicio }))
     const completas = entregas
       .filter(e => e.estado?.nombre === 'Completada')
       .map(e => ({ key: `entrega-${e.id}`, _tipo: 'completada', entrega: e, orden: e.orden, fechaHora: e.fecha_completada }))
@@ -136,6 +146,18 @@ export default function EntregasRepartidorClient({ nombreRepartidor = '', entreg
     const orden = porIniciar
     setPorIniciar(null)
     setSaving(true)
+    // Recogida, recarga o cambio: ya tiene su fila; solo arranca
+    if (orden._entrega) {
+      const e = orden._entrega
+      const { data, error } = await iniciarAccion(supabase, e)
+      setSaving(false)
+      if (error) { showToast('Error: ' + error.message, 'error'); return }
+      registrarBitacora({ modulo: 'entregas', accion: 'avanzar', entidad: NOMBRE_ACCION[accionDeEntrega(e)].toLowerCase(), entidad_id: e.id, detalle: { estado: 'iniciada', codigo: e.orden?.codigo } })
+      setEntregas(prev => prev.map(x => x.id === e.id ? { ...x, ...data, estado: { nombre: 'En progreso' } } : x))
+      setEnCursoId(e.id)
+      showToast(`${NOMBRE_ACCION[accionDeEntrega(e)]} iniciada — vas en camino`)
+      return
+    }
     const { data, error } = await crearEntrega(supabase, orden)
     if (error) { showToast('Error: ' + error.message, 'error'); setSaving(false); return }
     registrarBitacora({ modulo: 'entregas', accion: 'avanzar', entidad: 'entrega', entidad_id: data.id, detalle: { estado: 'iniciada', codigo: orden.codigo } })
@@ -161,7 +183,7 @@ export default function EntregasRepartidorClient({ nombreRepartidor = '', entreg
     try {
       const campos = 'id, nombre, fecha_firma, bloques, datos, firma_recibe, firma_entrega'
       let { data } = await supabase.from('actas').select(campos).eq('entrega_id', item.entrega.id).order('fecha_firma')
-      if (!data?.length && item.orden?.id) ({ data } = await supabase.from('actas').select(campos).eq('orden_id', item.orden.id).order('fecha_firma'))
+      if (!data?.length && item.orden?.id && !esAccion(item.entrega)) ({ data } = await supabase.from('actas').select(campos).eq('orden_id', item.orden.id).eq('accion', 'prestamo').order('fecha_firma'))
       if (!data?.length) { showToast('Esta entrega no tiene actas firmadas', 'error'); return }
       await descargarActasPDF(data, `Acta_${item.orden?.codigo || 'entrega'}.pdf`)
     } catch (e) {
@@ -172,8 +194,16 @@ export default function EntregasRepartidorClient({ nombreRepartidor = '', entreg
   }
 
   // Lo corre FirmaActas antes de guardar las actas: si falla, no se guarda nada
-  async function completarEntrega({ recibidoPor, firma, observaciones }) {
+  async function completarEntrega({ recibidoPor, firma, observaciones, datosActa }) {
     const entrega = modalRegistro
+    if (esAccion(entrega)) {
+      const { error, cambios } = await completarAccion(supabase, { entrega, orden: entrega.orden, recibidoPor, firma, observaciones, datos: { datos_acta: datosActa } })
+      if (error) return error
+      registrarBitacora({ modulo: 'entregas', accion: 'cerrar', entidad: NOMBRE_ACCION[accionDeEntrega(entrega)].toLowerCase(), entidad_id: entrega.id, detalle: { codigo: entrega.codigo, recibido_por: recibidoPor } })
+      skipSyncUntil.current = Date.now() + 2500
+      setEntregas(prev => prev.map(e => e.id === entrega.id ? { ...e, ...cambios } : e))
+      return null
+    }
     const { error, erroresFirma, cambios } = await finalizarEntrega(supabase, {
       entrega, recibidoPor, firma, observaciones, estadosEquipo,
     })
@@ -272,7 +302,7 @@ export default function EntregasRepartidorClient({ nombreRepartidor = '', entreg
       {/* Confirmar antes de iniciar (evita toques accidentales) */}
       <ConfirmDialog
         abierto={!!porIniciar}
-        titulo="¿Iniciar esta entrega?"
+        titulo={porIniciar?._entrega ? `¿Iniciar esta ${NOMBRE_ACCION[accionDeEntrega(porIniciar._entrega)].toLowerCase()}?` : '¿Iniciar esta entrega?'}
         mensaje={porIniciar ? `${porIniciar.paciente?.nombre || porIniciar.cliente?.nombre} — quedará marcada "En camino".` : ''}
         textoConfirmar="Sí, iniciar"
         onConfirmar={handleIniciar}
@@ -282,7 +312,12 @@ export default function EntregasRepartidorClient({ nombreRepartidor = '', entreg
       {/* Completar entrega: datos, revisión de los formatos y firmas (FirmaActas) */}
       {modalRegistro && (
         <FirmaActas ordenId={modalRegistro.orden?.id || modalRegistro.orden_id} entregaId={modalRegistro.id}
-          titulo="Completar entrega"
+          titulo={esAccion(modalRegistro) ? `Completar ${NOMBRE_ACCION[accionDeEntrega(modalRegistro)].toLowerCase()}` : 'Completar entrega'}
+          {...(esAccion(modalRegistro) ? {
+            accion: accionDeEntrega(modalRegistro), plantillaIds: modalRegistro.datos?.plantillas || [],
+            ...equiposDelActa(accionDeEntrega(modalRegistro), modalRegistro.datos),
+            datosIniciales: { ...(modalRegistro.datos?.datos_acta || {}), motivo: modalRegistro.datos?.motivo },
+          } : {})}
           alFirmar={completarEntrega}
           onCancelar={() => setModalRegistro(null)}
           onHecho={resumen => {
@@ -305,7 +340,7 @@ export default function EntregasRepartidorClient({ nombreRepartidor = '', entreg
                 <ChevronLeft size={22} />
               </button>
               <div className="min-w-0">
-                <div className="text-[15px] font-bold text-slate-800 truncate">Entrega en curso</div>
+                <div className="text-[15px] font-bold text-slate-800 truncate">{NOMBRE_ACCION[accionDeEntrega(e)]} en curso</div>
                 <div className="text-[12px] text-slate-400 font-mono truncate">{e.orden?.codigo} · {e.codigo}</div>
               </div>
             </div>
@@ -347,10 +382,11 @@ function duracion(desde, hasta) {
 // Al cerrar una entrega: confirmación grande con el tiempo, quién recibió y el acta a un toque
 function EntregaExitosa({ exito, descargando, onDescargar, onCerrar }) {
   const { item, recibidoPor, inicio, fin } = exito
+  const nombre = NOMBRE_ACCION[accionDeEntrega(item.entrega)]
   const destino = item.orden?.paciente?.nombre || item.orden?.cliente?.nombre || 'Entrega'
   const tiempo = duracion(inicio, fin)
   const datos = [
-    tiempo && ['Tiempo de entrega', tiempo, Clock],
+    tiempo && [`Tiempo de ${nombre.toLowerCase()}`, tiempo, Clock],
     recibidoPor && ['Recibió', recibidoPor, CheckCircle2],
     ['Hora', new Date(fin).toLocaleTimeString('es-CO', { hour: 'numeric', minute: '2-digit', hour12: true }), Truck],
   ].filter(Boolean)
@@ -361,7 +397,7 @@ function EntregaExitosa({ exito, descargando, onDescargar, onCerrar }) {
         <div className="mx-auto w-20 h-20 rounded-full bg-[#ECFDF5] flex items-center justify-center animate-[pop_.4s_ease-out]">
           <div className="w-14 h-14 rounded-full bg-[#0F7B55] text-white flex items-center justify-center"><CheckCircle2 size={32} strokeWidth={2.5} /></div>
         </div>
-        <div className="mt-4 text-[20px] font-bold text-slate-800">¡Entrega completada!</div>
+        <div className="mt-4 text-[20px] font-bold text-slate-800">¡{nombre} completada!</div>
         <div className="mt-1 text-[14px] text-slate-500 truncate">{destino}</div>
         {item.orden?.codigo && <div className="text-[12px] font-mono text-slate-400">{item.orden.codigo}</div>}
 
@@ -390,7 +426,8 @@ function TarjetaEntrega({ item, saving, hoy, manana, onIniciar, onAbrir }) {
   const cliente    = orden?.cliente?.nombre || 'Cliente desconocido'
   const paciente   = orden?.paciente?.nombre || null
   const { direccion, ciudad, telefono, mapsUrl } = destino(orden)
-  const equipos    = orden?.equipos || []
+  const accionE    = item.entrega && esAccion(item.entrega) ? item.entrega : null
+  const equipos    = accionE ? equiposDeAccion(accionE) : orden?.equipos || []
   const enProgreso = item._tipo === 'en_progreso'
   const nota       = (orden?.observaciones || '').trim()
 
@@ -414,6 +451,9 @@ function TarjetaEntrega({ item, saving, hoy, manana, onIniciar, onAbrir }) {
             <Truck size={11} /> {enProgreso ? 'En camino' : atrasada ? 'Atrasada' : 'Por iniciar'}
           </span>
         </div>
+        {accionE && (
+          <div className="inline-flex mb-1.5 px-2 py-0.5 rounded-full text-[11px] font-bold bg-[#F5F3FF] text-[#6D28D9]">{NOMBRE_ACCION[accionDeEntrega(accionE)]}</div>
+        )}
 
         {/* Quién recibe: paciente si hay, si no el cliente */}
         <div className="text-[17px] font-bold text-slate-800 leading-tight">{paciente || cliente}</div>
@@ -468,11 +508,11 @@ function TarjetaEntrega({ item, saving, hoy, manana, onIniciar, onAbrir }) {
       </div>
       <div className="px-4 pb-4">
         <button
-          onClick={() => enProgreso ? onAbrir(item.entrega) : onIniciar(orden)}
+          onClick={() => enProgreso ? onAbrir(item.entrega) : onIniciar(accionE ? { ...orden, _entrega: accionE } : orden)}
           disabled={saving}
           className={`w-full py-3.5 rounded-[12px] text-[15px] font-bold text-white disabled:opacity-50 ${
             enProgreso ? 'bg-[#0E86A0] active:bg-[#0b6f85]' : 'bg-[#D81B43] active:bg-[#B0172F]'}`}>
-          {enProgreso ? 'Abrir entrega en curso' : 'Iniciar entrega'}
+          {enProgreso ? `Abrir ${accionE ? NOMBRE_ACCION[accionDeEntrega(accionE)].toLowerCase() : 'entrega'} en curso` : `Iniciar ${accionE ? NOMBRE_ACCION[accionDeEntrega(accionE)].toLowerCase() : 'entrega'}`}
         </button>
       </div>
     </article>

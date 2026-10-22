@@ -8,6 +8,7 @@ import { NOMBRES, NOMBRE_FIRMA } from '@/lib/actas/nombres'
 import { RECUADRO_INICIAL } from '@/components/actas/EditorPlantilla'
 import Modal from '@/components/ui/Modal'
 import { ui } from '@/lib/ui'
+import { ACCIONES } from '@/lib/actas/acciones'
 
 // Punto de partida de una plantilla nueva: un Word, una copia o en blanco.
 // Devuelve { inicial: { nombre, descripcion, bloques }, avisos } para el editor.
@@ -18,6 +19,9 @@ export default function NuevaPlantilla({ plantillas, onCerrar, onListo }) {
   const [copiaDe, setCopiaDe] = useState('')
   const [verNombres, setVerNombres] = useState(false)
   const [copiado, setCopiado] = useState(null)
+  // Para qué acción es: se elige antes de empezar (en el editor se puede cambiar)
+  const [accion, setAccion] = useState('prestamo')
+  const listo = r => onListo({ ...r, inicial: { ...r.inicial, accion } })
 
   async function desdeWord(archivo) {
     if (!/\.docx$/i.test(archivo.name)) { setError('Sube un archivo .docx (en Word: Archivo → Guardar como → Documento de Word).'); return }
@@ -26,7 +30,7 @@ export default function NuevaPlantilla({ plantillas, onCerrar, onListo }) {
       const { bloques, imagenes, avisos } = await importarWord(archivo)
       if (!bloques.length) throw new Error('El documento está vacío')
       const conUrls = await subirImagenesImportadas(supabase, bloques, imagenes)
-      onListo({ inicial: { nombre: archivo.name.replace(/\.docx$/i, ''), bloques: conUrls }, avisos })
+      listo({ inicial: { nombre: archivo.name.replace(/\.docx$/i, ''), bloques: conUrls }, avisos })
     } catch (e) {
       setError('No se pudo leer el Word: ' + (e.message || e))
       setLeyendo(false)
@@ -41,6 +45,15 @@ export default function NuevaPlantilla({ plantillas, onCerrar, onListo }) {
   return (
     <Modal onCerrar={onCerrar} bloqueado={leyendo} titulo="Nueva plantilla" tamano="md">
       <div className="space-y-3">
+        <div>
+          <div className="text-[12px] font-semibold text-slate-600 mb-1.5">¿Para qué es?</div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+            {Object.entries(ACCIONES).map(([a, l]) => (
+              <button key={a} type="button" onClick={() => setAccion(a)} aria-pressed={accion === a}
+                className={`px-2 py-2 rounded-[9px] border text-[12.5px] font-semibold transition-colors ${accion === a ? 'bg-[#1B3A6B] border-[#1B3A6B] text-white' : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'}`}>{l}</button>
+            ))}
+          </div>
+        </div>
         <label className={`${opcion} cursor-pointer ${leyendo ? 'pointer-events-none opacity-60' : ''}`}>
           <span className="w-9 h-9 rounded-[9px] bg-[#1B3A6B]/10 text-[#1B3A6B] flex items-center justify-center flex-shrink-0">
             {leyendo ? <Loader2 size={17} className="animate-spin" /> : <FileUp size={17} />}
@@ -64,13 +77,13 @@ export default function NuevaPlantilla({ plantillas, onCerrar, onListo }) {
               </select>
               <button type="button" disabled={!copiaDe} className={ui.btnAzul} onClick={() => {
                 const p = plantillas.find(x => x.id === copiaDe)
-                onListo({ inicial: { nombre: `${p.nombre} (copia)`, descripcion: p.descripcion, bloques: structuredClone(p.bloques) } })
+                listo({ inicial: { nombre: `${p.nombre} (copia)`, descripcion: p.descripcion, bloques: structuredClone(p.bloques) } })
               }}>Copiar</button>
             </span>
           </span>
         </div>
 
-        <button type="button" onClick={() => onListo({ inicial: { nombre: '', bloques: [{ tipo: 'encabezado', logos: [], ancho_logo: 22, centro: [{ texto: 'TÍTULO DEL FORMATO', estilo: 'titulo' }], derecha: RECUADRO_INICIAL() }] } })} className={opcion}>
+        <button type="button" onClick={() => listo({ inicial: { nombre: '', bloques: [{ tipo: 'encabezado', logos: [], ancho_logo: 22, centro: [{ texto: 'TÍTULO DEL FORMATO', estilo: 'titulo' }], derecha: RECUADRO_INICIAL() }] } })} className={opcion}>
           <span className="w-9 h-9 rounded-[9px] bg-[#1B3A6B]/10 text-[#1B3A6B] flex items-center justify-center flex-shrink-0"><FilePlus2 size={17} /></span>
           <span>
             <span className="block text-[14px] font-semibold text-slate-800">En blanco</span>

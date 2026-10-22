@@ -407,6 +407,33 @@ export function recargaIngemedic(base) {
   }
 }
 
+// Cambio de equipo: como la devolución, pero en los dos sentidos (Ingemedic recibe
+// el que sale y entrega el que entra)
+export function cambioIngemedic(base) {
+  const tabla = (titulo, fuente) => ({ tipo: 'tabla', fuente, agrupar: 'tipo', titulo })
+  return {
+    nombre: 'Acta de cambio de equipo Ingemedic',
+    descripcion: 'Cambio de equipos médicos domiciliarios: el que se retira y el que se entrega. Se usa al cambiar un equipo con los clientes que no tienen formato propio.',
+    accion: 'cambio', es_estandar: true,
+    bloques: [
+      encGeneral(base),
+      { tipo: 'titulo', texto: 'CAMBIO DE EQUIPOS' },
+      { tipo: 'campos', columnas: 3, campos: [{ etiqueta: 'CIUDAD', valor: '{{ciudad}}' }, { etiqueta: 'FECHA', valor: '{{fecha}}' }, { etiqueta: 'HORA', valor: '{{hora}}' }] },
+      tabla('EQUIPOS QUE SE RETIRAN', 'retirados'),
+      tabla('EQUIPOS QUE SE ENTREGAN', 'equipos'),
+      { tipo: 'campos', columnas: 3, campos: [
+        { etiqueta: 'MOTIVO DEL CAMBIO:', valor: '{{motivo_cambio}}', span: 3 },
+        { etiqueta: 'QUIEN ENTREGA:', valor: '{{entrega_nombre}}', span: 2 }, { etiqueta: 'FIRMA:', firma: 'entrega' },
+        { etiqueta: 'QUIEN RECIBE:', valor: '{{recibe_nombre}}', span: 2 }, { etiqueta: 'FIRMA:', firma: 'recibe' },
+        { etiqueta: 'DIRECCION:', valor: '{{paciente_direccion}}', span: 2 }, { etiqueta: 'TELEFONO', valor: '{{recibe_telefono}}' },
+        { etiqueta: 'NOMBRE DEL PACIENTE:', valor: '{{paciente_nombre}}', span: 3 },
+        { etiqueta: obsGeneral('cambio'), valor: '{{observaciones}}', span: 3, arriba: true },
+      ] },
+      { tipo: 'texto', tamano: 11, texto: 'Por medio de la presente acta se hace constar el cambio de los equipos biomedicos y/o suministros de oxigeno domiciliario descritos, entregados en calidad de prestamo. Los equipos que se retiran quedan bajo la custodia de INGEMEDIC DE COLOMBIA S.A.S; la custodia y buen uso de los equipos entregados son responsabilidad del paciente o familiar a partir de la fecha de este cambio.' },
+    ],
+  }
+}
+
 // Plantillas y a qué cliente (por nombre en `clientes`) se asignan al cargarlas
 export function plantillasBase(supabaseUrl) {
   return [

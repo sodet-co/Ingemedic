@@ -13,7 +13,7 @@ import { ui } from '@/lib/ui'
 // la hoja (lib/actas/campos.js → camposDelFormato). Tocar un campo resalta su
 // lugar en la hoja; tocar un espacio en la hoja lleva a su campo.
 // Controlado: valores = { paciente, diagnostico, acta } (acta = datos_acta).
-// base = { empresa, orden: { cliente, codigo }, equipos (unidades), fecha }.
+// base = { empresa, orden: { cliente, codigo }, equipos (unidades), retirados (en un cambio), fecha }.
 
 const ALTO_A4 = Math.round(ANCHO_PAGINA * 297 / 210)
 const TIPOS_DOC = ['CC', 'TI', 'RC', 'CE', 'PA']
@@ -26,7 +26,7 @@ const vacioCls = '!border-amber-300 !bg-amber-50/60'
 const activoCls = '!border-[#F59E0B] ring-2 ring-[#F59E0B]/25'
 
 const armarContexto = (base, valores, conPaciente, datos) => construirContexto({
-  empresa: base.empresa, equipos: base.equipos || [],
+  empresa: base.empresa, equipos: base.equipos || [], retirados: base.retirados || [],
   orden: { ...(base.orden || {}), paciente: conPaciente ? valores.paciente : null, diagnostico: valores.diagnostico },
   datos: { ...datos, fecha: base.fecha },
 })

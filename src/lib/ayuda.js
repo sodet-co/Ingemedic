@@ -21,7 +21,7 @@ export const AYUDA = {
 
   entregas: {
     titulo: 'Entregas',
-    resumen: 'Seguimiento de los préstamos a domicilio.',
+    resumen: 'Entregas, recogidas, recargas y cambios a domicilio.',
     tareas: [
       { titulo: 'El tablero', pasos: [
         'Por iniciar: aún no salen.',
@@ -43,12 +43,12 @@ export const AYUDA = {
 
   repartidor: {
     titulo: 'Mis entregas',
-    resumen: 'Tus entregas del día.',
+    resumen: 'Tus entregas, recogidas, recargas y cambios del día.',
     tareas: [
       { titulo: 'Hacer una entrega', pasos: [
-        'Toca "Iniciar entrega".',
+        'Toca "Iniciar" (dice si es entrega, recogida, recarga o cambio).',
         'Usa "Cómo llegar" o "Llamar" si lo necesitas.',
-        'Al llegar, toca "Llegué · Registrar entrega".',
+        'Al llegar, toca "Llegué · Registrar".',
         'Firma quien recibe y después tú.',
       ] },
     ],
@@ -84,12 +84,15 @@ export const AYUDA = {
         'Elige cliente y paciente, los equipos y si es en oficina o a domicilio.',
         'Revisa los formatos y confirma.',
       ] },
-      { titulo: 'Devolver', pasos: [
-        'Abre el préstamo.',
-        'Toca "Marcar como devuelto" en el equipo.',
+      { titulo: 'Recoger, recargar o cambiar', pasos: [
+        'Busca por paciente, cédula, código o serial y abre el préstamo.',
+        'Toca "Recoger", "Recarga" o "Cambiar" (arriba o en cada equipo).',
+        'Elige los equipos, si es en oficina o a domicilio, y llena el acta.',
+        'En oficina se firma ahí; a domicilio lo hace el repartidor.',
       ] },
-      { titulo: 'Cambiar un equipo', pasos: [
-        'Abre el préstamo y toca "Cambiar equipo".',
+      { titulo: 'Recarga periódica', pasos: [
+        'En el préstamo, en "Recargas", define cada cuántos días.',
+        'Cuando toque, aparece en los avisos del inicio.',
       ] },
       { titulo: 'Formatos', pasos: [
         'Abre el préstamo y toca "Ver formatos" o "Descargar PDF".',
@@ -112,9 +115,13 @@ export const AYUDA = {
         'Abre el cliente.',
         'En "En préstamo" filtra por tipo o busca por código o paciente.',
       ] },
-      { titulo: 'Devolver equipos', pasos: [
-        'En "En préstamo", toca "Devolver equipos".',
-        'Elige uno o varios y confirma.',
+      { titulo: 'Recoger, recargar o cambiar', pasos: [
+        'En "En préstamo", toca "Recoger, recargar o cambiar".',
+        'Elige los equipos de un mismo paciente y la acción.',
+        'Se abre el préstamo para llenar y firmar el acta.',
+      ] },
+      { titulo: 'Historia de un equipo', pasos: [
+        'En "Por equipo", abre un equipo para ver todo lo que le pasó.',
       ] },
       { titulo: 'Informe', pasos: [
         'En el cliente, descarga el informe en PDF o Excel.',

@@ -13,6 +13,10 @@ export const ACCIONES = {
 }
 
 export const accionDe = p => p?.accion || 'prestamo'
+
+// ¿Este tipo de equipo se recarga? Se marca en Configuración → Tipos
+// (tipos_equipo.atributos.se_recarga); si no se ha marcado, los cilindros sí.
+export const seRecarga = tipo => tipo?.atributos?.se_recarga ?? /cilindro/i.test(tipo?.categoria?.nombre || '')
 export const sirvePara = (p, accion) => accionDe(p) === accion
 
 // Las que se sugieren para una acción: las del cliente de esa acción, en su orden;

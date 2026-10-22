@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { Truck, MapPin, Phone, Navigation, Package, User, Clock, CheckCircle2 } from 'lucide-react'
+import { Truck, MapPin, Phone, Navigation, Package, User, Clock, CheckCircle2, ArrowRight } from 'lucide-react'
+import { NOMBRE_ACCION, accionDeEntrega } from '@/lib/accionesPrestamo'
 
 // Entrega "En progreso": camión animado sobre la ruta, cronómetro y todo lo que
 // necesita quien va en camino (destino, teléfono, equipos). La barra avanza con
@@ -76,13 +77,20 @@ export default function EntregaEnCurso({ entrega, onRegistrar }) {
   const ciudad = p?.ciudad || c.municipio?.nombre
   const telefono = p?.telefono || c.telefono
   const destino = [direccion, ciudad].filter(Boolean).join(', ')
-  const equipos = (orden.equipos || []).filter(oe => !oe.fecha_devolucion)
+  // En una recogida, recarga o cambio, solo los equipos de esa acción
+  const accion = accionDeEntrega(entrega)
+  const nombre = NOMBRE_ACCION[accion]
+  const equipos = accion === 'prestamo'
+    ? (orden.equipos || []).filter(oe => !oe.fecha_devolucion)
+    : accion === 'cambio'
+      ? (entrega.datos?.cambios || []).map(c => ({ id: c.orden_equipo_id, equipo: c.entra, sale: c.sale }))
+      : (entrega.datos?.equipos || []).map(x => ({ id: x.orden_equipo_id, equipo: x.equipo }))
 
   return (
     <div className="space-y-4">
       <div className="rounded-2xl bg-gradient-to-br from-[#1B3A6B] to-[#0E86A0] text-white p-4 md:p-5 shadow-sm">
         <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.1em] text-white/70">
-          <span className="w-2 h-2 rounded-full bg-[#7CF0C8] animate-pulse" /> Entrega en curso
+          <span className="w-2 h-2 rounded-full bg-[#7CF0C8] animate-pulse" /> {nombre} en curso
         </div>
         <div className="text-[18px] md:text-[20px] font-extrabold leading-tight mt-1">{p?.nombre || c.nombre}</div>
         {p && <div className="text-[12.5px] text-white/70">{c.nombre}</div>}
@@ -112,7 +120,8 @@ export default function EntregaEnCurso({ entrega, onRegistrar }) {
         <div className="text-[10.5px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-2">Resumen de la orden</div>
         <div className="space-y-1.5 text-[13px]">
           <div className="flex justify-between gap-3"><span className="text-slate-400">Orden</span><span className="font-mono font-bold text-slate-700">{orden.codigo || '—'}</span></div>
-          <div className="flex justify-between gap-3"><span className="text-slate-400">Entrega</span><span className="font-mono text-slate-700">{entrega.codigo}</span></div>
+          <div className="flex justify-between gap-3"><span className="text-slate-400">{nombre}</span><span className="font-mono text-slate-700">{entrega.codigo}</span></div>
+          {entrega.datos?.motivo && <div className="flex justify-between gap-3"><span className="text-slate-400">Motivo</span><span className="text-slate-700 text-right">{entrega.datos.motivo}</span></div>}
           {p && <div className="flex justify-between gap-3"><span className="text-slate-400 flex items-center gap-1"><User size={12} /> Paciente</span><span className="font-medium text-slate-700 text-right">{p.nombre}</span></div>}
           {orden.observaciones && <div className="pt-1 text-[12.5px] text-slate-500 italic">“{orden.observaciones}”</div>}
         </div>
@@ -122,6 +131,7 @@ export default function EntregaEnCurso({ entrega, onRegistrar }) {
             <div key={oe.id} className="flex items-center gap-2 text-[13px] text-slate-700">
               <Package size={14} className="text-slate-400 flex-shrink-0" />
               <span className="flex-1 truncate">{nombreEquipo(oe.equipo)}</span>
+              {oe.sale && <><span className="font-mono text-[12px] text-slate-400">{oe.sale.codigo}</span><ArrowRight size={12} className="text-slate-300" /></>}
               <span className="font-mono text-[12px] font-semibold text-slate-500">{oe.equipo?.codigo}</span>
             </div>
           ))}
@@ -131,7 +141,7 @@ export default function EntregaEnCurso({ entrega, onRegistrar }) {
       {onRegistrar && (
         <button onClick={onRegistrar}
           className="w-full flex items-center justify-center gap-2 py-3.5 bg-[#0F7B55] text-white rounded-[12px] text-[15px] font-bold hover:bg-[#0a5c3f]">
-          <CheckCircle2 size={18} /> Llegué · Registrar entrega
+          <CheckCircle2 size={18} /> Llegué · Registrar {nombre.toLowerCase()}
         </button>
       )}
     </div>

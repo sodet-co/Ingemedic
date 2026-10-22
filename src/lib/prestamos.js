@@ -68,12 +68,14 @@ export async function cerrarEquiposAbiertos({ supabase, ordenId, nota }) {
 //    ("Cambiado por <código>") y entra una fila nueva "En préstamo" con la fecha
 //    del cambio. La orden sigue activa: aquí nunca se finaliza.
 // El equipo que sale se libera con liberarEquipos (respeta mantenimientos).
-export async function cambiarEquipo({ supabase, orden, ordenEquipoId, equipoAnteriorId, equipoNuevo, fecha, motivo }) {
+// yaReservado: el nuevo ya quedó "Reservado" para este cambio (cambio a domicilio
+// programado, lib/accionesPrestamo.js): se acepta también en ese estado.
+export async function cambiarEquipo({ supabase, orden, ordenEquipoId, equipoAnteriorId, equipoNuevo, fecha, motivo, yaReservado = false }) {
   // Se confirma en BD que el nuevo sigue disponible (la lista en pantalla puede ser vieja)
   const { data: actual, error: errNuevo } = await supabase.from('equipos')
     .select('estado:estados_equipo(nombre)').eq('id', equipoNuevo.id).maybeSingle()
   if (errNuevo) return { error: errNuevo }
-  if (actual?.estado?.nombre !== 'Disponible') {
+  if (actual?.estado?.nombre !== 'Disponible' && !(yaReservado && actual?.estado?.nombre === 'Reservado')) {
     return { error: { message: `El equipo ${equipoNuevo.codigo} ya no está disponible.` } }
   }
 

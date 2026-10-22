@@ -20,6 +20,7 @@ import VentanaDetalle, { Columnas, EncabezadoDetalle } from '@/components/ui/Ven
 import EntregaEnCurso, { RutaAnimada } from '@/components/entregas/EntregaEnCurso'
 import { descargarActasPDF } from '@/lib/actas/pdf'
 import { crearEntrega, finalizarEntrega } from '@/lib/entregas'
+import { completarAccion, iniciarAccion, accionDeEntrega, equiposDelActa, NOMBRE_ACCION } from '@/lib/accionesPrestamo'
 import { useUsuarioActual } from '@/lib/usuario-context'
 
 const TL_STEPS = ['Programada', 'En ruta', 'Entregada']
@@ -97,6 +98,13 @@ function TimelineHorizontal({ estadoNombre, inicio, fin, horaProg, alerta }) {
 function nombreEquipo(eq) {
   return eq?.tipo_equipo?.atributos?.nombre || eq?.tipo_equipo?.nombre || '—'
 }
+
+// Recogida, recarga o cambio (lib/accionesPrestamo.js); 'entrega' es la del préstamo
+const esAccion = e => !!e?.tipo && e.tipo !== 'entrega'
+// Equipos de una acción, con la forma de orden_equipos para pintarlos igual
+const equiposDeAccion = e => e.tipo === 'cambio'
+  ? (e.datos?.cambios || []).map(c => ({ id: c.orden_equipo_id, equipo: c.entra, sale: c.sale }))
+  : (e.datos?.equipos || []).map(x => ({ id: x.orden_equipo_id, equipo: x.equipo }))
 
 function estaRetrasada(item) {
   if (!item.fecha_inicio || item.estado?.nombre === 'Completada') return false
@@ -189,13 +197,13 @@ export default function EntregasClient({ entregasIniciales, ordenesEnReparto, es
 
   const stats = useMemo(() => ({
     totalHoy:    ordenes.length + entregas.filter(e => e.estado?.nombre === 'En progreso').length,
-    pendientes:  ordenes.length,
+    pendientes:  ordenes.length + entregas.filter(e => esAccion(e) && e.modo !== 'oficina' && e.estado?.nombre === 'No iniciada').length,
     enRuta:      entregas.filter(e => e.estado?.nombre === 'En progreso').length,
     completadas: entregas.filter(e => e.estado?.nombre === 'Completada').length,
   }), [entregas, ordenes])
 
   // Órdenes sin entrega activa
-  const ordenesConEntrega = useMemo(() => new Set(entregas.map(e => e.orden_id)), [entregas])
+  const ordenesConEntrega = useMemo(() => new Set(entregas.filter(e => !esAccion(e)).map(e => e.orden_id)), [entregas])
 
   // Tablero: Por iniciar → En ruta → Completadas. Antes eran dos pestañas
   // (Activas / Historial) con todo mezclado por repartidor; ahora el flujo se ve
@@ -212,11 +220,16 @@ export default function EntregasClient({ entregasIniciales, ordenesEnReparto, es
         && (!filtroCliente || item.cliente?.nombre?.toLowerCase().includes(filtroCliente.toLowerCase()))
     }
     const conRep = (x, tipo) => ({ ...x, _tipo: tipo, _repartidor: x.repartidor?.nombre || 'Sin asignar' })
-    const porIniciar = ordenes.filter(o => !ordenesConEntrega.has(o.id)).map(o => conRep(o, 'pendiente')).filter(pasa)
-      .sort((a, b) => new Date(a.fecha_entrega || 0) - new Date(b.fecha_entrega || 0))
-    const enRuta = entregas.filter(e => e.estado?.nombre === 'En progreso').map(e => conRep(e, 'entrega')).filter(pasa)
+    // Las acciones hechas en oficina no pasan por el tablero
+    const visibles = entregas.filter(e => e.modo !== 'oficina')
+    const porIniciar = [
+      ...ordenes.filter(o => !ordenesConEntrega.has(o.id)).map(o => conRep(o, 'pendiente')),
+      ...visibles.filter(e => esAccion(e) && e.estado?.nombre === 'No iniciada').map(e => conRep(e, 'accion')),
+    ].filter(pasa)
+      .sort((a, b) => new Date(a.fecha_entrega || a.fecha_programada || 0) - new Date(b.fecha_entrega || b.fecha_programada || 0))
+    const enRuta = visibles.filter(e => e.estado?.nombre === 'En progreso').map(e => conRep(e, 'entrega')).filter(pasa)
       .sort((a, b) => new Date(a.fecha_inicio || 0) - new Date(b.fecha_inicio || 0))
-    const completadasTodas = entregas.filter(e => e.estado?.nombre === 'Completada').map(e => conRep(e, 'entrega')).filter(pasa)
+    const completadasTodas = visibles.filter(e => e.estado?.nombre === 'Completada').map(e => conRep(e, 'entrega')).filter(pasa)
       .sort((a, b) => new Date(b.fecha_completada || 0) - new Date(a.fecha_completada || 0))
     const completadasHoy = completadasTodas.filter(e => soloDia(e.fecha_completada) === hoy)
     return { porIniciar, enRuta, completadasHoy, completadasTodas }
@@ -242,14 +255,41 @@ export default function EntregasClient({ entregasIniciales, ordenesEnReparto, es
     setDrawer(data)
   }
 
+  // Recogida, recarga o cambio programado: arranca sin tocar el préstamo
+  async function iniciarAccionLista(item) {
+    if (!puedeIniciar) { showToast('Solo el repartidor puede iniciarla', 'error'); return }
+    setSaving(true)
+    const { data, error } = await iniciarAccion(supabase, item)
+    setSaving(false)
+    if (error) { showToast('Error: ' + error.message, 'error'); return }
+    const actualizada = { ...item, ...data, estado: { nombre: 'En progreso' } }
+    setEntregas(prev => prev.map(e => e.id === item.id ? actualizada : e))
+    setDrawer(actualizada)
+    showToast(`${NOMBRE_ACCION[accionDeEntrega(item)]} iniciada`)
+  }
+
   // ── REGISTRAR ENTREGA: paso de firma de actas (components/actas/FirmaActas.js) ──
   function abrirRegistro(entrega) {
     setModalRegistro(entrega)
   }
 
   // Lo corre FirmaActas antes de guardar las actas: si falla, no se guarda nada
-  async function completarEntrega({ recibidoPor, firma, observaciones }) {
+  async function completarEntrega({ recibidoPor, firma, observaciones, datosActa }) {
     const entrega = modalRegistro
+    if (esAccion(entrega)) {
+      const { error, cambios } = await completarAccion(supabase, { entrega, orden: entrega.orden, recibidoPor, firma, observaciones, datos: { datos_acta: datosActa } })
+      if (error) return error
+      registrarBitacora({ modulo: 'entregas', accion: 'cerrar', entidad: NOMBRE_ACCION[accionDeEntrega(entrega)].toLowerCase(), entidad_id: entrega.id, detalle: { codigo: entrega.codigo, recibido_por: recibidoPor } })
+      skipSyncUntil.current = Date.now() + 2500
+      setEntregas(prev => prev.map(e => e.id === entrega.id ? { ...e, ...cambios } : e))
+      if (drawer?.id === entrega.id) setDrawer(prev => ({ ...prev, ...cambios }))
+      setModalExito({
+        titulo: NOMBRE_ACCION[accionDeEntrega(entrega)], codigo: entrega.codigo, ordenCodigo: entrega.orden?.codigo,
+        cliente: entrega.orden?.cliente?.nombre || entrega.cliente?.nombre, equipos: equiposDeAccion(entrega),
+        recibidoPor, duracion: cambios.duracion_minutos, fecha: cambios.fecha_completada,
+      })
+      return null
+    }
     const { error, erroresFirma, cambios } = await finalizarEntrega(supabase, {
       entrega, recibidoPor, firma, observaciones, estadosEquipo,
     })
@@ -277,9 +317,10 @@ export default function EntregasClient({ entregasIniciales, ordenesEnReparto, es
   // Acta en PDF: las actas firmadas del préstamo; las entregas de antes de las
   // actas por cliente siguen saliendo con el formato viejo (generarActaEntregaPDF)
   async function descargarActa(entrega) {
-    const { data: actas } = await supabase.from('actas')
-      .select('id, nombre, bloques, datos, firma_recibe, firma_entrega')
-      .eq('orden_id', entrega.orden?.id || entrega.orden_id).order('fecha_firma')
+    // Una recogida, recarga o cambio: solo sus actas; la entrega: las del préstamo
+    let q = supabase.from('actas').select('id, nombre, bloques, datos, firma_recibe, firma_entrega')
+    q = esAccion(entrega) ? q.eq('entrega_id', entrega.id) : q.eq('orden_id', entrega.orden?.id || entrega.orden_id).eq('accion', 'prestamo')
+    const { data: actas } = await q.order('fecha_firma')
     if (actas?.length) {
       try { await descargarActasPDF(actas, `Actas_${entrega.orden?.codigo || entrega.codigo}.pdf`); showToast('PDF generado') }
       catch (e) { showToast('No se pudo generar el PDF: ' + e.message, 'error') }
@@ -657,27 +698,33 @@ export default function EntregasClient({ entregasIniciales, ordenesEnReparto, es
                 )}
                 {col.items.map(item => {
                   const esPendiente = item._tipo === 'pendiente'
+                  const accionPendiente = item._tipo === 'accion'
                   const codigo = esPendiente ? item.codigo : (item.orden?.codigo || item.codigo)
                   const paciente = esPendiente ? item.paciente : item.orden?.paciente
-                  const nEquipos = (esPendiente ? item.equipos : item.orden?.equipos)?.filter(oe => !oe.fecha_devolucion).length || 0
+                  const nEquipos = esAccion(item) ? equiposDeAccion(item).length : (esPendiente ? item.equipos : item.orden?.equipos)?.filter(oe => !oe.fecha_devolucion).length || 0
                   const retrasada = !esPendiente && estaRetrasada(item)
-                  const programada = esPendiente ? item.fecha_entrega : item.orden?.fecha_entrega
+                  const programada = esPendiente ? item.fecha_entrega : esAccion(item) ? item.fecha_programada : item.orden?.fecha_entrega
                   return (
                     <div key={item.id} onClick={() => esPendiente ? setModalOrden(item) : setDrawer(item)}
                       className={`bg-white rounded-xl border shadow-sm p-3.5 cursor-pointer transition-all hover:shadow-md ${retrasada ? 'border-[#D81B43]/50' : 'border-slate-200 hover:border-slate-300'}`}>
                       <div className="flex items-center gap-2 mb-1.5">
                         <span className="font-mono text-[11.5px] font-bold bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded">{codigo}</span>
-                        {item.tipo === 'retiro' && <span className="text-[10.5px] font-bold text-[#6D28D9]">Retiro</span>}
+                        {esAccion(item) && <span className="text-[10.5px] font-bold text-[#6D28D9]">{NOMBRE_ACCION[accionDeEntrega(item)]}</span>}
                         <span className="ml-auto text-[11px] text-slate-400 truncate">{item._repartidor}</span>
                       </div>
                       <div className="text-[13.5px] font-semibold text-slate-800 truncate">{paciente?.nombre || item.cliente?.nombre}</div>
                       <div className="text-[12px] text-slate-400 truncate">
                         {[paciente && item.cliente?.nombre, `${nEquipos} equipo${nEquipos !== 1 ? 's' : ''}`, paciente?.direccion].filter(Boolean).join(' · ')}
                       </div>
-                      {esPendiente && (
+                      {(esPendiente || accionPendiente) && (
                         <div className="flex items-center justify-between gap-2 mt-2.5">
                           <span className="text-[11.5px] text-slate-500 flex items-center gap-1"><Clock size={11} /> {programada ? formatear(programada, { hour: '2-digit', minute: '2-digit' }) : 'Sin hora'}</span>
-                          {puedeIniciar ? (
+                          {puedeIniciar && accionPendiente ? (
+                            <button onClick={e => { e.stopPropagation(); iniciarAccionLista(item) }} disabled={saving}
+                              className="flex items-center gap-1.5 px-3 py-1.5 bg-[#D81B43] text-white text-[12px] font-semibold rounded-[8px] hover:bg-[#B0172F] disabled:opacity-50">
+                              <Truck size={12} /> Iniciar
+                            </button>
+                          ) : puedeIniciar ? (
                             <button onClick={e => { e.stopPropagation(); setModalOrden(item) }}
                               className="flex items-center gap-1.5 px-3 py-1.5 bg-[#D81B43] text-white text-[12px] font-semibold rounded-[8px] hover:bg-[#B0172F]">
                               <Truck size={12} /> Ver y empezar
@@ -792,7 +839,7 @@ export default function EntregasClient({ entregasIniciales, ordenesEnReparto, es
       {/* ── DETALLE ENTREGA (ventana ancha; en celular, hoja desde abajo) ── */}
       {drawer && (
         <VentanaDetalle onCerrar={() => setDrawer(null)} z="z-30">
-            <EncabezadoDetalle icono={<Truck size={18} />} etiqueta={`Entrega · ${drawer.orden?.codigo || ''}`}
+            <EncabezadoDetalle icono={<Truck size={18} />} etiqueta={`${esAccion(drawer) ? NOMBRE_ACCION[accionDeEntrega(drawer)] : 'Entrega'} · ${drawer.orden?.codigo || ''}`}
               titulo={<span className="font-mono">{drawer.codigo}</span>} subtitulo={drawer.cliente?.nombre}
               onCerrar={() => setDrawer(null)}
               acciones={drawer.estado?.nombre === 'Completada' && (
@@ -821,7 +868,7 @@ export default function EntregasClient({ entregasIniciales, ordenesEnReparto, es
                 {drawer.estado?.nombre !== 'Completada' && (
                   <button onClick={() => { abrirRegistro(drawer); }}
                     className="mt-3 w-full flex items-center justify-center gap-2 py-2.5 bg-[#0F7B55] text-white text-[13px] font-semibold rounded-[9px] hover:bg-[#0a5c3f]">
-                    <CheckCircle2 size={14} /> Registrar entrega
+                    <CheckCircle2 size={14} /> Registrar {esAccion(drawer) ? NOMBRE_ACCION[accionDeEntrega(drawer)].toLowerCase() : 'entrega'}
                   </button>
                 )}
               </div>}
@@ -912,7 +959,12 @@ export default function EntregasClient({ entregasIniciales, ordenesEnReparto, es
       {/* ── FIRMA DE ACTAS — completa la entrega ── */}
       {modalRegistro && (
         <FirmaActas ordenId={modalRegistro.orden?.id || modalRegistro.orden_id} entregaId={modalRegistro.id}
-          titulo={`Registrar entrega · ${modalRegistro.codigo}`}
+          titulo={`Registrar ${esAccion(modalRegistro) ? NOMBRE_ACCION[accionDeEntrega(modalRegistro)].toLowerCase() : 'entrega'} · ${modalRegistro.codigo}`}
+          {...(esAccion(modalRegistro) ? {
+            accion: accionDeEntrega(modalRegistro), plantillaIds: modalRegistro.datos?.plantillas || [],
+            ...equiposDelActa(accionDeEntrega(modalRegistro), modalRegistro.datos),
+            datosIniciales: { ...(modalRegistro.datos?.datos_acta || {}), motivo: modalRegistro.datos?.motivo },
+          } : {})}
           alFirmar={completarEntrega}
           onCancelar={cerrarRegistro}
           onHecho={() => { cerrarRegistro(); router.refresh() }} />
@@ -928,7 +980,7 @@ export default function EntregasClient({ entregasIniciales, ordenesEnReparto, es
                 <div className="w-16 h-16 rounded-full bg-[#0F7B55] flex items-center justify-center mx-auto mb-4 shadow-lg shadow-[#0F7B55]/20">
                   <CheckCircle2 size={32} className="text-white" />
                 </div>
-                <div className="text-[17px] font-bold text-slate-800">Entrega completada exitosamente</div>
+                <div className="text-[17px] font-bold text-slate-800">{modalExito.titulo || 'Entrega'} completada</div>
                 <div className="text-[12.5px] text-slate-400 mt-1 font-mono">{modalExito.codigo} · OS: {modalExito.ordenCodigo}</div>
               </div>
 
@@ -946,7 +998,7 @@ export default function EntregasClient({ entregasIniciales, ordenesEnReparto, es
                   <span className="font-semibold text-slate-700">{modalExito.duracion} min</span>
                 </div>
                 <div className="flex justify-between text-[13px]">
-                  <span className="text-slate-400">Equipos entregados</span>
+                  <span className="text-slate-400">Equipos</span>
                   <span className="font-semibold text-slate-700">{modalExito.equipos.length}</span>
                 </div>
                 {modalExito.equipos.length > 0 && (

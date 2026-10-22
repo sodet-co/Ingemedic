@@ -11,7 +11,6 @@ import {
 } from 'lucide-react'
 import ConfirmDialog from '@/components/ui/ConfirmDialog'
 import LimpiarFiltros from '@/components/ui/LimpiarFiltros'
-import ModalDevolucion from '@/components/entregas/ModalDevolucion'
 import Paginador from '@/components/ui/Paginador'
 import { Box } from '@/components/ui/Skeleton'
 import { IconoTipo } from '@/components/inventario/IconoTipo'
@@ -21,10 +20,11 @@ import Modal from '@/components/ui/Modal'
 import { ui } from '@/lib/ui'
 import { armarInforme } from '@/lib/informeCliente'
 import EquiposDelCliente from '@/components/clientes/EquiposDelCliente'
+import HistorialPorEquipo from '@/components/clientes/HistorialPorEquipo'
 import { useOrdenable } from '@/hooks/useOrdenable'
 import { usePaginacion } from '@/hooks/usePaginacion'
 import { formatear, formatearSoloFecha, hoyBogota } from '@/lib/fechas'
-import { devolverEquipo as devolverEquipoLib } from '@/lib/prestamos'
+import { seRecarga } from '@/lib/actas/acciones'
 import { capturarHTML } from '@/lib/capturar'
 import LogoCliente from '@/components/clientes/LogoCliente'
 import AvatarCliente from '@/components/clientes/AvatarCliente'
@@ -134,8 +134,6 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
   const [exportando, setExportando] = useState(false)
 
   // ── DEVOLUCIÓN DE EQUIPOS (Cliente y Paciente) — mismo modal/lógica que Préstamos ──
-  const [modalDevolucion, setModalDevolucion] = useState(null) // { ordenEquipoId, equipoId, ordenId, contexto: 'cliente'|'paciente' } o null
-  const [formDevolucion, setFormDevolucion]   = useState({ fecha: '', observaciones: '' })
 
   // ── PESTAÑA PACIENTES ──
   const [searchPaciente, setSearchPaciente] = useState('')
@@ -280,11 +278,11 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
         paciente:pacientes(nombre),
         equipos:orden_equipos(
           id, fecha_entrega, fecha_devolucion, observaciones_devolucion,
-          equipo:equipos(id, codigo, tipo_equipo:tipos_equipo(id, nombre, atributos), paciente_actual:pacientes(nombre))
+          equipo:equipos(id, codigo, tipo_equipo:tipos_equipo(id, nombre, atributos, categoria:categorias_equipo(nombre)), paciente_actual:pacientes(nombre))
         )
       `).eq('cliente_id', cliente.id).order('fecha_creacion', { ascending: false }),
       supabase.from('entregas').select(`
-        id, codigo, tipo, fecha_completada, fecha_asignacion, recibido_por,
+        id, codigo, tipo, modo, datos, fecha_completada, fecha_asignacion, recibido_por,
         estado:estados_entrega(id, nombre),
         orden:ordenes_servicio(id, codigo)
       `).eq('cliente_id', cliente.id).order('fecha_asignacion', { ascending: false }),
@@ -293,35 +291,12 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
     setHistorial({ loading: false, ordenes: ordenes || [], entregas: entregas || [] })
   }
 
-  // ── DEVOLUCIÓN DE EQUIPOS — misma lógica que Préstamos (src/lib/prestamos.js), reutilizada
-  // acá para los paneles de Cliente y Paciente. "contexto" dice de cuál de los dos vino el
-  // click, para saber qué actualizar localmente después: el drawer de Cliente arma su lista de
-  // "En préstamo" con un fetch propio (historial) que hay que volver a llamar; el de Paciente se
-  // arma del prop equiposConPaciente — probado que esperar a que router.refresh() lo actualice
-  // no es instantáneo, así que ahí se hace un splice optimista sobre la copia local del prop.
-  function abrirModalDevolucion(oe, contexto) {
-    setModalDevolucion({ ordenEquipoId: oe.ordenEquipoId, equipoId: oe.equipoId, ordenId: oe.ordenId, contexto })
-    setFormDevolucion({ fecha: hoyBogota(), observaciones: '' })
-  }
-
-  async function confirmarDevolucion() {
-    const { ordenEquipoId, equipoId, ordenId, contexto } = modalDevolucion
-    const { error, todosDevueltos } = await devolverEquipoLib({
-      supabase, ordenEquipoId, equipoId, ordenId,
-      fechaDevolucion: formDevolucion.fecha, observaciones: formDevolucion.observaciones,
-    })
-    if (error) { showToast('Error: ' + error.message, 'error'); return }
-
-    showToast(todosDevueltos ? 'Todos los equipos devueltos — préstamo finalizado' : 'Equipo devuelto')
-    setModalDevolucion(null)
-
-    if (contexto === 'cliente' && drawer) {
-      await abrirDrawer(drawer)
-    } else if (contexto === 'paciente') {
-      skipSyncUntil.current = Date.now() + 2500
-      setEquiposConPacienteLocal(prev => prev.filter(e => e.id !== equipoId))
-    }
-    router.refresh()
+  // ── RECOGER, RECARGAR O CAMBIAR — con acta, en el asistente de Préstamos ──
+  // (components/prestamos/AccionPrestamo.js). Aquí solo se elige el equipo y se
+  // va allá; al terminar vuelve a este cliente o paciente.
+  function irAAccion(accion, ordenId, ordenEquipoIds, volver) {
+    const q = new URLSearchParams({ abrir: ordenId, accion, equipos: ordenEquipoIds.join(','), volver })
+    window.location.assign(`/ordenes?${q}`)
   }
 
   // Equipos actualmente en préstamo: tienen fecha_entrega pero no fecha_devolucion,
@@ -342,12 +317,12 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
   // ── LÍNEA DE TIEMPO — cliente creado + órdenes + entregas, todo en un solo hilo cronológico ──
   // Línea de tiempo en palabras ("Se prestó Cama hospitalaria a Ana Pérez"), sin
   // códigos de préstamo: la misma que sale en el PDF y el Excel.
-  const informe = useMemo(() => armarInforme(historial.ordenes, { esCliente: true }), [historial.ordenes])
+  const informe = useMemo(() => armarInforme(historial.ordenes, { esCliente: true, entregas: historial.entregas }), [historial.ordenes, historial.entregas])
   const lineaTiempo = useMemo(() => {
     if (!drawer) return []
     const ev = [...informe.eventos]
     for (const en of historial.entregas) {
-      if (en.estado?.nombre === 'Completada' && en.fecha_completada) {
+      if (en.estado?.nombre === 'Completada' && en.fecha_completada && (en.tipo || 'entrega') === 'entrega') {
         ev.push({ tipo: 'entrega', fecha: en.fecha_completada, texto: `Entrega a domicilio${en.recibido_por ? `, recibió ${en.recibido_por}` : ''}` })
       }
     }
@@ -356,21 +331,14 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
   }, [drawer, historial.entregas, informe])
   const pagLinea = usePaginacion(lineaTiempo, 15)
 
-  // Devolver varios equipos a la vez desde el detalle del cliente
-  async function devolverVarios(items) {
-    const fecha = hoyBogota()
-    let errores = 0
-    for (const oe of items) {
-      const { error } = await devolverEquipoLib({ supabase, ordenEquipoId: oe.id, equipoId: oe.equipo?.id, ordenId: oe.orden?.id, fechaDevolucion: fecha, observaciones: null })
-      if (error) errores++
-    }
-    const ok = items.length - errores
-    if (ok) registrarBitacora({ modulo: 'clientes', accion: 'editar', entidad: 'préstamo', entidad_id: drawer.id, detalle: { descripcion: `Devolvió ${ok} equipo${ok !== 1 ? 's' : ''} de ${drawer.nombre}` } })
-    showToast(errores ? `${ok} devueltos, ${errores} con error` : `${ok} equipo${ok !== 1 ? 's' : ''} devuelto${ok !== 1 ? 's' : ''}`, errores ? 'error' : 'success')
-    await abrirDrawer(drawer)
-    router.refresh()
-    return !errores
+  // Recoger, recargar o cambiar varios equipos del cliente: deben ser del mismo préstamo
+  function accionVarios(accion, items) {
+    const ordenes = [...new Set(items.map(oe => oe.orden?.id))]
+    if (ordenes.length !== 1) { showToast('Elige equipos de un mismo préstamo (un mismo paciente)', 'error'); return false }
+    irAAccion(accion, ordenes[0], items.map(oe => oe.id), `/clientes?cliente=${drawer.id}`)
+    return true
   }
+
 
   const ICONO_EVENTO = {
     cliente: { icon: <UserPlus size={13} />, color: '#64748B', bg: '#F1F5F9' },
@@ -379,6 +347,7 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
     cambio: { icon: <FileText size={13} />, color: '#1B3A6B', bg: '#E8EEF9' },
     entrega: { icon: <Truck size={13} />, color: '#0F7B55', bg: '#E7F6EF' },
     devolucion: { icon: <ArrowDownLeft size={13} />, color: '#B45309', bg: '#FEF3E2' },
+    recarga: { icon: <Truck size={13} />, color: '#6D28D9', bg: '#F5F3FF' },
   }
 
   // ── INFORME EN PDF (Cliente o Paciente) ──
@@ -398,12 +367,17 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
           cliente:clientes(nombre),
           paciente:pacientes(nombre),
           equipos:orden_equipos(fecha_entrega, fecha_devolucion, observaciones_devolucion,
-            equipo:equipos(codigo, tipo_equipo:tipos_equipo(nombre, atributos))
+            equipo:equipos(id, codigo, tipo_equipo:tipos_equipo(nombre, atributos))
           )
         `)
         .eq(campoFiltro, seleccionado.id)
         .order('fecha_creacion', { ascending: false })
       if (error) throw error
+      // Recogidas, recargas y cambios de esos préstamos (historial por equipo)
+      const idsOrdenes = (ordenes || []).map(o => o.id)
+      const { data: entregasInf } = idsOrdenes.length
+        ? await supabase.from('entregas').select('id, tipo, modo, fecha_completada, recibido_por, datos, orden_id, estado:estados_entrega(nombre)').in('orden_id', idsOrdenes)
+        : { data: [] }
 
       const { default: jsPDF }       = await import('jspdf')
 
@@ -440,7 +414,7 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
         `<div><div style="font-size:10px;color:#94A3B8">${k}</div><div style="font-size:12.5px;color:#0F172A;margin-top:2px">${v}</div></div>`
       ).join('')
 
-      const inf = armarInforme(ordenes || [], { esCliente })
+      const inf = armarInforme(ordenes || [], { esCliente, entregas: (entregasInf || []).map(e => ({ ...e, orden: { id: e.orden_id } })) })
       const esc = v => String(v ?? '').replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))
       const seccion = t => `<div style="background:#F1F5F9;padding:6px 10px;font-size:10.5px;font-weight:700;color:#334155;letter-spacing:.04em;margin:22px 0 10px">${t}</div>`
       const tabla = (cols, filas) => filas.length === 0
@@ -458,7 +432,7 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
       const timelineHTML = inf.eventos.length === 0
         ? '<div style="font-size:12px;color:#94A3B8">Sin actividad registrada</div>'
         : inf.eventos.map(ev => {
-            const color = ev.tipo === 'prestamo' ? '#0E86A0' : ev.tipo === 'devolucion' ? '#0F7B55' : '#1B3A6B'
+            const color = ev.tipo === 'prestamo' ? '#0E86A0' : ev.tipo === 'devolucion' ? '#0F7B55' : ev.tipo === 'recarga' ? '#6D28D9' : '#1B3A6B'
             return `<div style="display:flex;gap:12px;padding:7px 0;border-bottom:0.5px solid #F1F5F9">
               <div style="width:86px;flex-shrink:0;font-size:11.5px;font-weight:700;color:#64748B">${formatear(ev.fecha)}</div>
               <div style="width:8px;height:8px;border-radius:50%;background:${color};margin-top:4px;flex-shrink:0"></div>
@@ -466,6 +440,14 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
               ${ev.detalle ? `<div style="font-size:11px;color:#64748B;margin-top:2px">${esc(ev.detalle)}</div>` : ''}</div>
             </div>`
           }).join('')
+
+      // Historial por equipo: cada equipo que tuvo, con lo que le pasó en orden
+      const porEquipoHTML = inf.porEquipo.length === 0
+        ? '<div style="font-size:12px;color:#94A3B8">Sin equipos</div>'
+        : inf.porEquipo.map(x => `<div style="padding:8px 0;border-bottom:0.5px solid #F1F5F9">
+            <div style="font-size:12.5px;font-weight:700;color:#0F172A"><span style="font-family:monospace">${esc(x.codigo)}</span> · ${esc(x.tipo)}</div>
+            <div style="margin-top:3px">${x.eventos.map(e => `<div style="font-size:11px;color:#475569;padding:1px 0"><span style="color:#94A3B8;display:inline-block;width:84px">${formatear(e.fecha)}</span>${esc(e.texto)}</div>`).join('')}</div>
+          </div>`).join('')
 
       const html = `
         <div style="max-width:720px;background:#fff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">
@@ -491,6 +473,7 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
             ${seccion('EQUIPOS EN PRÉSTAMO')}${equiposHTML}
             ${esCliente ? seccion('PACIENTES') + pacientesHTML : ''}
             ${seccion('LÍNEA DE TIEMPO')}${timelineHTML}
+            ${seccion('HISTORIAL POR EQUIPO')}${porEquipoHTML}
           </div>
         </div>`
 
@@ -611,6 +594,22 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
     ;(data || []).forEach(oe => { mapa[oe.equipo_id] = { ...oe.orden, ordenEquipoId: oe.id } })
     setOrdenesPorEquipo({ loading: false, mapa })
   }
+
+  // ?cliente=<id> o ?paciente=<id>: abre su detalle (p. ej. al volver de recoger un equipo)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const cid = params.get('cliente'), pid = params.get('paciente')
+    if (!cid && !pid) return
+    window.history.replaceState(null, '', window.location.pathname)
+    const c = cid && clientesIniciales.find(x => x.id === cid)
+    const p = pid && pacientesIniciales.find(x => x.id === pid)
+    const t = setTimeout(() => {
+      if (c) abrirDrawer(c)
+      else if (p) { setTabActiva('pacientes'); abrirDrawerPaciente(p) }
+    }, 0)
+    return () => clearTimeout(t)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   async function exportarExcel() {
     setExportando(true)
@@ -1296,6 +1295,7 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
                     {[
                       { id: 'prestamo', label: 'En préstamo', count: equiposEnPrestamo.length },
                       { id: 'linea', label: 'Línea de tiempo' },
+                      { id: 'equipos', label: 'Por equipo', count: informe.porEquipo.length },
                     ].map(t => (
                       <button key={t.id} onClick={() => setTabHoja(t.id)}
                         className={`px-3 py-2 -mb-px text-[13px] font-semibold border-b-2 whitespace-nowrap transition-colors ${tabHoja === t.id ? 'border-[#D81B43] text-[#D81B43]' : 'border-transparent text-slate-400 hover:text-slate-600'}`}>
@@ -1309,7 +1309,9 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
                       {[0, 1, 2].map(i => <Box key={i} className="h-10 w-full rounded-[9px]" />)}
                     </div>
                   ) : tabHoja === 'prestamo' ? (
-                    <EquiposDelCliente equipos={equiposEnPrestamo} onDevolverVarios={devolverVarios} />
+                    <EquiposDelCliente equipos={equiposEnPrestamo} onAccion={accionVarios} />
+                  ) : tabHoja === 'equipos' ? (
+                    <HistorialPorEquipo equipos={informe.porEquipo} />
                   ) : lineaTiempo.length === 0 ? (
                     <div className="text-center py-10 text-slate-400 text-[13px]">Sin actividad registrada</div>
                   ) : (
@@ -1594,12 +1596,14 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
                                 {ordenesPorEquipo.loading ? <Box className="h-2.5 w-20 inline-block align-middle" /> : null}
                               </div>
                               {orden?.ordenEquipoId && (
-                                <div className="mt-1.5">
-                                  <button type="button"
-                                    onClick={() => abrirModalDevolucion({ ordenEquipoId: orden.ordenEquipoId, equipoId: eq.id, ordenId: orden.id }, 'paciente')}
-                                    className="text-[11.5px] text-[#D81B43] font-semibold hover:underline">
-                                    {esUnico ? 'Finalizar préstamo' : 'Marcar como devuelto'}
-                                  </button>
+                                <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1">
+                                  {[['devolucion', esUnico ? 'Recoger y finalizar' : 'Recoger'], seRecarga(eq.tipo_equipo) && ['recarga', 'Recargar'], ['cambio', 'Cambiar']].filter(Boolean).map(([accion, texto]) => (
+                                    <button key={accion} type="button"
+                                      onClick={() => irAAccion(accion, orden.id, [orden.ordenEquipoId], `/clientes?paciente=${drawerPaciente.id}`)}
+                                      className={`text-[11.5px] font-semibold hover:underline ${accion === 'devolucion' ? 'text-[#D81B43]' : 'text-[#1B3A6B]'}`}>
+                                      {texto}
+                                    </button>
+                                  ))}
                                 </div>
                               )}
                             </div>
@@ -1665,15 +1669,6 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
         tipo="default"
         onConfirmar={() => { setConfirmarSalir(false); cerrarModal() }}
         onCancelar={() => setConfirmarSalir(false)}
-      />
-
-      <ModalDevolucion
-        abierto={!!modalDevolucion}
-        form={formDevolucion}
-        onChangeFecha={v => setFormDevolucion(f => ({ ...f, fecha: v }))}
-        onChangeObservaciones={v => setFormDevolucion(f => ({ ...f, observaciones: v }))}
-        onConfirmar={confirmarDevolucion}
-        onCancelar={() => setModalDevolucion(null)}
       />
 
       {toast && (

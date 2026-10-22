@@ -33,6 +33,13 @@ export function yaPaso(fechaIso) {
 // Día calendario (YYYY-MM-DD) de una fecha con hora (timestamptz), en zona de Colombia.
 // Útil para filtrar/agrupar por día un campo que sí trae hora (ej. fecha_creacion) sin
 // que la conversión a UTC corra el día cerca de la medianoche de Bogotá.
+// Día de Bogotá de una fecha de la BD, sea `date` ("2026-10-21", se deja igual)
+// o timestamptz (se pasa a Colombia). Para ordenar fechas de los dos tipos juntas.
+export function diaLocal(fecha) {
+  if (!fecha) return ''
+  return String(fecha).length <= 10 ? String(fecha) : soloDia(fecha)
+}
+
 export function soloDia(fechaIso) {
   if (!fechaIso) return ''
   return new Date(fechaIso).toLocaleDateString('en-CA', { timeZone: 'America/Bogota' })

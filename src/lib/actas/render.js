@@ -143,11 +143,12 @@ const COLUMNAS_TABLA = {
 
 // Equipos agrupados por tipo: una tabla por categoría (cilindros, reguladores,
 // concentradores…) con solo las columnas que esos equipos traen. Los equipos van
-// primero y los cilindros y reguladores al final.
+// primero y los cilindros y reguladores al final. fuente 'retirados': los que
+// salen en un cambio de equipo (ctx.retirados); si no, los del préstamo.
 const ES_ACCESORIO = /cilindro|regulador/i
 function tablasPorTipo(b, ctx, bi) {
   const grupos = []
-  for (const f of ctx.equipos || []) {
+  for (const f of (b.fuente === 'retirados' ? ctx.retirados : ctx.equipos) || []) {
     const nombre = f.categoria || f.descripcion || 'Equipos'
     const g = grupos.find(x => x.nombre === nombre)
     if (g) g.filas.push(f)

@@ -32,7 +32,7 @@ export const VARIABLES = {
     equipo_codigo: 'Código interno', cilindro_tamano: 'Cilindro: tamaño', cilindro_serie: 'Cilindro: serie',
     regulador_marca: 'Regulador: marca', regulador_serie: 'Regulador: serie',
     otros_equipos: 'Los demás equipos (sin el principal)', equipos_adicionales: 'Equipos que no caben en el recuadro (sin principal, cilindro ni regulador)', equipos_resumen: 'Todos los equipos en una línea', insumos_resumen: 'Todos los insumos en una línea',
-    observaciones: 'Observaciones de la entrega',
+    observaciones: 'Observaciones de la entrega', motivo_cambio: 'Motivo del cambio de equipo',
   },
 }
 
@@ -76,7 +76,8 @@ function edad(fechaNacimiento, hoy) {
 // { empresa, orden: { codigo, diagnostico, cliente, paciente }, equipos: [unidades], datos, firmas }
 // datos = { fecha (ISO), ciudad, recibe: {...}, entrega: {...}, insumos: [...], observaciones, extra: {...} }
 // (lo que se llena al crear el préstamo vive en ordenes_servicio.datos_acta; ver campos.js)
-export function construirContexto({ empresa = {}, orden = {}, equipos = [], datos = {}, firmas = {} }) {
+// retirados: en un cambio de equipo, los que salen (equipos = los que entran)
+export function construirContexto({ empresa = {}, orden = {}, equipos = [], retirados = [], datos = {}, firmas = {} }) {
   const p = orden.paciente || {}
   const c = orden.cliente || {}
   // "Recibe el mismo paciente": nombre y documento salen del paciente
@@ -135,6 +136,7 @@ export function construirContexto({ empresa = {}, orden = {}, equipos = [], dato
     equipos_resumen: filas.map(x => [x.descripcion, x.marca, x.serie && `serie ${x.serie}`].filter(Boolean).join(' ')).join('; '),
     insumos_resumen: insumos.map(i => [i.cantidad, i.descripcion].filter(Boolean).join(' ')).join(', '),
     observaciones: t(datos.observaciones),
+    motivo_cambio: t(datos.motivo),
   }
 
   // Lo que la persona escribió encima de lo automático (datos_acta.valores)
@@ -145,7 +147,7 @@ export function construirContexto({ empresa = {}, orden = {}, equipos = [], dato
   const todas = { ...firmas, [esResponsable ? 'responsable' : 'paciente']: firmas.recibe }
   // manuales: renglones en blanco de cada plantilla ({ plantilla_id: { 'bloque.campo': valor } });
   // quien pinta una plantilla pasa los suyos como ctx.manuales (ver conManuales)
-  return { variables, equipos: filas, insumos, firmas: todas, manualesPorPlantilla: datos.manuales || {} }
+  return { variables, equipos: filas, retirados: retirados.map(filaEquipo), insumos, firmas: todas, manualesPorPlantilla: datos.manuales || {} }
 }
 
 // Contexto para pintar una plantilla con sus renglones en blanco llenos

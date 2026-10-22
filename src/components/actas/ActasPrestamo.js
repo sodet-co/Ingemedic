@@ -10,6 +10,7 @@ import PreviaActas from './PreviaActas'
 import LlenarFormatos, { VentanaLlenarFormatos } from './LlenarFormatos'
 import { leerDatosActa, camposPedidos, camposVacios } from '@/lib/actas/campos'
 import { ui } from '@/lib/ui'
+import { ACCIONES } from '@/lib/actas/acciones'
 
 const CAMPOS_PACIENTE = ['cedula', 'tipo_documento', 'direccion', 'barrio', 'ciudad', 'telefono', 'correo', 'eps', 'fecha_nacimiento']
 
@@ -19,6 +20,7 @@ const CAMPOS_PACIENTE = ['cedula', 'tipo_documento', 'direccion', 'barrio', 'ciu
 //    listan los formatos que se relacionaron al crear el préstamo y se descargan
 //    llenos con los datos del préstamo y las firmas en blanco. "Llenar datos"
 //    se llenan mirando la hoja (LlenarFormatos) y se guarda en el préstamo.
+//  - Debajo, las de las recogidas, recargas y cambios (actas.accion), con su fecha.
 export default function ActasPrestamo({ ordenId, ordenCodigo, onToast }) {
   const supabase = useMemo(() => createClient(), [])
   const [actas, setActas] = useState(null)
@@ -32,12 +34,13 @@ export default function ActasPrestamo({ ordenId, ordenCodigo, onToast }) {
 
   const cargar = useCallback(async () => {
     const [{ data: firmadas }, { data: orden }] = await Promise.all([
-      supabase.from('actas').select('id, nombre, fecha_firma, bloques, datos, firma_recibe, firma_entrega')
+      supabase.from('actas').select('id, nombre, accion, fecha_firma, bloques, datos, firma_recibe, firma_entrega')
         .eq('orden_id', ordenId).order('fecha_firma'),
       supabase.from('ordenes_servicio').select('plantillas_acta').eq('id', ordenId).single(),
     ])
     setActas(firmadas || [])
-    if (!firmadas?.length && orden?.plantillas_acta?.length) {
+    const delPrestamo = (firmadas || []).filter(a => (a.accion || 'prestamo') === 'prestamo')
+    if (!delPrestamo.length && orden?.plantillas_acta?.length) {
       try {
         const b = await cargarParaFirma(supabase, ordenId)
         setBase(b)
@@ -51,12 +54,14 @@ export default function ActasPrestamo({ ordenId, ordenCodigo, onToast }) {
   // Filas listas para pintar: las firmadas tal cual; los formatos sin firmar se
   // llenan con lo que ya se sabe del préstamo y las firmas en blanco
   async function filasParaPintar() {
-    if (actas.length) return actas
+    const otras = actas.filter(a => (a.accion || 'prestamo') !== 'prestamo')
+    const delPrestamo = actas.filter(a => (a.accion || 'prestamo') === 'prestamo')
+    if (delPrestamo.length || !base) return [...delPrestamo, ...otras]
     const ctx = construirContexto({
       empresa: base.empresa, orden: base.orden, equipos: base.equipos,
       datos: leerDatosActa(base.orden.datos_acta), firmas: {},
     })
-    return base.plantillas.map(p => ({ id: p.id, nombre: p.nombre, bloques: p.bloques, datos: conManuales(ctx, p.id), firma_recibe: null, firma_entrega: null }))
+    return [...base.plantillas.map(p => ({ id: p.id, nombre: p.nombre, bloques: p.bloques, datos: conManuales(ctx, p.id), firma_recibe: null, firma_entrega: null })), ...otras]
   }
 
   async function ver(i = 0) {
@@ -110,15 +115,18 @@ export default function ActasPrestamo({ ordenId, ordenCodigo, onToast }) {
 
   if (actas === null) return <div className="flex items-center gap-2 text-[12.5px] text-slate-400"><Loader2 size={13} className="animate-spin" /> Cargando actas…</div>
 
-  const firmadas = actas.length > 0
-  const lista = firmadas ? actas : formatos
+  const delPrestamo = actas.filter(a => (a.accion || 'prestamo') === 'prestamo')
+  const otras = actas.filter(a => (a.accion || 'prestamo') !== 'prestamo')
+  const firmadas = delPrestamo.length > 0
+  const lista = [...(firmadas ? delPrestamo : formatos), ...otras]
+  const esOtra = a => (a.accion || 'prestamo') !== 'prestamo'
   return (
     <div>
       {lista.length === 0 ? (
         <div className="text-[12.5px] text-slate-400">Sin formatos relacionados.</div>
       ) : (
         <>
-          {!firmadas && (
+          {!firmadas && formatos.length > 0 && (
             <div className="flex items-center gap-2 mb-2 text-[11.5px]">
               <span className="text-slate-400">Sin firmar</span>
               {pedidos && (faltan > 0
@@ -129,11 +137,12 @@ export default function ActasPrestamo({ ordenId, ordenCodigo, onToast }) {
           <div className="space-y-1.5">
             {lista.map((a, i) => (
               <div key={a.id} className="flex items-center gap-2 text-[13px] text-slate-700">
-                <FileText size={13} className={`flex-shrink-0 ${firmadas ? 'text-[#D81B43]' : 'text-slate-400'}`} />
+                <FileText size={13} className={`flex-shrink-0 ${firmadas || esOtra(a) ? 'text-[#D81B43]' : 'text-slate-400'}`} />
+                {esOtra(a) && <span className="px-1.5 rounded-full text-[10.5px] font-semibold bg-[#2EB5D4]/12 text-[#0E7490] flex-shrink-0">{ACCIONES[a.accion]}</span>}
                 <button type="button" onClick={() => ver(i)} disabled={preparando}
                   className="flex-1 min-w-0 truncate text-left hover:text-[#1B3A6B] hover:underline">{a.nombre}</button>
-                {firmadas
-                  ? <span className="text-[11px] text-slate-400 flex-shrink-0">{formatear(a.fecha_firma, { year: undefined })}</span>
+                {firmadas || esOtra(a)
+                  ? <span className="text-[11px] text-slate-400 flex-shrink-0">{a.firma_recibe ? '' : 'Sin firmas · '}{formatear(a.fecha_firma, { year: undefined })}</span>
                   : <span className="text-[11px] text-slate-400 flex-shrink-0">Pendiente</span>}
               </div>
             ))}
@@ -151,7 +160,7 @@ export default function ActasPrestamo({ ordenId, ordenCodigo, onToast }) {
           <button onClick={() => ver(0)} disabled={preparando}
             className="flex items-center gap-1.5 px-3 py-2 bg-white border border-slate-200 text-slate-700 rounded-[8px] text-[12.5px] font-semibold hover:border-slate-300 disabled:opacity-60">
             {preparando ? <Loader2 size={13} className="animate-spin" /> : <Eye size={13} />}
-            {firmadas ? 'Ver actas' : 'Ver formatos'}
+            {firmadas || otras.length ? 'Ver actas' : 'Ver formatos'}
           </button>
           <button onClick={() => descargar()} disabled={descargando}
             className="flex items-center gap-1.5 px-3 py-2 bg-[#1B3A6B] text-white rounded-[8px] text-[12.5px] font-semibold hover:bg-[#152D54] disabled:opacity-60">

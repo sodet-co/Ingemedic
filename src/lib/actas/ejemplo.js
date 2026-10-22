@@ -20,11 +20,13 @@ export function contextoEjemplo(empresa = {}) {
       { codigo: 'RL0002', atributos: { serie: 'BX000456' }, tipo_equipo: { nombre: 'Cilindro 3.5 M3', atributos: { nombre: 'Cilindro de Oxígeno' }, categoria: { nombre: 'Cilindros de Oxígeno' } } },
     ],
     datos: {
-      ciudad: 'Valledupar', observaciones: 'Equipo en óptimas condiciones, se capacita en su manejo.',
+      ciudad: 'Valledupar', motivo: 'Cilindro vacío', observaciones: 'Equipo en óptimas condiciones, se capacita en su manejo.',
       recibe: { nombre: 'JUAN EJEMPLO PÉREZ', documento: '87654321', parentesco: 'Hijo', telefono: '3017654321', correo: 'juan@ejemplo.com' },
       entrega: { nombre: 'Técnico de ejemplo', cargo: 'Biomédico', documento: '11111111' },
       insumos: [{ descripcion: 'Máscara oronasal talla M', cantidad: 1, lote: 'L-0001', invima: '2020DM-0000000' }],
     },
+    // Para ver las plantillas de cambio de equipo: el que sale
+    retirados: [{ codigo: 'RL0003', atributos: { serie: 'BX000999' }, tipo_equipo: { nombre: 'Cilindro 3.5 M3', atributos: { nombre: 'Cilindro de Oxígeno' }, categoria: { nombre: 'Cilindros de Oxígeno' } } }],
     firmas: { recibe: firma('#1B3A6B'), entrega: firma('#333') },
   })
 }

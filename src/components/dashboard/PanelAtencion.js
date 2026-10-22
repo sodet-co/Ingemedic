@@ -5,11 +5,9 @@ import { createClient } from '@/lib/supabase'
 import { useUsuarioActual } from '@/lib/usuario-context'
 import { REGLAS_ATENCION, clavePospuesto } from '@/lib/atencion'
 import { diasParaVencer } from '@/lib/vigencia'
-import { devolverEquipo as devolverEquipoLib } from '@/lib/prestamos'
 import { registrarBitacora } from '@/lib/bitacora'
 import { hoyBogota, sumarDias, formatearSoloFecha, paraGuardar } from '@/lib/fechas'
-import ModalDevolucion from '@/components/entregas/ModalDevolucion'
-import { AlertTriangle, Clock, ChevronRight, CheckCircle2, Calendar, Timer, X } from 'lucide-react'
+import { AlertTriangle, Clock, ChevronRight, CheckCircle2, Calendar, Timer, X, RefreshCw } from 'lucide-react'
 
 // A partir de este número de ítems, la regla se colapsa a una sola línea
 // con el conteo — pintar uno por uno deja de ser navegable y el detalle
@@ -44,8 +42,6 @@ export default function PanelAtencion({ reglas, abierto, onCerrar }) {
   const { usuario } = useUsuarioActual()
 
   const [detalles, setDetalles]               = useState({})
-  const [modalDevolucion, setModalDevolucion]  = useState(null)
-  const [formDevolucion, setFormDevolucion]    = useState({ fecha: '', observaciones: '' })
   const [accionAbierta, setAccionAbierta]      = useState(null) // "<ordenId>:extender" | "<ordenId>:posponer"
   const [nuevaFecha, setNuevaFecha]            = useState('')
   const [guardando, setGuardando]              = useState(false)
@@ -97,40 +93,11 @@ export default function PanelAtencion({ reglas, abierto, onCerrar }) {
     setDetalles(d => ({ ...d, [reglaId]: (d[reglaId] || []).filter(o => o.id !== ordenId) }))
   }
 
-  function abrirRecoger(orden, oe) {
-    setModalDevolucion({ ordenId: orden.id, reglaId: orden._reglaId, ordenEquipoId: oe.id, equipoId: oe.equipo_id || oe.equipo?.id })
-    setFormDevolucion({ fecha: hoyBogota(), observaciones: '' })
-  }
-
-  async function confirmarRecoger() {
-    const { ordenId, reglaId, ordenEquipoId, equipoId } = modalDevolucion
-    setGuardando(true)
-    const { error } = await devolverEquipoLib({
-      supabase, ordenEquipoId, equipoId, ordenId,
-      fechaDevolucion: formDevolucion.fecha, observaciones: formDevolucion.observaciones,
-    })
-    setGuardando(false)
-    setModalDevolucion(null)
-    if (error) return
-    quitarItemLocal(reglaId, ordenId)
-    router.refresh()
-  }
-
-  // Para órdenes con muchos equipos pendientes (ver UMBRAL_RECOGER_INDIVIDUAL):
-  // un solo botón que los marca todos devueltos hoy, sin observaciones —
-  // para anotar algo puntual por equipo sigue estando el flujo normal de
-  // Préstamos, esto es el atajo rápido desde el panel.
-  async function recogerTodos(reglaId, orden, pendientes) {
-    setGuardando(true)
-    for (const oe of pendientes) {
-      await devolverEquipoLib({
-        supabase, ordenEquipoId: oe.id, equipoId: oe.equipo_id || oe.equipo?.id, ordenId: orden.id,
-        fechaDevolucion: hoyBogota(), observaciones: null,
-      })
-    }
-    setGuardando(false)
-    quitarItemLocal(reglaId, orden.id)
-    router.refresh()
+  // Recoger y recargar van con acta, en el asistente de Préstamos
+  // (components/prestamos/AccionPrestamo.js)
+  function irAAccion(accion, orden, oes = []) {
+    const q = new URLSearchParams({ abrir: orden.id, accion, equipos: oes.map(oe => oe.id).join(',') })
+    window.location.assign(`/ordenes?${q}`)
   }
 
   async function extender(reglaId, orden) {
@@ -237,6 +204,43 @@ export default function PanelAtencion({ reglas, abierto, onCerrar }) {
                     const etiquetaDias = dias === null ? '' : dias < 0 ? `Venció hace ${Math.abs(dias)}d` : dias === 0 ? 'Vence hoy' : `Vence en ${dias}d`
                     const claveAccion = `${orden.id}`
 
+                    if (r.id === 'recargas_pendientes') {
+                      return (
+                        <div key={orden.id} className="p-3 border border-slate-100 rounded-lg">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-mono text-[12px] font-bold text-slate-700">{orden.codigo}</span>
+                            <span className="text-[11px] font-semibold" style={{ color: estilo.texto }}>Toca el {formatearSoloFecha(orden._proxima?.slice(0, 10))}</span>
+                          </div>
+                          <div className="text-[12.5px] text-slate-600 mt-0.5 truncate">
+                            {orden.cliente?.nombre}
+                            {orden.paciente?.nombre && <span className="text-slate-400"> · {orden.paciente.nombre}</span>}
+                          </div>
+                          <div className="text-[11.5px] text-slate-400">Recarga cada {orden.recarga_cada_dias} días</div>
+                          <div className="flex items-center gap-3 mt-2.5">
+                            <button type="button" onClick={() => irAAccion('recarga', orden)}
+                              className="flex items-center gap-1 text-[11.5px] font-semibold text-[#0E86A0] hover:underline">
+                              <RefreshCw size={12} /> Programar recarga
+                            </button>
+                            <button type="button"
+                              onClick={() => setAccionAbierta(a => a === `${claveAccion}:posponer` ? null : `${claveAccion}:posponer`)}
+                              className="flex items-center gap-1 text-[11.5px] font-semibold text-slate-500 hover:underline">
+                              <Timer size={12} /> Posponer
+                            </button>
+                          </div>
+                          {accionAbierta === `${claveAccion}:posponer` && (
+                            <div className="flex items-center gap-1.5 mt-2 bg-slate-50 border border-slate-200 rounded-[9px] p-2">
+                              {DIAS_POSPONER.map(d => (
+                                <button key={d} type="button" disabled={guardando} onClick={() => posponer(r.id, orden, d)}
+                                  className="flex-1 py-1.5 bg-white border border-slate-200 rounded-[7px] text-[11.5px] font-medium text-slate-600 hover:border-[#D81B43] hover:text-[#D81B43] disabled:opacity-50">
+                                  {d}d
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )
+                    }
+
                     return (
                       <div key={orden.id} className="p-3 border border-slate-100 rounded-lg" data-testid={`atencion-item-${orden.id}`}>
                         <div className="flex items-center justify-between gap-2">
@@ -252,17 +256,17 @@ export default function PanelAtencion({ reglas, abierto, onCerrar }) {
                           pendientes.length > UMBRAL_RECOGER_INDIVIDUAL ? (
                             <div className="mt-2">
                               <button type="button" disabled={guardando}
-                                onClick={() => recogerTodos(r.id, orden, pendientes)}
+                                onClick={() => irAAccion('devolucion', orden, pendientes)}
                                 className="inline-flex items-center gap-1 text-[11px] font-medium text-[#0F7B55] bg-[#ECFDF5] border border-[#0F7B55]/30 rounded-full px-2.5 py-1 hover:bg-[#D1FAE5] transition-colors disabled:opacity-50">
                                 <CheckCircle2 size={11} />
-                                Marcar los {pendientes.length} equipos como devueltos
+                                Recoger los {pendientes.length} equipos
                               </button>
                             </div>
                           ) : (
                             <div className="flex flex-wrap gap-1.5 mt-2">
                               {pendientes.map(oe => (
                                 <button key={oe.id} type="button"
-                                  onClick={() => abrirRecoger({ ...orden, _reglaId: r.id }, oe)}
+                                  onClick={() => irAAccion('devolucion', orden, [oe])}
                                   className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-600 bg-slate-50 border border-slate-200 rounded-full px-2 py-1 hover:border-[#0F7B55] hover:text-[#0F7B55] transition-colors">
                                   <CheckCircle2 size={11} />
                                   {nombreEquipo(oe.equipo)} · {oe.equipo?.codigo}
@@ -318,14 +322,6 @@ export default function PanelAtencion({ reglas, abierto, onCerrar }) {
         </div>
       </div>
 
-      <ModalDevolucion
-        abierto={!!modalDevolucion}
-        form={formDevolucion}
-        onChangeFecha={fecha => setFormDevolucion(f => ({ ...f, fecha }))}
-        onChangeObservaciones={observaciones => setFormDevolucion(f => ({ ...f, observaciones }))}
-        onConfirmar={confirmarRecoger}
-        onCancelar={() => setModalDevolucion(null)}
-      />
     </>
   )
 }
