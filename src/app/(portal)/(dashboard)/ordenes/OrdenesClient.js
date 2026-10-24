@@ -375,6 +375,12 @@ export default function OrdenesClient({
     let errorLiberar = null
     if (transicion.nombre === 'Finalizada') {
       ;({ error: errorLiberar } = await cerrarEquiposAbiertos({ supabase, ordenId: orden.id, nota: 'Préstamo finalizado' }))
+      // Lo que quedó programado (recogidas, recargas, cambios) ya no aplica; en
+      // un cambio esto libera el equipo nuevo que estaba reservado
+      for (const v of (orden.visitas || []).filter(v => v.tipo !== 'entrega' && !['Completada', 'Cancelada'].includes(v.estado?.nombre))) {
+        const { error } = await cancelarAccion(supabase, v)
+        if (error && !errorLiberar) errorLiberar = error
+      }
     }
 
     const nuevoEstado = { id: transicion.id, nombre: transicion.nombre }
@@ -904,10 +910,11 @@ export default function OrdenesClient({
                           <CheckCircle2 size={13} /> Finalizar préstamo
                         </button>
                       )}
-                      {transicion && !esUnicoEquipo && (
+                      {/* Finalizar sin acta: siempre que esté entregado, tenga uno o varios equipos */}
+                      {transicion && (
                         <button onClick={() => setModalConfirm({ orden: drawer, transicion })}
                           className="flex items-center gap-1.5 px-3 py-1.5 bg-[#D81B43] text-white text-[12px] font-semibold rounded-[7px] hover:bg-[#B0172F]">
-                          → {transicion.nombre}
+                          <CheckCircle2 size={13} /> Finalizar préstamo
                         </button>
                       )}
                       {drawerEstado === 'En reparto' && (
@@ -1311,11 +1318,11 @@ export default function OrdenesClient({
       {/* ── CONFIRMACIÓN CAMBIO DE ESTADO ── */}
       <ConfirmDialog
         abierto={!!modalConfirm}
-        titulo={modalConfirm ? `Pasar ${modalConfirm.orden.codigo} a ${modalConfirm.transicion.nombre}` : ''}
+        titulo={modalConfirm ? (modalConfirm.transicion.nombre === 'Finalizada' ? `Finalizar ${modalConfirm.orden.codigo}` : `Pasar ${modalConfirm.orden.codigo} a ${modalConfirm.transicion.nombre}`) : ''}
         mensaje={modalConfirm?.transicion.nombre === 'Finalizada'
-          ? 'Los equipos que siguen en el préstamo se marcan como devueltos y quedan disponibles.'
+          ? 'Sin acta ni firmas. Los equipos que siguen en el préstamo se marcan como devueltos y quedan disponibles, y se cancela lo que estaba programado.'
           : `${modalConfirm?.orden.estado?.nombre || ''} → ${modalConfirm?.transicion.nombre || ''}`}
-        textoConfirmar={modalConfirm ? `Sí, ${modalConfirm.transicion.nombre.toLowerCase()}` : 'Confirmar'}
+        textoConfirmar={modalConfirm ? (modalConfirm.transicion.nombre === 'Finalizada' ? 'Sí, finalizar' : `Sí, ${modalConfirm.transicion.nombre.toLowerCase()}`) : 'Confirmar'}
         onConfirmar={() => avanzarEstado(modalConfirm.orden, modalConfirm.transicion)}
         onCancelar={() => setModalConfirm(null)}
       />

@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Manual de usuario · Portal Ingemedic</title>
+<!-- Fuente del manual. Para el PDF: node docs/manual/generar-pdf.cjs (ver ese archivo). -->
+<style>
+  @page { size: A4; margin: 18mm 16mm 20mm; }
+  * { box-sizing: border-box; }
+  body { font-family: Arial, Helvetica, sans-serif; color: #1E293B; font-size: 10.5pt; line-height: 1.5; margin: 0; }
+  h1, h2, h3, h4 { color: #1B3A6B; line-height: 1.25; }
+  h2.parte { page-break-before: always; font-size: 22pt; margin: 0 0 4mm; padding-bottom: 3mm; border-bottom: 3px solid #D81B43; }
+  h2.parte small { display: block; font-size: 10.5pt; color: #64748B; font-weight: normal; margin-top: 2mm; }
+  h3 { font-size: 14pt; margin: 9mm 0 2mm; page-break-after: avoid; }
+  h4 { font-size: 11pt; margin: 5mm 0 1.5mm; color: #0F172A; page-break-after: avoid; }
+  p { margin: 1.5mm 0; }
+  ol, ul { margin: 1.5mm 0 2mm; padding-left: 6mm; }
+  li { margin: 0.8mm 0; }
+  b, strong { color: #0F172A; }
+  .boton { display: inline-block; padding: 0 2mm; border: 1px solid #CBD5E1; border-radius: 3px; background: #F8FAFC; font-size: 9.5pt; white-space: nowrap; }
+  .nota { border-left: 3px solid #2EB5D4; background: #F0FAFD; padding: 2mm 3.5mm; margin: 2.5mm 0; border-radius: 0 3px 3px 0; page-break-inside: avoid; }
+  .ojo { border-left: 3px solid #B45309; background: #FFFBEB; padding: 2mm 3.5mm; margin: 2.5mm 0; border-radius: 0 3px 3px 0; page-break-inside: avoid; }
+  .nota b:first-child, .ojo b:first-child { display: block; margin-bottom: 0.5mm; }
+  table { width: 100%; border-collapse: collapse; margin: 2mm 0 3mm; font-size: 9.5pt; page-break-inside: avoid; }
+  th { background: #1B3A6B; color: #fff; text-align: left; padding: 1.6mm 2.2mm; font-weight: bold; }
+  td { border-bottom: 1px solid #E2E8F0; padding: 1.6mm 2.2mm; vertical-align: top; }
+  tr:nth-child(even) td { background: #F8FAFC; }
+  .chip { display: inline-block; padding: 0 2mm; border-radius: 8px; font-size: 8.5pt; font-weight: bold; }
+  .gris { background: #F1F5F9; color: #475569; } .cian { background: #E8F7FB; color: #0E86A0; } .verde { background: #E7F6EF; color: #0F7B55; }
+  .ambar { background: #FEF3E2; color: #B45309; } .rojo { background: #FEF2F2; color: #D81B43; } .morado { background: #F5F3FF; color: #6D28D9; }
+  .portada { height: 250mm; display: flex; flex-direction: column; justify-content: center; }
+  .portada .marca { font-size: 11pt; letter-spacing: .2em; color: #D81B43; font-weight: bold; }
+  .portada h1 { font-size: 34pt; margin: 4mm 0 3mm; }
+  .portada .sub { font-size: 13pt; color: #475569; max-width: 140mm; }
+  .portada .roles { margin-top: 14mm; display: flex; gap: 4mm; }
+  .portada .roles div { flex: 1; border: 1px solid #E2E8F0; border-top: 4px solid #1B3A6B; border-radius: 4px; padding: 3mm 4mm; font-size: 9.5pt; color: #475569; }
+  .portada .roles b { display: block; font-size: 11pt; color: #1B3A6B; margin-bottom: 1mm; }
+  .portada .pie { margin-top: auto; font-size: 9pt; color: #94A3B8; }
+  .indice { page-break-before: always; }
+  .indice h2 { font-size: 18pt; border-bottom: 3px solid #D81B43; padding-bottom: 2mm; }
+  .indice ol { font-size: 10.5pt; } .indice > ol > li { margin-top: 2.5mm; font-weight: bold; color: #1B3A6B; }
+  .indice ol ol { font-weight: normal; color: #334155; columns: 2; column-gap: 8mm; }
+  .pasos { counter-reset: paso; list-style: none; padding-left: 0; }
+  .pasos > li { counter-increment: paso; position: relative; padding-left: 8mm; margin: 1.6mm 0; }
+  .pasos > li::before { content: counter(paso); position: absolute; left: 0; top: 0.3mm; width: 5mm; height: 5mm; border-radius: 50%; background: #1B3A6B; color: #fff; font-size: 8pt; font-weight: bold; text-align: center; line-height: 5mm; }
+  .captura { margin: 3mm 0 5mm; text-align: center; break-inside: avoid; }
+  .captura img { max-width: 100%; max-height: 105mm; border: 1px solid #E2E8F0; border-radius: 2mm; }
+  .captura.celular img { max-height: 120mm; }
+  .captura figcaption { font-size: 8.5pt; color: #64748B; margin-top: 1.5mm; }
+  .pareja { display: flex; justify-content: center; gap: 8mm; break-inside: avoid; }
+  .pareja .captura { margin: 3mm 0 5mm; }
+</style>
+</head>
+<body>
+
+<!-- ═══════════ PORTADA ═══════════ -->
+<section class="portada">
+  <div class="marca">INGEMEDIC DE COLOMBIA S.A.S.</div>
+  <h1>Manual de usuario<br>del portal</h1>
+  <div class="sub">Cómo prestar, entregar, recoger, recargar y cambiar equipos biomédicos, y cómo llevar clientes, inventario y formatos.</div>
+  <div class="roles">
+    <div><b>Parte 1 · Oficina</b>Préstamos, entregas, clientes e inventario.</div>
+    <div><b>Parte 2 · Repartidor</b>Entregas, recogidas, recargas y cambios desde el celular.</div>
+    <div><b>Parte 3 · Administración</b>Usuarios, equipos, plantillas de actas y ajustes.</div>
+  </div>
+  <div class="pie">portal.ingemedic.com.co · Versión de octubre de 2026</div>
+</section>
+
+<!-- ═══════════ ÍNDICE ═══════════ -->
+<section class="indice">
+  <h2>Contenido</h2>
+  <ol>
+    <li>Antes de empezar
+      <ol><li>Entrar al portal</li><li>El menú y la ayuda</li><li>Avisos y novedades</li><li>Modo oscuro</li></ol></li>
+    <li>Parte 1 · Oficina
+      <ol><li>Dashboard y avisos</li><li>Inventario</li><li>Préstamos: crear uno</li><li>Llenar los formatos</li><li>El detalle de un préstamo</li><li>Recoger, recargar y cambiar</li><li>Recarga periódica</li><li>Entregas</li><li>Clientes y pacientes</li><li>Bitácora</li></ol></li>
+    <li>Parte 2 · Repartidor
+      <ol><li>Tu lista del día</li><li>Iniciar una visita</li><li>Registrar y firmar</li><li>Tipos de visita</li><li>Descargar el acta</li><li>Tu perfil</li></ol></li>
+    <li>Parte 3 · Administración
+      <ol><li>Usuarios y roles</li><li>Acceso de clientes</li><li>Categorías y tipos</li><li>Datos de la empresa y logos</li><li>Plantillas de actas</li><li>Cargue masivo</li><li>Preferencias</li></ol></li>
+    <li>Anexos
+      <ol><li>Estados</li><li>Preguntas frecuentes</li></ol></li>
+  </ol>
+</section>
+
+<!-- ═══════════ ANTES DE EMPEZAR ═══════════ -->
+<h2 class="parte">Antes de empezar<small>Para todos los usuarios</small></h2>
+
+<h3>Entrar al portal</h3>
+<ol class="pasos">
+  <li>Abre <b>portal.ingemedic.com.co</b> en el computador o en el celular.</li>
+  <li>Escribe tu correo y tu contraseña. Si no tienes cuenta, pídesela a administración.</li>
+  <li>Entras al <b>Dashboard</b> (oficina) o a sus <b>Entregas</b> (repartidor).</li>
+</ol>
+<figure class="captura"><img src="capturas/web/login.jpg" alt="La pantalla para entrar al portal."><figcaption>La pantalla para entrar al portal.</figcaption></figure>
+<div class="nota"><b>La sesión dura 8 horas.</b> Después el portal te pide entrar de nuevo. Si usas un computador compartido, cierra sesión al terminar (menú → <span class="boton">Cerrar sesión</span>).</div>
+
+<h3>El menú y la ayuda</h3>
+<p>A la izquierda está el menú con los módulos. En el celular, el menú está abajo. Solo ves los módulos que tu rol tiene permitidos.</p>
+<figure class="captura celular"><img src="capturas/web/celular-dashboard.jpg" alt="En el celular el menú está abajo; desliza para ver más módulos."><figcaption>En el celular el menú está abajo; desliza para ver más módulos.</figcaption></figure>
+<p>Cada módulo tiene un botón <span class="boton">?</span> arriba con una guía corta de lo que se hace ahí.</p>
+
+<h3>Avisos y novedades</h3>
+<ul>
+  <li><b>Avisos</b>: al entrar, el portal te muestra lo que requiere atención: préstamos vencidos o por vencer y recargas por hacer. También salen en la franja de arriba.</li>
+  <li><b>Novedades</b>: cuando el sistema tiene funciones nuevas, aparecen en el buzón de novedades del encabezado.</li>
+</ul>
+
+<h3>Modo oscuro</h3>
+<p>Desde tu perfil o en Configuración → <b>Preferencias</b> eliges modo claro, oscuro o automático (según el celular o computador). La preferencia te sigue en cualquier dispositivo.</p>
+
+<!-- ═══════════ PARTE 1 · OFICINA ═══════════ -->
+<h2 class="parte">Parte 1 · Oficina<small>Préstamos, entregas, clientes e inventario</small></h2>
+
+<h3>Dashboard y avisos</h3>
+<p>El Dashboard resume el inventario y los préstamos:</p>
+<ul>
+  <li>Cuántos equipos hay en cada estado (disponibles, reservados, en préstamo…).</li>
+  <li>Los clientes con más equipos y en qué municipios del Cesar están.</li>
+  <li>Las últimas órdenes y la actividad reciente.</li>
+</ul>
+<figure class="captura"><img src="capturas/web/dashboard.jpg" alt="El Dashboard: equipos por estado, clientes con más equipos y municipios."><figcaption>El Dashboard: equipos por estado, clientes con más equipos y municipios.</figcaption></figure>
+<p>La ventana <b>Esto requiere tu atención</b> se abre una vez por sesión cuando hay pendientes:</p>
+<table>
+  <tr><th>Aviso</th><th>Qué puedes hacer ahí</th></tr>
+  <tr><td>Préstamos vencidos / por vencer</td><td><span class="boton">Recoger</span> un equipo (abre el préstamo para recogerlo con acta), <span class="boton">Extender</span> la vigencia o <span class="boton">Posponer</span> el aviso 3, 7 o 30 días.</td></tr>
+  <tr><td>Recargas por hacer</td><td><span class="boton">Programar recarga</span> (abre el préstamo en el paso de recarga) o <span class="boton">Posponer</span>.</td></tr>
+</table>
+
+<h3>Inventario</h3>
+<p>Los equipos están organizados por <b>categoría</b> (p. ej. Cilindros de Oxígeno) y <b>tipo</b> (p. ej. Cilindro 5.7 M3). Cada equipo físico es una <b>unidad</b> con su código de inventario (RL975…).</p>
+<figure class="captura"><img src="capturas/web/inventario.jpg" alt="Inventario: las categorías con sus tipos y unidades."><figcaption>Inventario: las categorías con sus tipos y unidades.</figcaption></figure>
+<h4>Buscar un equipo</h4>
+<ol class="pasos">
+  <li>Entra a la categoría y al tipo, o escribe el código en el buscador.</li>
+  <li>Toca el equipo para ver su <b>hoja de vida</b>: datos, estado, a quién está prestado y su línea de tiempo.</li>
+  <li>Desde la hoja de vida puedes descargarla en PDF o exportar el inventario a Excel.</li>
+</ol>
+<h4>Registrar equipos nuevos</h4>
+<ol class="pasos">
+  <li>Entra al tipo y toca <span class="boton">Nueva unidad</span>.</li>
+  <li>Escribe el código de inventario (el sistema sugiere el siguiente y avisa si ya existe), la serie y los demás datos.</li>
+  <li>Guarda. El equipo queda <span class="chip verde">Disponible</span>.</li>
+</ol>
+<p>Si el tipo no existe, créalo con <span class="boton">Nuevo tipo</span> dentro de la categoría.</p>
+<div class="ojo"><b>El estado del equipo no se cambia a mano.</b> Cambia solo: con un préstamo pasa a <i>Reservado</i> o <i>En préstamo</i>; al recogerlo vuelve a <i>Disponible</i>.</div>
+
+<h3>Préstamos: crear uno</h3>
+<figure class="captura"><img src="capturas/web/prestamos.jpg" alt="La lista de préstamos, con el buscador y los filtros."><figcaption>La lista de préstamos, con el buscador y los filtros.</figcaption></figure>
+<p>Toca <span class="boton">Nuevo préstamo</span>. El asistente tiene 5 pasos y guarda un borrador: si sales, lo retomas después.</p>
+<ol class="pasos">
+  <li><b>Cliente y paciente.</b> Elige el cliente (los más usados salen primero). Busca el paciente por nombre o cédula, o crea uno nuevo. Si el préstamo es para una institución, marca <i>Sin paciente</i>. La dirección es obligatoria.</li>
+  <li><b>Equipos.</b> Agrega los equipos disponibles: por categoría y tipo, o buscando el código.</li>
+  <li><b>Entrega.</b> Elige <b>En oficina</b> (el equipo sale ya, con fecha) o <b>A domicilio</b> (repartidor y fecha y hora). Define la vigencia del préstamo si tiene fecha de fin.</li>
+  <li><b>Formatos.</b> Vienen marcados los formatos del cliente (o el de Ingemedic). Toca <span class="boton">Llenar formatos</span> para completar los datos mirando la hoja (ver la sección siguiente).</li>
+  <li><b>Confirmación.</b> Revisa el resumen y, si quieres, <span class="boton">Ver cómo quedan</span>. Toca <span class="boton">Crear préstamo</span>.</li>
+</ol>
+<div class="nota"><b>En oficina o a domicilio.</b> En oficina el préstamo queda <span class="chip cian">Entregada</span> de una vez y sus formatos quedan listos para descargar e imprimir. A domicilio queda <span class="chip gris">Programada</span> y aparece en la lista del repartidor, que recoge las firmas al entregar.</div>
+
+<figure class="captura"><img src="capturas/web/prestamo-nuevo.jpg" alt="Paso 1 del asistente: cliente y paciente."><figcaption>Paso 1 del asistente: cliente y paciente.</figcaption></figure>
+<h3>Llenar los formatos</h3>
+<p>La ventana grande muestra la hoja a la izquierda y los campos a la derecha. En el celular cambias entre <b>Campos</b> y <b>Ver hoja</b>.</p>
+<ul>
+  <li>Arriba hay una pestaña por formato, con cuántos datos le faltan.</li>
+  <li>Toca un campo y se resalta su lugar en la hoja; toca un espacio en la hoja y te lleva a su campo.</li>
+  <li>Los espacios en <span class="chip ambar">ámbar</span> están vacíos. Llena lo que aplique: lo demás queda en blanco para llenarlo a mano.</li>
+  <li>Lo que es del paciente (cédula, EPS, barrio…) queda guardado en el paciente para la próxima vez.</li>
+  <li>Las firmas no se llenan aquí: las recoge el repartidor o se firman en oficina.</li>
+</ul>
+
+<h3>El detalle de un préstamo</h3>
+<p>En <b>Préstamos</b>, busca por <b>paciente, cédula, cliente, NIT, código o serial del equipo</b>, o usa los filtros, y abre el préstamo. Ahí encuentras:</p>
+<table>
+  <tr><th>Sección</th><th>Qué muestra</th></tr>
+  <tr><td>Estado y botones</td><td>El estado y las acciones: <span class="boton">Recoger</span>, <span class="boton">Recarga</span>, <span class="boton">Cambiar</span>, <span class="boton">Cancelar préstamo</span>.</td></tr>
+  <tr><td>Repartidor y fecha</td><td>Se cambian mientras el préstamo no se ha entregado.</td></tr>
+  <tr><td>Vigencia</td><td>Hasta cuándo va el préstamo, o indefinido. Siete días antes avisa.</td></tr>
+  <tr><td>Programado</td><td>Recogidas, recargas o cambios a domicilio pendientes, con <span class="boton">Cancelar</span>.</td></tr>
+  <tr><td>Recargas</td><td>Cada cuántos días se recarga y cuándo toca la próxima.</td></tr>
+  <tr><td>Equipos</td><td>Cada equipo con sus botones Recoger / Recargar / Cambiar.</td></tr>
+  <tr><td>Actas</td><td>Las actas firmadas (o los formatos sin firmar), con <span class="boton">Ver</span> y <span class="boton">Descargar PDF</span>. Las de recogidas, recargas y cambios salen con su etiqueta.</td></tr>
+  <tr><td>Historial</td><td>Todo lo que le pasó al préstamo, en orden: creación, entrega, recargas, cambios, recogidas, vigencia, con quién lo hizo y <span class="boton">Ver acta</span>.</td></tr>
+</table>
+
+<figure class="captura"><img src="capturas/web/prestamo-detalle.jpg" alt="El detalle de un préstamo, con los botones Recoger, Recarga y Cambiar."><figcaption>El detalle de un préstamo, con los botones Recoger, Recarga y Cambiar.</figcaption></figure>
+<h3>Recoger, recargar y cambiar</h3>
+<p>Con el préstamo <span class="chip cian">Entregada</span>, toca <span class="boton">Recoger</span>, <span class="boton">Recarga</span> o <span class="boton">Cambiar</span> (arriba para varios equipos, o en un equipo). Se abre un asistente igual al de préstamo nuevo:</p>
+<ol class="pasos">
+  <li><b>Equipos.</b> Marca cuáles. En una recarga solo salen los equipos que se recargan. En un cambio, por cada equipo que sale toca <span class="boton">Elegir</span> el que entra y escribe el motivo.</li>
+  <li><b>Cómo.</b> <b>En oficina</b> (con la fecha) o <b>A domicilio</b> (repartidor, fecha y hora).</li>
+  <li><b>Formatos.</b> Viene el formato de esa acción (el del cliente o el de Ingemedic). Toca <span class="boton">Llenar formatos</span>.</li>
+  <li><b>Confirmación.</b> Revisa y toca <span class="boton">Ver cómo queda</span> si quieres ver el acta.</li>
+</ol>
+<table>
+  <tr><th>Si es…</th><th>Botones al final</th><th>Qué pasa</th></tr>
+  <tr><td>En oficina</td><td><span class="boton">Firmar ahora</span> o <span class="boton">Registrar sin firmas</span></td><td>Firman el paciente o familiar y tú. Se aplica en el momento: lo recogido queda disponible, el cambio se hace en el préstamo, la recarga queda registrada. Sin firmas, el acta queda guardada para imprimir.</td></tr>
+  <tr><td>A domicilio</td><td><span class="boton">Programar</span></td><td>Queda en <i>Programado</i> y en la lista del repartidor. En un cambio, el equipo nuevo queda <span class="chip ambar">Reservado</span>. Se aplica cuando el repartidor firma.</td></tr>
+</table>
+<div class="nota"><b>Antes de entregar.</b> Si el préstamo aún no se entrega, <span class="boton">Cambiar equipo</span> reemplaza el equipo directo, sin acta: el acta de la entrega ya sale con el nuevo.</div>
+<div class="ojo"><b>Préstamo finalizado.</b> Al recoger todos los equipos, el préstamo pasa solo a <span class="chip verde">Finalizada</span>.</div>
+
+<h3>Recarga periódica</h3>
+<ol class="pasos">
+  <li>En el préstamo, sección <b>Recargas</b>, toca <span class="boton">Definir frecuencia</span> y escribe cada cuántos días (p. ej. 15).</li>
+  <li>El portal calcula la próxima recarga desde la última (o desde la entrega).</li>
+  <li>Cuando toca (o un día antes), sale en los avisos con <span class="boton">Programar recarga</span>.</li>
+</ol>
+<p>Déjalo vacío para recargas solo a demanda. Qué equipos se recargan lo define administración (Parte 3 → Categorías y tipos).</p>
+
+<h3>Entregas</h3>
+<p>El tablero muestra todo lo que va a domicilio en tres columnas:</p>
+<ul>
+  <li><b>Por iniciar</b>: entregas de préstamos y recogidas, recargas y cambios programados (cada uno con su etiqueta).</li>
+  <li><b>En ruta</b>: el repartidor va en camino, con el tiempo que lleva.</li>
+  <li><b>Completadas</b>: las de hoy; <span class="boton">Historial</span> muestra las anteriores.</li>
+</ul>
+<p>Abre una completada para ver quién recibió, la firma y <span class="boton">Acta PDF</span>. Filtra por repartidor, fecha o cliente.</p>
+<div class="nota"><b>Quién las inicia.</b> Las visitas las inicia el repartidor desde su celular. Lo que se hace en oficina no aparece en este tablero: queda en el préstamo.</div>
+
+<figure class="captura"><img src="capturas/web/entregas.jpg" alt="El tablero de Entregas: por iniciar, en ruta y completadas."><figcaption>El tablero de Entregas: por iniciar, en ruta y completadas.</figcaption></figure>
+<h3>Clientes y pacientes</h3>
+<p>Dos pestañas: <b>Clientes</b> (EPS, IPS, instituciones) y <b>Pacientes</b>. Al abrir un cliente ves su <b>hoja de vida</b>:</p>
+<ul>
+  <li><b>En préstamo</b>: los equipos que tiene ahora, filtrables por tipo, por paciente o buscando el código.</li>
+  <li><b>Línea de tiempo</b>: préstamos, entregas, recargas, cambios y devoluciones en palabras ("Se prestó Cilindro de Oxígeno a Ana Pérez").</li>
+  <li><b>Por equipo</b>: cada equipo que tuvo el cliente; ábrelo para ver toda su historia (prestado, recargas, cambios y devuelto).</li>
+  <li><b>Informe</b>: descárgalo en PDF o Excel; trae equipos, pacientes, línea de tiempo e historial por equipo.</li>
+</ul>
+<figure class="captura"><img src="capturas/web/clientes.jpg" alt="La lista de clientes."><figcaption>La lista de clientes.</figcaption></figure>
+<figure class="captura"><img src="capturas/web/cliente-detalle.jpg" alt="La hoja de vida de un cliente: en préstamo, línea de tiempo y por equipo."><figcaption>La hoja de vida de un cliente: en préstamo, línea de tiempo y por equipo.</figcaption></figure>
+<h4>Recoger, recargar o cambiar desde Clientes</h4>
+<ol class="pasos">
+  <li>En <b>En préstamo</b> toca <span class="boton">Recoger, recargar o cambiar</span>.</li>
+  <li>Marca los equipos (de un mismo paciente) y toca la acción.</li>
+  <li>Se abre el préstamo en el asistente; al terminar vuelves al cliente.</li>
+</ol>
+<p>En un paciente, cada equipo tiene sus enlaces <b>Recoger</b>, <b>Recargar</b> y <b>Cambiar</b>, que funcionan igual.</p>
+<p>Para editar un cliente o paciente, ábrelo y toca editar. En el cliente también puedes subir su <b>logo</b>, que sale en los listados y en su informe.</p>
+
+<h3>Bitácora</h3>
+<p>Registra quién hizo qué y cuándo: préstamos creados, entregas, recogidas, cambios de vigencia, ediciones de clientes, plantillas, etc. Busca o filtra por módulo, acción o fechas.</p>
+
+<figure class="captura"><img src="capturas/web/bitacora.jpg" alt="La Bitácora con sus filtros."><figcaption>La Bitácora con sus filtros.</figcaption></figure>
+
+<!-- ═══════════ PARTE 2 · REPARTIDOR ═══════════ -->
+<h2 class="parte">Parte 2 · Repartidor<small>Desde el celular</small></h2>
+
+<h3>Tu lista del día</h3>
+<p>Al entrar ves tus visitas (<b>Entregas</b>, abajo) con dos pestañas: <b>Pendientes</b> y <b>Completadas</b>. Las pendientes salen agrupadas:</p>
+<table>
+  <tr><th>Grupo</th><th>Qué es</th></tr>
+  <tr><td>En camino</td><td>Visitas que ya iniciaste.</td></tr>
+  <tr><td>Atrasadas</td><td>Debían hacerse antes de hoy.</td></tr>
+  <tr><td>Hoy · Mañana · Próximas</td><td>Según la fecha programada.</td></tr>
+  <tr><td>Sin fecha programada</td><td>Sin hora definida.</td></tr>
+</table>
+<p>Cada tarjeta dice si es <b>entrega</b> o una <span class="chip morado">Recogida</span>, <span class="chip morado">Recarga</span> o <span class="chip morado">Cambio de equipo</span>, y muestra el paciente, la dirección, los equipos y las notas de oficina. Tiene <span class="boton">Llamar</span> y <span class="boton">Cómo llegar</span>.</p>
+
+<div class="pareja"><figure class="captura celular"><img src="capturas/web/repartidor-pendientes.jpg" alt="Pendientes: cada visita con su tipo, dirección y equipos."><figcaption>Pendientes: cada visita con su tipo, dirección y equipos.</figcaption></figure><figure class="captura celular"><img src="capturas/web/repartidor-completadas.jpg" alt="Completadas: el acta de cada visita en PDF."><figcaption>Completadas: el acta de cada visita en PDF.</figcaption></figure></div>
+
+<h3>Iniciar una visita</h3>
+<ol class="pasos">
+  <li>Toca <span class="boton">Iniciar</span> en la tarjeta y confirma.</li>
+  <li>Se abre la visita en curso: destino, botones para llamar o abrir el mapa, los equipos y un cronómetro.</li>
+  <li>Puedes volver a la lista y abrirla después con <span class="boton">Abrir … en curso</span>.</li>
+</ol>
+
+<h3>Registrar y firmar</h3>
+<p>Al llegar, toca <span class="boton">Llegué · Registrar</span>. Son unos pocos pasos:</p>
+<ol class="pasos">
+  <li><b>Datos.</b> Quién recibe (o quién entrega los equipos, en una recogida): el mismo paciente o un familiar con nombre, documento y parentesco. Completa lo que falte del paciente y las observaciones. Tus datos salen de tu perfil.</li>
+  <li><b>Revisión.</b> Revisa cada formato ya lleno, uno por uno.</li>
+  <li><b>Firma del paciente o familiar.</b> Pásale el celular para que firme con el dedo.</li>
+  <li><b>Tu firma.</b> Firma tú y toca <span class="boton">Confirmar y firmar</span>.</li>
+</ol>
+<div class="nota"><b>No tienes que hacer nada más.</b> Al firmar, el sistema hace el resto: el préstamo queda entregado, los equipos recogidos quedan disponibles, el cambio se hace o la recarga queda registrada.</div>
+
+<h3>Tipos de visita</h3>
+<table>
+  <tr><th>Visita</th><th>Qué haces</th><th>Quién firma</th></tr>
+  <tr><td>Entrega</td><td>Llevas e instalas los equipos del préstamo.</td><td>Quien recibe y tú.</td></tr>
+  <tr><td>Recogida</td><td>Recoges los equipos que dice la tarjeta.</td><td>Quien te entrega los equipos y tú (recibes por Ingemedic).</td></tr>
+  <tr><td>Recarga</td><td>Recargas o cambias el cilindro.</td><td>Quien recibe y tú.</td></tr>
+  <tr><td>Cambio de equipo</td><td>Retiras el equipo que sale y dejas el que entra (la tarjeta muestra "sale → entra").</td><td>Quien recibe y tú.</td></tr>
+</table>
+
+<h3>Descargar el acta</h3>
+<p>Al terminar sale la pantalla de éxito con el tiempo, quién recibió y <span class="boton">Descargar acta</span>. Después, en <b>Completadas</b>, cada visita tiene su botón <span class="boton">PDF</span>.</p>
+
+<h3>Tu perfil</h3>
+<p>Toca <b>Mi perfil</b> abajo (o tu inicial arriba a la derecha) para cambiar tu nombre, tu contraseña o el modo oscuro, y para cerrar sesión.</p>
+<figure class="captura celular"><img src="capturas/web/repartidor-perfil.jpg" alt="Mi perfil del repartidor."><figcaption>Mi perfil del repartidor.</figcaption></figure>
+
+<!-- ═══════════ PARTE 3 · ADMINISTRACIÓN ═══════════ -->
+<h2 class="parte">Parte 3 · Administración<small>Configuración</small></h2>
+
+<p>Todo está en <b>Configuración</b>, agrupado en Acceso, Inventario y Sistema.</p>
+
+<h3>Usuarios y roles</h3>
+<ol class="pasos">
+  <li>En <b>Usuarios</b>, crea la cuenta con nombre, correo, contraseña inicial y <b>rol</b>.</li>
+  <li>El rol define qué módulos ve. El <b>Repartidor</b> solo ve sus visitas; los demás roles ven los módulos que tengan permitidos.</li>
+  <li>Para quienes firman actas, completa cargo y documento (o lo completan ellos al firmar la primera vez).</li>
+</ol>
+
+<h3>Acceso de clientes</h3>
+<p>Da a un cliente usuario y contraseña para que entre al <b>portal de clientes</b> y vea sus equipos y préstamos. Elige el cliente, crea o cambia su acceso, y ve cuándo entró por última vez.</p>
+
+<h3>Categorías y tipos</h3>
+<ul>
+  <li><b>Categorías</b>: los grupos de equipos (Concentradores, Cilindros…), con sus columnas propias.</li>
+  <li><b>Tipos de equipo</b>: cada modelo dentro de una categoría, con nombre, imagen y sus datos.</li>
+  <li><b>Se recarga</b>: marca esta casilla en los tipos que se recargan. Solo esos salen en una recarga. Si no se marca, los cilindros se recargan.</li>
+</ul>
+
+<h3>Datos de la empresa y logos</h3>
+<p>Razón social, NIT, dirección, teléfonos y representante: salen en las actas y documentos. Sube el <b>logo</b> y, si quieres, el <b>logo para modo oscuro</b> (PNG con fondo transparente).</p>
+
+<h3>Plantillas de actas</h3>
+<figure class="captura"><img src="capturas/web/configuracion.jpg" alt="Configuración → Plantillas documentos, agrupadas por acción."><figcaption>Configuración → Plantillas documentos, agrupadas por acción.</figcaption></figure>
+<p>Las plantillas son los formatos que se llenan y firman. Están separadas por acción:</p>
+<table>
+  <tr><th>Acción</th><th>Se usa al…</th><th>De Ingemedic</th></tr>
+  <tr><td>Préstamo</td><td>Entregar un préstamo</td><td>Acta de entrega Ingemedic (estándar)</td></tr>
+  <tr><td>Devolución</td><td>Recoger equipos</td><td>Acta de devolución Ingemedic</td></tr>
+  <tr><td>Recarga</td><td>Recargar</td><td>Acta de recarga Ingemedic</td></tr>
+  <tr><td>Cambio de equipo</td><td>Cambiar un equipo</td><td>Acta de cambio de equipo Ingemedic</td></tr>
+</table>
+<p>Cada cliente usa sus propias plantillas en cada acción; si no tiene una para esa acción, se usa la de Ingemedic.</p>
+<h4>Crear una plantilla</h4>
+<ol class="pasos">
+  <li>Toca <span class="boton">Nueva plantilla</span> y elige <b>para qué es</b> (préstamo, devolución, recarga o cambio).</li>
+  <li>Elige cómo empezar: <b>Importar desde Word</b>, <b>Copiar una existente</b> o <b>En blanco</b>.</li>
+  <li>En el Word, escribe los datos entre corchetes: <b>[Nombre del paciente]</b>, <b>[Cédula del paciente]</b>, <b>[Equipos]</b>, <b>[Firma de quien recibe]</b>… La lista de nombres está en la misma ventana. Un nombre que el sistema no conoce queda como campo propio para llenar.</li>
+  <li>Ajusta en el editor: bloques de títulos, textos, campos, tablas de equipos (una tabla por tipo de equipo), firmas e imágenes. A la derecha ves cómo queda. <b>Ctrl+Z</b> deshace.</li>
+  <li>Guarda.</li>
+</ol>
+<h4>Asignarla a clientes</h4>
+<ol class="pasos">
+  <li>En la tarjeta de la plantilla toca <span class="boton">Clientes</span>.</li>
+  <li>Marca los clientes que la usan. <b>Uso general</b> la deja elegir con cualquier cliente.</li>
+  <li><b>De Ingemedic para …</b> la vuelve la de respaldo de su acción (solo una por acción).</li>
+</ol>
+<p><span class="boton">Previsualizar</span> muestra la plantilla con datos de ejemplo.</p>
+<div class="ojo"><b>Actas ya firmadas.</b> No cambian aunque después edites la plantilla: cada acta guarda su copia.</div>
+
+<h3>Cargue masivo</h3>
+<p>Importa equipos o clientes desde un archivo CSV. La ventana indica las columnas que debe tener el archivo.</p>
+
+<h3>Preferencias</h3>
+<p>Modo oscuro y la navegación del celular.</p>
+
+<!-- ═══════════ ANEXOS ═══════════ -->
+<h2 class="parte">Anexos</h2>
+
+<h3>Estados</h3>
+<h4>Préstamo</h4>
+<table>
+  <tr><th>Estado</th><th>Significa</th></tr>
+  <tr><td><span class="chip gris">Borrador</span></td><td>Le falta repartidor o fecha de entrega.</td></tr>
+  <tr><td><span class="chip gris">Programada</span></td><td>Lista para que el repartidor la entregue.</td></tr>
+  <tr><td><span class="chip ambar">En reparto</span></td><td>El repartidor va en camino.</td></tr>
+  <tr><td><span class="chip cian">Entregada</span></td><td>El paciente o cliente tiene los equipos.</td></tr>
+  <tr><td><span class="chip verde">Finalizada</span></td><td>Todos los equipos se devolvieron.</td></tr>
+  <tr><td><span class="chip gris">Cancelada</span></td><td>Anulado; los equipos quedaron libres.</td></tr>
+</table>
+<h4>Equipo</h4>
+<table>
+  <tr><th>Estado</th><th>Significa</th></tr>
+  <tr><td><span class="chip verde">Disponible</span></td><td>Listo para prestar.</td></tr>
+  <tr><td><span class="chip ambar">Reservado</span></td><td>Apartado para una entrega o un cambio programado.</td></tr>
+  <tr><td><span class="chip cian">En préstamo</span></td><td>Lo tiene un paciente o cliente.</td></tr>
+  <tr><td><span class="chip rojo">Baja</span></td><td>Fuera de servicio.</td></tr>
+</table>
+<h4>Visita (entrega, recogida, recarga, cambio)</h4>
+<table>
+  <tr><th>Estado</th><th>Significa</th></tr>
+  <tr><td><span class="chip gris">Por iniciar</span></td><td>Programada; el repartidor no ha salido.</td></tr>
+  <tr><td><span class="chip cian">En camino</span></td><td>El repartidor la inició.</td></tr>
+  <tr><td><span class="chip verde">Completada</span></td><td>Firmada; ya se aplicó.</td></tr>
+  <tr><td><span class="chip gris">Cancelada</span></td><td>Se canceló desde el préstamo.</td></tr>
+</table>
+
+<h3>Preguntas frecuentes</h3>
+<h4>No encuentro un préstamo.</h4>
+<p>En Préstamos, escribe el nombre o la cédula del paciente, o el código o serial del equipo. Revisa la pestaña: <i>En curso</i>, <i>Historial</i> (finalizados y cancelados) o <i>Todos</i>.</p>
+<h4>No me deja recoger, recargar o cambiar.</h4>
+<p>Solo se puede con el préstamo <i>Entregada</i>. Si un equipo ya tiene una acción programada, sale marcado y no se puede elegir de nuevo: cancélala en <i>Programado</i> si hace falta.</p>
+<h4>En la recarga no aparece el equipo.</h4>
+<p>Solo salen los tipos marcados con <b>Se recarga</b> (Configuración → Tipos de equipo).</p>
+<h4>El formato sale con espacios en blanco.</h4>
+<p>Son datos que no se llenaron. Ábrelo con <span class="boton">Llenar datos</span> (formatos sin firmar) o complétalos al firmar. Lo que no aplica puede quedar en blanco.</p>
+<h4>Me equivoqué al programar una recogida.</h4>
+<p>En el préstamo, sección <i>Programado</i>, toca <span class="boton">Cancelar</span> y prográmala de nuevo. Si era un cambio, el equipo reservado vuelve a quedar disponible.</p>
+<h4>El cliente no tiene formato de recarga.</h4>
+<p>Se usa el de Ingemedic. Si el cliente tiene uno propio, súbelo en Plantillas (para <i>Recarga</i>) y asígnaselo.</p>
+
+</body>
+</html>

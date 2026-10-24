@@ -1,5 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // El manual se lee del disco en /api/manual: hay que sumarlo al deploy
+  outputFileTracingIncludes: {
+    '/api/manual': ['./docs/manual/Manual_Ingemedic.pdf'],
+  },
   images: {
     remotePatterns: [
       {

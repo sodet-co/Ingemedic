@@ -59,6 +59,17 @@ Lo que está sin resolver, ordenado por prioridad.
 
 # Entradas
 
+## 2026-10-23 — "Finalizar préstamo" siempre, aunque tenga un solo equipo
+**Qué se hizo:** el botón para finalizar sin acta solo salía en préstamos entregados con varios equipos; con uno solo no había forma. Ahora sale en todo préstamo "Entregada". Al finalizar también se cancelan las recogidas, recargas y cambios que quedaron programados (en un cambio, libera el equipo reservado).
+**Archivos:** `ordenes/OrdenesClient.js`.
+
+## 2026-10-22 — Manual de usuario y botón para descargarlo
+**Qué se hizo:** manual en PDF para oficina, repartidor y administración, con capturas reales del portal. Se descarga desde la ayuda "?" de cada módulo con el enlace "Manual completo (PDF)".
+**Por qué:** las capturas traen datos reales de pacientes, por eso el PDF no va en `/public`: lo sirve `/api/manual` solo con sesión (sin sesión, 401). Se probó con sesión: 200 y el PDF completo.
+**Archivos:** `docs/manual/` (manual-usuario.html, generar-pdf.cjs, capturar.cjs, capturas/web/*.jpg, Manual_Ingemedic.pdf), `src/app/api/manual/route.js`, `src/components/ui/Ayuda.js`, `next.config.mjs` (outputFileTracingIncludes), `.gitignore`.
+**Para actualizarlo:** editar el HTML y correr `node docs/manual/generar-pdf.cjs`. Capturas: `node docs/manual/capturar.cjs` con `npm run dev` abierto (`REPARTIDOR=1` para las del repartidor); las PNG originales y las sesiones de esa ventana no van al repo.
+**Pendiente:** confirmar la descarga en producción (que el PDF entre al deploy); faltan capturas de la visita en curso y de las firmas del repartidor.
+
 ## 2026-10-22 — Historial del préstamo
 **Qué se hizo:** Sección "Historial" en el detalle del préstamo (`components/prestamos/HistorialPrestamo.js`; armado en `lib/historialPrestamo.js`): creación, equipos que salen, entrega a domicilio (repartidor, quién recibió, duración), recogidas, recargas y cambios (oficina o domicilio, quién, motivo), programadas y canceladas, vigencia, frecuencia de recarga, devoluciones sin acta y finalización, con "Ver acta" por visita. Sale de orden_equipos, entregas y la bitácora del préstamo y de sus visitas (lo viejo solo dice quién si la bitácora lo registró). Probado con ORD-2026-502, 504 y 505.
 **Archivos:** `src/lib/historialPrestamo.js`, `src/components/prestamos/HistorialPrestamo.js`, `ordenes/OrdenesClient.js`, `ordenes/page.js`.

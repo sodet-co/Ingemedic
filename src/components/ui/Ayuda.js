@@ -1,6 +1,6 @@
 'use client'
 import { useState } from 'react'
-import { HelpCircle, PlayCircle } from 'lucide-react'
+import { HelpCircle, PlayCircle, BookOpen } from 'lucide-react'
 import Modal from './Modal'
 import { AYUDA } from '@/lib/ayuda'
 import { TONOS } from '@/lib/ui'
@@ -20,12 +20,18 @@ export default function Ayuda({ modulo }) {
         <Modal onCerrar={() => setAbierta(false)} titulo={a.titulo} subtitulo="Ayuda"
           icono={<HelpCircle size={18} />} tamano="lg"
           pie={<>
-            {a.video && (
-              <a href={a.video} target="_blank" rel="noopener noreferrer"
-                className="mr-auto inline-flex items-center gap-1.5 text-[13px] font-semibold text-[#1B3A6B] hover:underline">
-                <PlayCircle size={16} /> Ver video
+            <div className="mr-auto flex flex-wrap items-center gap-x-4 gap-y-1">
+              <a href="/api/manual" download
+                className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-[#1B3A6B] hover:underline">
+                <BookOpen size={16} /> Manual completo (PDF)
               </a>
-            )}
+              {a.video && (
+                <a href={a.video} target="_blank" rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-[#1B3A6B] hover:underline">
+                  <PlayCircle size={16} /> Ver video
+                </a>
+              )}
+            </div>
             <button type="button" onClick={() => setAbierta(false)}
               className="inline-flex items-center justify-center h-[38px] px-4 rounded-[9px] bg-[#1B3A6B] text-white text-[13px] font-semibold hover:bg-[#152D54]">
               Entendido
