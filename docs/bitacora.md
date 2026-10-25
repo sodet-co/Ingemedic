@@ -59,6 +59,10 @@ Lo que está sin resolver, ordenado por prioridad.
 
 # Entradas
 
+## 2026-10-25 — Ficha del equipo rediseñada y "Marcar disponible"
+**Qué se hizo:** hoja de vida del equipo (Inventario): encabezado con el tipo y la categoría del propio equipo y su estado; resumen con imagen, estado y quién lo tiene; ficha en dos columnas (Esta unidad / Del tipo); Historia y Actas en pestañas. Si está "Por recargar", botón **Marcar disponible** con confirmación (bitácora). Se sacó `Date.now()` del componente (`ahoraMs`) por la regla de pureza de React.
+**Archivos:** `inventario/InventarioClient.js`.
+
 ## 2026-10-25 — Todas las actas del préstamo en un solo lugar
 **Qué se hizo:** la sección Actas del préstamo (`actas/ActasPrestamo.js`, reescrito) muestra todas las actas, firmadas o no, agrupadas: Préstamo y cada recogida, cambio o recarga, con su fecha, "Firmada"/"Sin firmas" y "Firmar" (o "Llenar datos" en el préstamo sin firmar). "Ver todas" y "Descargar PDF" llevan todo. Se generaron sin firmas las actas de las 5 visitas que no tenían (ENT-2026-026 y 027 de ORD-2026-518; 028, 029 y 030 de ORD-2026-520, con cambio + recarga), con los datos que había.
 

@@ -41,6 +41,8 @@ const FILTRO_PALETTE = [
   { color: '#0E7490', Icon: SlidersHorizontal },
 ]
 const FILTRO_DROPDOWN_MAX = 6
+// Reloj fuera del componente: la regla de pureza de React marca Date.now() en los handlers
+const ahoraMs = () => Date.now()
 
 const ESTADO_STYLES = {
   'Disponible': { bg: '#ECFDF5', color: '#0F7B55', dot: '#0F7B55' },
@@ -150,6 +152,8 @@ export default function InventarioClient({ categorias: catsIniciales, tipos: tip
   const [formTipo, setFormTipo] = useState({ icono: '', atributos: {} })
   const [formEditar, setFormEditar] = useState({ codigo: '', estado_id: '', atributos: {}, motivo: '' })
   const [prestamosDrawer, setPrestamosDrawer] = useState([])
+  const [pestanaFicha, setPestanaFicha] = useState('historia') // Historia | Actas en la hoja de vida
+  const [confirmarRecargado, setConfirmarRecargado] = useState(false) // confirmación de "Marcar disponible"
 
   useEffect(() => {
     let cancelled = false
@@ -176,6 +180,21 @@ export default function InventarioClient({ categorias: catsIniciales, tipos: tip
     return () => { cancelled = true; clearTimeout(t) }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [drawer?.id])
+
+  // Acción rápida de la hoja de vida: el equipo volvió recargado → Disponible
+  async function marcarRecargado() {
+    const disponible = estados.find(e => e.nombre === 'Disponible')
+    setConfirmarRecargado(false)
+    if (!drawer || !disponible) return
+    setSaving(true)
+    const { error } = await supabase.from('equipos').update({ estado_id: disponible.id }).eq('id', drawer.id)
+    setSaving(false)
+    if (error) { showToast('No se guardó: ' + error.message, 'error'); return }
+    registrarBitacora({ modulo: 'inventario', accion: 'editar', entidad: 'equipo', entidad_id: drawer.id, detalle: { codigo: drawer.codigo, estado: 'Disponible', motivo: 'Recargado' } })
+    setDrawer(d => d && ({ ...d, estado_id: disponible.id, estado: { id: disponible.id, nombre: 'Disponible' } }))
+    showToast(`${drawer.codigo} recargado · ya está disponible`)
+    router.refresh()
+  }
 
   function showToast(msg, tipo = 'success') {
     setToast({ msg, tipo })
@@ -626,7 +645,7 @@ export default function InventarioClient({ categorias: catsIniciales, tipos: tip
       .select('*, categoria:categorias_equipo(id, nombre, atributos_extra)').single()
     if (error) { showToast('Error: ' + error.message, 'error'); setSaving(false); return }
     registrarBitacora({ modulo: 'inventario', accion: 'crear', entidad: 'tipo de equipo', entidad_id: data.id, detalle: { nombre: formTipo.atributos?.nombre } })
-    skipSyncUntil.current = Date.now() + 2500
+    skipSyncUntil.current = ahoraMs() + 2500
     setTipos(prev => [...prev, data])
     showToast('Tipo creado')
     setSaving(false)
@@ -1290,10 +1309,29 @@ export default function InventarioClient({ categorias: catsIniciales, tipos: tip
       {/* ── HOJA DE VIDA (ventana ancha; en celular, hoja desde abajo) ── */}
       {drawer && (
         <VentanaDetalle onCerrar={() => { setDrawer(null); setModalEditar(false) }}>
-            <EncabezadoDetalle icono={<Package size={18} />} etiqueta={catActual?.nombre}
-              titulo={<span className="font-mono">{drawer.codigo || 'Equipo'}</span>}
-              subtitulo={tipoActual ? nombreTipo(tipoActual) : undefined}
-              onCerrar={() => { setDrawer(null); setModalEditar(false) }} />
+            {(() => {
+              const tipoEq = tipos.find(t => t.id === drawer.tipo_equipo_id) || tipoActual
+              const catEq = categorias.find(c => c.id === tipoEq?.categoria_id) || catActual
+              const st = ESTADO_STYLES[drawer.estado?.nombre] || {}
+              return (
+                <EncabezadoDetalle icono={<Package size={18} />} etiqueta={catEq?.nombre}
+                  titulo={<span className="font-mono">{drawer.codigo || 'Equipo'}</span>}
+                  subtitulo={tipoEq ? nombreTipo(tipoEq) : undefined}
+                  acciones={<>
+                    <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[12px] font-bold" style={{ background: st.bg, color: st.color }}>
+                      <span className="w-1.5 h-1.5 rounded-full" style={{ background: st.dot }} /> {drawer.estado?.nombre || '—'}
+                    </span>
+                    {/* Acción rápida: un equipo que volvió recargado se marca disponible aquí mismo */}
+                    {drawer.estado?.nombre === 'Por recargar' && !modalEditar && (
+                      <button type="button" onClick={() => setConfirmarRecargado(true)} disabled={saving}
+                        className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-[9px] bg-[#6D28D9] text-white text-[12.5px] font-semibold hover:bg-[#5B21B6] disabled:opacity-60">
+                        <CheckCircle2 size={14} /> {saving ? 'Guardando…' : 'Marcar disponible'}
+                      </button>
+                    )}
+                  </>}
+                  onCerrar={() => { setDrawer(null); setModalEditar(false) }} />
+              )
+            })()}
 
             <Columnas izquierda={modalEditar ? (
               <div className="p-6">
@@ -1355,45 +1393,79 @@ export default function InventarioClient({ categorias: catsIniciales, tipos: tip
               </div>
               </div>
             ) : (
-              <div className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 gap-6">
-                {camposTipo.length > 0 && (
-                  <div>
-                    <div className="text-[10.5px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-3">Información del equipo</div>
-                    <div className="space-y-2.5">
-                      {camposTipo.map(c => (
-                        <div key={c.clave} className="flex justify-between text-[12.5px]">
-                          <span className="text-slate-400">{c.nombre}</span>
-                          <span className="font-medium text-slate-700 text-right ml-4">{formatearValor(tipoActual?.atributos?.[c.clave], c.tipo)}</span>
-                        </div>
-                      ))}
+              <div className="p-5 md:p-6 space-y-5">
+                {/* Resumen: imagen, estado y quién lo tiene */}
+                {(() => {
+                  const tipoEq = tipos.find(t => t.id === drawer.tipo_equipo_id) || tipoActual
+                  const st = ESTADO_STYLES[drawer.estado?.nombre] || {}
+                  const activo = prestamosDrawer.find(p => !p.fecha_devolucion)
+                  const quien = drawer.paciente_actual?.nombre || drawer.cliente_actual?.nombre || activo?.orden?.paciente?.nombre || activo?.orden?.cliente?.nombre
+                  return (
+                    <div className="flex gap-4 items-start">
+                      <div className="w-20 h-20 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-center flex-shrink-0 p-2">
+                        <IconoTipo tipo={tipoEq} categorias={categorias} size={56} />
+                      </div>
+                      <div className="min-w-0 flex-1 space-y-1.5">
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[12px] font-bold" style={{ background: st.bg, color: st.color }}>
+                          <span className="w-1.5 h-1.5 rounded-full" style={{ background: st.dot }} /> {drawer.estado?.nombre || '—'}
+                        </span>
+                        {quien && (
+                          <div className="text-[13px] text-slate-700"><span className="text-slate-400">Lo tiene:</span> <b>{quien}</b>
+                            {activo?.orden?.codigo && <span className="text-slate-400 font-mono text-[12px]"> · {activo.orden.codigo}</span>}
+                          </div>
+                        )}
+                        {drawer.estado?.nombre === 'Por recargar' && (
+                          <div className="text-[12.5px] text-[#6D28D9]">Volvió vacío de una recarga. Cuando esté recargado, márcalo disponible.</div>
+                        )}
+                        {drawer.estado?.nombre === 'Disponible' && <div className="text-[12.5px] text-slate-400">En bodega, listo para prestar.</div>}
+                      </div>
                     </div>
+                  )
+                })()}
+
+                {/* Ficha: datos del tipo y de la unidad, en dos columnas */}
+                {(camposTipo.length > 0 || camposUnidadExtra.length > 0) && (
+                  <div className="rounded-xl border border-slate-200 divide-y divide-slate-100">
+                    {camposUnidadExtra.length > 0 && (
+                      <div className="p-4">
+                        <div className="text-[10.5px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-3">Esta unidad</div>
+                        <dl className="grid grid-cols-2 gap-x-4 gap-y-3">
+                          {camposUnidadExtra.map(c => (
+                            <div key={c.clave} className="min-w-0">
+                              <dt className="text-[11px] text-slate-400">{c.nombre}</dt>
+                              <dd className="text-[13px] font-semibold text-slate-700 break-words">{formatearValor(drawer.atributos?.[c.clave], c.tipo)}</dd>
+                            </div>
+                          ))}
+                        </dl>
+                      </div>
+                    )}
+                    {camposTipo.length > 0 && (
+                      <div className="p-4">
+                        <div className="text-[10.5px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-3">Del tipo de equipo</div>
+                        <dl className="grid grid-cols-2 gap-x-4 gap-y-3">
+                          {camposTipo.map(c => (
+                            <div key={c.clave} className="min-w-0">
+                              <dt className="text-[11px] text-slate-400">{c.nombre}</dt>
+                              <dd className="text-[13px] font-semibold text-slate-700 break-words">{formatearValor(tipoActual?.atributos?.[c.clave], c.tipo)}</dd>
+                            </div>
+                          ))}
+                        </dl>
+                      </div>
+                    )}
                   </div>
                 )}
-                <div>
-                  <div className="text-[10.5px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-3">Estado y adquisición</div>
-                  <div className="space-y-2.5">
-                    <div className="flex justify-between text-[12.5px]">
-                      <span className="text-slate-400">Estado</span>
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold"
-                        style={{ background: (ESTADO_STYLES[drawer.estado?.nombre] || {}).bg, color: (ESTADO_STYLES[drawer.estado?.nombre] || {}).color }}>
-                        <span className="w-1.5 h-1.5 rounded-full" style={{ background: (ESTADO_STYLES[drawer.estado?.nombre] || {}).dot }} />
-                        {drawer.estado?.nombre || '—'}
-                      </span>
-                    </div>
-                    {camposUnidadExtra.map(c => (
-                      <div key={c.clave} className="flex justify-between text-[12.5px]">
-                        <span className="text-slate-400">{c.nombre}</span>
-                        <span className="font-medium text-slate-700 text-right ml-4">{formatearValor(drawer.atributos?.[c.clave], c.tipo)}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
               </div>
 
             )} derecha={
-              <div className="p-6">
-                <div className="text-[13px] font-bold text-slate-700 mb-4">Hoja de vida · Línea de tiempo</div>
-                {(() => {
+              <div className="p-5 md:p-6">
+                <div className="flex gap-1 p-1 bg-slate-100 rounded-[10px] mb-4 w-fit" role="tablist">
+                  {[['historia', 'Historia'], ['actas', 'Actas']].map(([v, l]) => (
+                    <button key={v} type="button" role="tab" aria-selected={pestanaFicha === v} onClick={() => setPestanaFicha(v)}
+                      className={`px-4 h-8 rounded-[8px] text-[12.5px] font-semibold transition-colors ${pestanaFicha === v ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>{l}</button>
+                  ))}
+                </div>
+                {pestanaFicha === 'actas' && <ActasEquipo key={drawer.id} equipo={drawer} onToast={showToast} />}
+                {pestanaFicha === 'historia' && (() => {
                   const eventos = []
 
                   prestamosDrawer.forEach(p => {
@@ -1480,11 +1552,6 @@ export default function InventarioClient({ categorias: catsIniciales, tipos: tip
                     </div>
                   )
                 })()}
-                {/* Actas del equipo: préstamos, recogidas, cambios y recargas en que estuvo */}
-                <div className="mt-6 pt-5 border-t border-slate-100">
-                  <div className="text-[13px] font-bold text-slate-700 mb-3">Actas del equipo</div>
-                  <ActasEquipo key={drawer.id} equipo={drawer} onToast={showToast} />
-                </div>
               </div>
             } />
 
@@ -1536,6 +1603,13 @@ export default function InventarioClient({ categorias: catsIniciales, tipos: tip
 
 
       {/* ── CONFIRMAR SALIR SIN GUARDAR ── */}
+      {/* Por si se equivoca: confirmar antes de pasar a Disponible un equipo por recargar */}
+      <ConfirmDialog abierto={confirmarRecargado && !!drawer}
+        titulo={`¿${drawer?.codigo || 'El equipo'} ya está recargado?`}
+        mensaje="Pasa a Disponible y se puede volver a prestar. Hazlo solo si ya volvió recargado."
+        textoConfirmar="Sí, marcar disponible" textoCancelar="Todavía no"
+        onConfirmar={marcarRecargado} onCancelar={() => setConfirmarRecargado(false)} />
+
       <ConfirmDialog abierto={modalSalir} tipo="peligro"
         titulo="¿Salir sin guardar?" mensaje="Se perderán los cambios que hiciste."
         textoConfirmar="Sí, salir" textoCancelar="Seguir editando"
