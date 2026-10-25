@@ -1,11 +1,10 @@
 'use client'
 import { useMemo, useState } from 'react'
-import { Search, Package, HeartPulse, Layers, List, ChevronDown, ChevronLeft, ArrowDownLeft, CheckSquare, Square, RefreshCw, ArrowLeftRight } from 'lucide-react'
+import { Search, Package, HeartPulse, Layers, List, ChevronDown, ChevronLeft, ArrowDownLeft, CheckSquare, Square, ArrowLeftRight } from 'lucide-react'
 import { formatear } from '@/lib/fechas'
 import { ui } from '@/lib/ui'
 import { usePaginacion } from '@/hooks/usePaginacion'
 import Paginador from '@/components/ui/Paginador'
-import { seRecarga } from '@/lib/actas/acciones'
 
 // Equipos que un cliente tiene en préstamo. Pensado para clientes con cien o
 // más (CUIDARTE, DUSAKAWI): resumen, chips por tipo que filtran, buscador,
@@ -108,14 +107,10 @@ export default function EquiposDelCliente({ equipos, onAccion }) {
           })}
           {candidatos.length > 100 && <div className="py-2 text-center text-[11.5px] text-slate-400">Escribe para encontrar los demás</div>}
         </div>
-        <div className="text-[12px] text-slate-400">Se abre el préstamo para llenar y firmar el acta. Elige equipos de un mismo paciente.</div>
+        <div className="text-[12px] text-slate-400">Se abre el préstamo. La recarga es un cambio de equipo con motivo &quot;Recarga&quot;. Elige equipos de un mismo paciente.</div>
         <div className="flex flex-wrap justify-end gap-2">
           <button type="button" disabled={!elegidos.length} onClick={() => onAccion('cambio', seleccion)} className={ui.btnSecundario}>
-            <ArrowLeftRight size={14} /> Cambiar
-          </button>
-          <button type="button" disabled={!elegidos.length || !seleccion.every(oe => seRecarga(oe.equipo?.tipo_equipo))} onClick={() => onAccion('recarga', seleccion)} className={ui.btnSecundario}
-            title="Solo equipos que se recargan">
-            <RefreshCw size={14} /> Recargar
+            <ArrowLeftRight size={14} /> Cambiar o recargar
           </button>
           <button type="button" disabled={!elegidos.length} onClick={() => onAccion('devolucion', seleccion)} className={ui.btnPrimario}>
             <ArrowDownLeft size={14} /> Recoger {elegidos.length || ''}

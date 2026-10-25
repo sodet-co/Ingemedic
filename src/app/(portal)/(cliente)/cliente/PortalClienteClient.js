@@ -539,7 +539,7 @@ function DetalleEquipo({ equipo: e, categorias, mantenimientos, onCerrar }) {
     // Ventana centrada y ancha en md+ (antes, panel lateral de 480px); en celular, hoja desde abajo
     <div className="fixed inset-0 z-40 flex items-end justify-center md:items-center md:p-6" role="dialog" aria-modal="true" aria-label={`Equipo ${e.codigo || ''}`}>
       <div className="absolute inset-0 bg-[#0F1E36]/50" onClick={onCerrar} />
-      <div className="relative w-full md:max-w-[960px] max-h-[92vh] md:max-h-[calc(100vh-3rem)] bg-[#F4F6FA] rounded-t-[24px] md:rounded-[24px] flex flex-col overflow-hidden shadow-2xl">
+      <div className="relative w-full md:max-w-[1120px] max-h-[92vh] md:max-h-[calc(100vh-3rem)] bg-[#F4F6FA] rounded-t-[24px] md:rounded-[24px] flex flex-col overflow-hidden shadow-2xl">
         <div className="bg-[#1B3A6B] px-[18px] pt-3 pb-5 flex flex-col gap-3">
           <div className="md:hidden mx-auto w-10 h-1 rounded-full bg-white/30" aria-hidden />
           <div className="flex items-start gap-3">

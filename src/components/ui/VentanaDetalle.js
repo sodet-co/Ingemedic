@@ -9,7 +9,7 @@ import { X } from 'lucide-react'
 //
 // El contenido lo arma cada módulo: un encabezado y un cuerpo. Para usar el
 // ancho, el cuerpo suele ir en <Columnas izquierda={…} derecha={…} />.
-export default function VentanaDetalle({ onCerrar, children, ancho = 1080, z = 'z-50' }) {
+export default function VentanaDetalle({ onCerrar, children, ancho = 1200, z = 'z-50' }) {
   useEffect(() => {
     const onEsc = e => { if (e.key === 'Escape') onCerrar() }
     window.addEventListener('keydown', onEsc)

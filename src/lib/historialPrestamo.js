@@ -1,5 +1,5 @@
 import { formatear, formatearSoloFecha, diaLocal } from './fechas.js'
-import { NOMBRE_ACCION, accionDeEntrega } from './accionesPrestamo.js'
+import { NOMBRE_ACCION, accionDeEntrega, esRecargaVisita } from './accionesPrestamo.js'
 
 // Eventos del historial de un préstamo (components/prestamos/HistorialPrestamo.js).
 // orden: el préstamo con equipos (orden_equipos con equipo) y visitas (entregas con
@@ -49,7 +49,7 @@ export function armarHistorialPrestamo(orden, bitacora = []) {
     // Visitas: la entrega a domicilio y las recogidas, recargas y cambios
     for (const v of visitas) {
       const accion = accionDeEntrega(v)
-      const nombre = NOMBRE_ACCION[accion]
+      const nombre = esRecargaVisita(v) ? 'Recarga' : NOMBRE_ACCION[accion]
       // La entrega del préstamo no guarda sus equipos: son los del préstamo (sin los que entraron en un cambio)
       const eqs = v.tipo === 'cambio' ? (v.datos?.cambios || []).map(c => `${c.sale?.codigo} → ${c.entra?.codigo}`).join(' · ')
         : accion === 'prestamo' ? (orden.equipos || []).filter(oe => !entrantes.has(oe.equipo?.id)).map(oe => `${oe.equipo?.codigo} ${nombreEquipo(oe.equipo)}`).join(' · ')
@@ -57,7 +57,7 @@ export function armarHistorialPrestamo(orden, bitacora = []) {
       const como = v.modo === 'oficina' ? 'en oficina' : `a domicilio${v.repartidor?.nombre ? ` por ${v.repartidor.nombre}` : ''}`
       const estado = v.estado?.nombre
       if (estado === 'Completada') {
-        const tipo = accion === 'prestamo' ? 'entrega' : accion
+        const tipo = accion === 'prestamo' ? 'entrega' : esRecargaVisita(v) ? 'recarga' : accion
         const texto = accion === 'prestamo' ? `Entregado a domicilio${v.repartidor?.nombre ? ` por ${v.repartidor.nombre}` : ''}` : `${nombre} ${como}`
         ev.push({
           tipo, fecha: v.fecha_completada, texto, visita: v,

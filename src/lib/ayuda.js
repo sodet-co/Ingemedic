@@ -71,6 +71,7 @@ export const AYUDA = {
       ['Disponible', 'verde', 'Listo para prestar'],
       ['Reservado', 'ambar', 'Apartado para un préstamo'],
       ['En préstamo', 'cian', 'Lo tiene un cliente'],
+      ['Por recargar', 'violeta', 'Volvió vacío de una recarga: márcalo recargado'],
     ],
     video: null,
   },

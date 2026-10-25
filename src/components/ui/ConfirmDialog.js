@@ -25,7 +25,7 @@ export default function ConfirmDialog({
         onClick={esPeligro ? undefined : onCancelar}
       />
       <div className="fixed inset-0 z-[60] flex items-end md:items-center justify-center p-0 md:p-4">
-        <div className="bg-white rounded-t-2xl md:rounded-2xl w-full max-w-[380px] p-6 shadow-2xl text-center" style={{ paddingBottom: "max(24px, env(safe-area-inset-bottom))" }}>
+        <div className="bg-white rounded-t-2xl md:rounded-2xl w-full max-w-[460px] p-6 shadow-2xl text-center" style={{ paddingBottom: "max(24px, env(safe-area-inset-bottom))" }}>
           <div className={`w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4 ${
             esPeligro ? 'bg-red-50' : 'bg-[#E8EEF9]'
           }`}>

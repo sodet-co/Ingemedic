@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { Truck, MapPin, Phone, Navigation, Package, User, Clock, CheckCircle2, ArrowRight } from 'lucide-react'
-import { NOMBRE_ACCION, accionDeEntrega } from '@/lib/accionesPrestamo'
+import { NOMBRE_ACCION, accionDeEntrega, nombreVisita } from '@/lib/accionesPrestamo'
 
 // Entrega "En progreso": camión animado sobre la ruta, cronómetro y todo lo que
 // necesita quien va en camino (destino, teléfono, equipos). La barra avanza con
@@ -79,7 +79,7 @@ export default function EntregaEnCurso({ entrega, onRegistrar }) {
   const destino = [direccion, ciudad].filter(Boolean).join(', ')
   // En una recogida, recarga o cambio, solo los equipos de esa acción
   const accion = accionDeEntrega(entrega)
-  const nombre = NOMBRE_ACCION[accion]
+  const nombre = accion === 'prestamo' ? NOMBRE_ACCION.prestamo : nombreVisita(entrega)
   const equipos = accion === 'prestamo'
     ? (orden.equipos || []).filter(oe => !oe.fecha_devolucion)
     : accion === 'cambio'

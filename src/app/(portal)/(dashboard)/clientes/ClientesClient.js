@@ -24,7 +24,6 @@ import HistorialPorEquipo from '@/components/clientes/HistorialPorEquipo'
 import { useOrdenable } from '@/hooks/useOrdenable'
 import { usePaginacion } from '@/hooks/usePaginacion'
 import { formatear, formatearSoloFecha, hoyBogota } from '@/lib/fechas'
-import { seRecarga } from '@/lib/actas/acciones'
 import { capturarHTML } from '@/lib/capturar'
 import LogoCliente from '@/components/clientes/LogoCliente'
 import AvatarCliente from '@/components/clientes/AvatarCliente'
@@ -1507,7 +1506,7 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
 
           {/* Detalle en ventana ancha, igual que Entregas, Inventario y Préstamos */}
           {drawerPaciente && (
-            <VentanaDetalle onCerrar={() => setDrawerPaciente(null)} ancho={760}>
+            <VentanaDetalle onCerrar={() => setDrawerPaciente(null)} ancho={1040}>
             <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
               <EncabezadoDetalle icono={drawerPaciente.nombre?.charAt(0)?.toUpperCase()} titulo={drawerPaciente.nombre}
                 subtitulo={`Paciente${drawerPaciente.cedula ? ` · CC ${drawerPaciente.cedula}` : ''}`}
@@ -1597,7 +1596,7 @@ export default function ClientesClient({ clientesIniciales, clientesInactivosIni
                               </div>
                               {orden?.ordenEquipoId && (
                                 <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1">
-                                  {[['devolucion', esUnico ? 'Recoger y finalizar' : 'Recoger'], seRecarga(eq.tipo_equipo) && ['recarga', 'Recargar'], ['cambio', 'Cambiar']].filter(Boolean).map(([accion, texto]) => (
+                                  {[['devolucion', esUnico ? 'Recoger y finalizar' : 'Recoger'], ['cambio', 'Cambiar o recargar']].filter(Boolean).map(([accion, texto]) => (
                                     <button key={accion} type="button"
                                       onClick={() => irAAccion(accion, orden.id, [orden.ordenEquipoId], `/clientes?paciente=${drawerPaciente.id}`)}
                                       className={`text-[11.5px] font-semibold hover:underline ${accion === 'devolucion' ? 'text-[#D81B43]' : 'text-[#1B3A6B]'}`}>

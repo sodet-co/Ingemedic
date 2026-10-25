@@ -65,7 +65,7 @@ export default function PreviaActas({ actas, inicial = 0, titulo, descargando, o
   return (
     <>
       <div className="fixed inset-0 bg-black/60 z-[70]" onClick={onCerrar} />
-      <div className="fixed inset-0 md:inset-auto md:top-1/2 md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:w-[min(960px,94vw)] md:h-[94vh] md:rounded-2xl bg-white z-[70] flex flex-col shadow-2xl overflow-hidden">
+      <div className="fixed inset-0 md:inset-auto md:top-1/2 md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:w-[min(1200px,94vw)] md:h-[94vh] md:rounded-2xl bg-white z-[70] flex flex-col shadow-2xl overflow-hidden">
         <div className="px-4 md:px-5 py-3 border-b flex items-center gap-3 flex-shrink-0" style={{ paddingTop: 'max(12px, env(safe-area-inset-top))' }}>
           <div className="min-w-0 flex-1">
             <div className="text-[15px] font-bold text-slate-800 truncate">{titulo || 'Vista previa'}</div>

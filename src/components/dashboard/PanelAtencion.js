@@ -150,7 +150,7 @@ export default function PanelAtencion({ reglas, abierto, onCerrar }) {
           más oscuro evita el problema sin depender de backdrop-filter. */}
       <div className="fixed inset-0 bg-black/55 z-[65]" onClick={onCerrar} />
       <div className="fixed inset-x-0 bottom-0 md:inset-0 z-[65] flex md:items-center justify-center md:p-4">
-        <div className="bg-white rounded-t-2xl md:rounded-2xl w-full md:max-w-[760px] max-h-[90vh] md:max-h-[85vh] shadow-2xl flex flex-col" onClick={e => e.stopPropagation()}>
+        <div className="bg-white rounded-t-2xl md:rounded-2xl w-full md:max-w-[980px] max-h-[90vh] md:max-h-[85vh] shadow-2xl flex flex-col" onClick={e => e.stopPropagation()}>
           <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 flex-shrink-0">
             <div>
               <div className="text-[15px] font-bold text-slate-800">Esto requiere tu atención</div>

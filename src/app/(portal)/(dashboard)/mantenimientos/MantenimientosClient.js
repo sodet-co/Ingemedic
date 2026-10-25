@@ -1115,7 +1115,7 @@ export default function MantenimientosClient({ mantenimientosIniciales, equipos,
         <>
           <div className="fixed inset-0 bg-black/40 z-40 backdrop-blur-sm" onClick={() => setModalCierre(null)} />
           <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center p-0 md:p-4">
-            <div className="bg-white rounded-t-2xl md:rounded-2xl w-full md:max-w-[520px] max-h-[92vh] md:max-h-[calc(100vh-2rem)] flex flex-col shadow-2xl overflow-hidden"
+            <div className="bg-white rounded-t-2xl md:rounded-2xl w-full md:max-w-[720px] max-h-[92vh] md:max-h-[calc(100vh-2rem)] flex flex-col shadow-2xl overflow-hidden"
               onClick={e => e.stopPropagation()}>
               <div className="px-6 py-4 border-b flex items-center justify-between flex-shrink-0 bg-[#D81B43]">
                 <div>

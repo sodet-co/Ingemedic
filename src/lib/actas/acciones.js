@@ -33,6 +33,11 @@ export function plantillasSugeridas(plantillas, clienteId, accion = 'prestamo') 
   return estandar ? [estandar.id] : []
 }
 
+// Lo mismo para varias acciones juntas (una recarga: cambio + recarga)
+export const sugeridasDe = (plantillas, clienteId, acciones) => [...new Set(acciones.flatMap(a => plantillasSugeridas(plantillas, clienteId, a)))]
+export const ofrecidasDe = (plantillas, clienteId, acciones, elegidas = []) => acciones.flatMap(a => plantillasOfrecidas(plantillas, clienteId, a, elegidas))
+  .filter((p, i, l) => l.findIndex(x => x.id === p.id) === i)
+
 // Las que se pueden elegir para una acción: las del cliente, las de uso general,
 // la de Ingemedic y las ya elegidas
 export function plantillasOfrecidas(plantillas, clienteId, accion = 'prestamo', elegidas = []) {

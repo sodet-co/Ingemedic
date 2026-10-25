@@ -20,7 +20,7 @@ import VentanaDetalle, { Columnas, EncabezadoDetalle } from '@/components/ui/Ven
 import EntregaEnCurso, { RutaAnimada } from '@/components/entregas/EntregaEnCurso'
 import { descargarActasPDF } from '@/lib/actas/pdf'
 import { crearEntrega, finalizarEntrega } from '@/lib/entregas'
-import { completarAccion, iniciarAccion, accionDeEntrega, equiposDelActa, NOMBRE_ACCION } from '@/lib/accionesPrestamo'
+import { completarAccion, iniciarAccion, accionDeEntrega, equiposDelActa, NOMBRE_ACCION, nombreVisita } from '@/lib/accionesPrestamo'
 import { useUsuarioActual } from '@/lib/usuario-context'
 
 const TL_STEPS = ['Programada', 'En ruta', 'Entregada']
@@ -265,7 +265,7 @@ export default function EntregasClient({ entregasIniciales, ordenesEnReparto, es
     const actualizada = { ...item, ...data, estado: { nombre: 'En progreso' } }
     setEntregas(prev => prev.map(e => e.id === item.id ? actualizada : e))
     setDrawer(actualizada)
-    showToast(`${NOMBRE_ACCION[accionDeEntrega(item)]} iniciada`)
+    showToast(`${nombreVisita(item)} iniciada`)
   }
 
   // ── REGISTRAR ENTREGA: paso de firma de actas (components/actas/FirmaActas.js) ──
@@ -279,12 +279,12 @@ export default function EntregasClient({ entregasIniciales, ordenesEnReparto, es
     if (esAccion(entrega)) {
       const { error, cambios } = await completarAccion(supabase, { entrega, orden: entrega.orden, recibidoPor, firma, observaciones, datos: { datos_acta: datosActa } })
       if (error) return error
-      registrarBitacora({ modulo: 'entregas', accion: 'cerrar', entidad: NOMBRE_ACCION[accionDeEntrega(entrega)].toLowerCase(), entidad_id: entrega.id, detalle: { codigo: entrega.codigo, recibido_por: recibidoPor } })
+      registrarBitacora({ modulo: 'entregas', accion: 'cerrar', entidad: nombreVisita(entrega).toLowerCase(), entidad_id: entrega.id, detalle: { codigo: entrega.codigo, recibido_por: recibidoPor } })
       skipSyncUntil.current = Date.now() + 2500
       setEntregas(prev => prev.map(e => e.id === entrega.id ? { ...e, ...cambios } : e))
       if (drawer?.id === entrega.id) setDrawer(prev => ({ ...prev, ...cambios }))
       setModalExito({
-        titulo: NOMBRE_ACCION[accionDeEntrega(entrega)], codigo: entrega.codigo, ordenCodigo: entrega.orden?.codigo,
+        titulo: nombreVisita(entrega), codigo: entrega.codigo, ordenCodigo: entrega.orden?.codigo,
         cliente: entrega.orden?.cliente?.nombre || entrega.cliente?.nombre, equipos: equiposDeAccion(entrega),
         recibidoPor, duracion: cambios.duracion_minutos, fecha: cambios.fecha_completada,
       })
@@ -709,7 +709,7 @@ export default function EntregasClient({ entregasIniciales, ordenesEnReparto, es
                       className={`bg-white rounded-xl border shadow-sm p-3.5 cursor-pointer transition-all hover:shadow-md ${retrasada ? 'border-[#D81B43]/50' : 'border-slate-200 hover:border-slate-300'}`}>
                       <div className="flex items-center gap-2 mb-1.5">
                         <span className="font-mono text-[11.5px] font-bold bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded">{codigo}</span>
-                        {esAccion(item) && <span className="text-[10.5px] font-bold text-[#6D28D9]">{NOMBRE_ACCION[accionDeEntrega(item)]}</span>}
+                        {esAccion(item) && <span className="text-[10.5px] font-bold text-[#6D28D9]">{nombreVisita(item)}</span>}
                         <span className="ml-auto text-[11px] text-slate-400 truncate">{item._repartidor}</span>
                       </div>
                       <div className="text-[13.5px] font-semibold text-slate-800 truncate">{paciente?.nombre || item.cliente?.nombre}</div>
@@ -839,7 +839,7 @@ export default function EntregasClient({ entregasIniciales, ordenesEnReparto, es
       {/* ── DETALLE ENTREGA (ventana ancha; en celular, hoja desde abajo) ── */}
       {drawer && (
         <VentanaDetalle onCerrar={() => setDrawer(null)} z="z-30">
-            <EncabezadoDetalle icono={<Truck size={18} />} etiqueta={`${esAccion(drawer) ? NOMBRE_ACCION[accionDeEntrega(drawer)] : 'Entrega'} · ${drawer.orden?.codigo || ''}`}
+            <EncabezadoDetalle icono={<Truck size={18} />} etiqueta={`${esAccion(drawer) ? nombreVisita(drawer) : 'Entrega'} · ${drawer.orden?.codigo || ''}`}
               titulo={<span className="font-mono">{drawer.codigo}</span>} subtitulo={drawer.cliente?.nombre}
               onCerrar={() => setDrawer(null)}
               acciones={drawer.estado?.nombre === 'Completada' && (
@@ -868,7 +868,7 @@ export default function EntregasClient({ entregasIniciales, ordenesEnReparto, es
                 {drawer.estado?.nombre !== 'Completada' && (
                   <button onClick={() => { abrirRegistro(drawer); }}
                     className="mt-3 w-full flex items-center justify-center gap-2 py-2.5 bg-[#0F7B55] text-white text-[13px] font-semibold rounded-[9px] hover:bg-[#0a5c3f]">
-                    <CheckCircle2 size={14} /> Registrar {esAccion(drawer) ? NOMBRE_ACCION[accionDeEntrega(drawer)].toLowerCase() : 'entrega'}
+                    <CheckCircle2 size={14} /> Registrar {esAccion(drawer) ? nombreVisita(drawer).toLowerCase() : 'entrega'}
                   </button>
                 )}
               </div>}
@@ -959,7 +959,7 @@ export default function EntregasClient({ entregasIniciales, ordenesEnReparto, es
       {/* ── FIRMA DE ACTAS — completa la entrega ── */}
       {modalRegistro && (
         <FirmaActas ordenId={modalRegistro.orden?.id || modalRegistro.orden_id} entregaId={modalRegistro.id}
-          titulo={`Registrar ${esAccion(modalRegistro) ? NOMBRE_ACCION[accionDeEntrega(modalRegistro)].toLowerCase() : 'entrega'} · ${modalRegistro.codigo}`}
+          titulo={`Registrar ${esAccion(modalRegistro) ? nombreVisita(modalRegistro).toLowerCase() : 'entrega'} · ${modalRegistro.codigo}`}
           {...(esAccion(modalRegistro) ? {
             accion: accionDeEntrega(modalRegistro), plantillaIds: modalRegistro.datos?.plantillas || [],
             ...equiposDelActa(accionDeEntrega(modalRegistro), modalRegistro.datos),
@@ -975,7 +975,7 @@ export default function EntregasClient({ entregasIniciales, ordenesEnReparto, es
         <>
           <div className="fixed inset-0 bg-black/50 z-[80] backdrop-blur-sm" onClick={() => setModalExito(null)} />
           <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
-            <div className="bg-white rounded-2xl w-full max-w-[420px] shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="bg-white rounded-2xl w-full max-w-[520px] shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
               <div className="px-6 pt-8 pb-6 text-center bg-gradient-to-b from-[#ECFDF5] to-white">
                 <div className="w-16 h-16 rounded-full bg-[#0F7B55] flex items-center justify-center mx-auto mb-4 shadow-lg shadow-[#0F7B55]/20">
                   <CheckCircle2 size={32} className="text-white" />

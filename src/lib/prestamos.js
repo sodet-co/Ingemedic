@@ -70,7 +70,9 @@ export async function cerrarEquiposAbiertos({ supabase, ordenId, nota }) {
 // El equipo que sale se libera con liberarEquipos (respeta mantenimientos).
 // yaReservado: el nuevo ya quedó "Reservado" para este cambio (cambio a domicilio
 // programado, lib/accionesPrestamo.js): se acepta también en ese estado.
-export async function cambiarEquipo({ supabase, orden, ordenEquipoId, equipoAnteriorId, equipoNuevo, fecha, motivo, yaReservado = false }) {
+// estadoSale: cómo queda el que sale. En una recarga, "Por recargar" (está vacío:
+// no se puede prestar hasta que en Inventario lo marquen recargado).
+export async function cambiarEquipo({ supabase, orden, ordenEquipoId, equipoAnteriorId, equipoNuevo, fecha, motivo, yaReservado = false, estadoSale = 'Disponible' }) {
   // Se confirma en BD que el nuevo sigue disponible (la lista en pantalla puede ser vieja)
   const { data: actual, error: errNuevo } = await supabase.from('equipos')
     .select('estado:estados_equipo(nombre)').eq('id', equipoNuevo.id).maybeSingle()
@@ -80,8 +82,9 @@ export async function cambiarEquipo({ supabase, orden, ordenEquipoId, equipoAnte
   }
 
   const { data: estadosEq } = await supabase.from('estados_equipo').select('id, nombre')
-    .in('nombre', ['Disponible', 'Reservado', 'En préstamo'])
+    .in('nombre', ['Disponible', 'Reservado', 'En préstamo', estadoSale])
   const idEstado = nombre => estadosEq?.find(e => e.nombre === nombre)?.id
+  if (!idEstado(estadoSale)) return { error: { message: `Falta el estado de equipo "${estadoSale}" en la base de datos.` } }
   const entregada = orden.estado?.nombre === 'Entregada'
 
   if (entregada) {
@@ -107,6 +110,6 @@ export async function cambiarEquipo({ supabase, orden, ordenEquipoId, equipoAnte
   }).eq('id', equipoNuevo.id)
   if (errAsignar) return { error: errAsignar }
 
-  const { error: errLiberar } = await liberarEquipos(supabase, [equipoAnteriorId], idEstado('Disponible'))
+  const { error: errLiberar } = await liberarEquipos(supabase, [equipoAnteriorId], idEstado(estadoSale))
   return { error: errLiberar || null, entregada }
 }

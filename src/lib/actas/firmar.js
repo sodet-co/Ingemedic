@@ -51,7 +51,7 @@ export async function guardarActas(supabase, { ordenId, entregaId = null, accion
     orden_id: ordenId,
     entrega_id: entregaId,
     plantilla_id: p.id,
-    accion,
+    accion: p.accion || accion,
     nombre: p.nombre,
     bloques: p.bloques,
     datos: { variables: ctx.variables, equipos: ctx.equipos, insumos: ctx.insumos, retirados: ctx.retirados, manuales: ctx.manualesPorPlantilla?.[p.id] || {} },

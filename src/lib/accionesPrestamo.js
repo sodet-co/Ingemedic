@@ -13,6 +13,7 @@ import { hoyBogota } from '@/lib/fechas'
 //   equipos:  [{ orden_equipo_id, equipo }]          los que se recogen o recargan
 //   cambios:  [{ orden_equipo_id, sale, entra }]     en un cambio de equipo
 //   motivo, observaciones,
+//   recarga: true                                    un cambio por recarga (ver abajo)
 //   plantillas: [ids]                                los formatos de la acción
 //   datos_acta: { recibe, ciudad, observaciones, manuales, … }  (lib/actas/campos.js)
 // }  — los equipos van copiados (código, tipo, serie): la historia no cambia
@@ -22,6 +23,15 @@ export const TIPO_DE_ACCION = { prestamo: 'entrega', devolucion: 'retiro', recar
 export const ACCION_DE_TIPO = { entrega: 'prestamo', retiro: 'devolucion', recarga: 'recarga', cambio: 'cambio' }
 export const NOMBRE_ACCION = { prestamo: 'Entrega', devolucion: 'Recogida', recarga: 'Recarga', cambio: 'Cambio de equipo' }
 export const accionDeEntrega = e => ACCION_DE_TIPO[e?.tipo] || 'prestamo'
+// La recarga se hace como cambio de equipo (se deja uno recargado y el vacío vuelve
+// a la bodega) con datos.recarga: usa los formatos de recarga y cuenta como recarga.
+// Las filas viejas con tipo 'recarga' siguen funcionando igual.
+export const esRecargaVisita = e => e?.tipo === 'recarga' || (e?.tipo === 'cambio' && !!e?.datos?.recarga)
+// Acciones de los formatos de una visita. Una recarga hecha como cambio lleva los
+// dos: el acta de cambio de equipo (para el préstamo) y la de recarga (para el
+// equipo en el inventario). Cada acta queda con la acción de su plantilla.
+export const formatosDeVisita = e => e?.tipo === 'cambio' && e?.datos?.recarga ? ['cambio', 'recarga'] : [accionDeEntrega(e)]
+export const nombreVisita = e => esRecargaVisita(e) ? 'Recarga' : NOMBRE_ACCION[accionDeEntrega(e)]
 
 // Copia de un equipo con lo que piden las actas y la historia
 export const copiaEquipo = eq => eq && ({
@@ -110,8 +120,14 @@ export async function aplicarAccion(supabase, { orden, accion, datos, fecha = ho
       const r = await cambiarEquipo({
         supabase, orden: { ...orden, estado: { nombre: 'Entregada' } }, ordenEquipoId: c.orden_equipo_id,
         equipoAnteriorId: c.sale.id, equipoNuevo: c.entra, fecha, motivo: datos.motivo, yaReservado,
+        // En una recarga el que sale va vacío: queda "Por recargar" (Inventario lo marca recargado)
+        estadoSale: datos.recarga ? 'Por recargar' : 'Disponible',
       })
       if (r.error) return r
+    }
+    if (datos.recarga) {
+      const { error } = await supabase.from('ordenes_servicio').update({ ultima_recarga: new Date().toISOString() }).eq('id', orden.id)
+      if (error) return { error }
     }
     return { error: null }
   }

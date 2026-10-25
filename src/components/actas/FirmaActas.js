@@ -177,7 +177,7 @@ export default function FirmaActas({ ordenId, entregaId = null, titulo = 'Firmar
   return (
     <>
       <div className="fixed inset-0 bg-black/50 z-[60]" onClick={guardando ? undefined : onCancelar} />
-      <div className="fixed inset-x-0 bottom-0 h-[92vh] rounded-t-2xl md:inset-y-6 md:inset-x-auto md:left-1/2 md:-translate-x-1/2 md:h-auto md:w-[880px] md:rounded-2xl bg-white z-[60] flex flex-col shadow-2xl overflow-hidden">
+      <div className="fixed inset-x-0 bottom-0 h-[92vh] rounded-t-2xl md:inset-y-6 md:inset-x-auto md:left-1/2 md:-translate-x-1/2 md:h-auto md:w-[min(1120px,calc(100vw-3rem))] md:rounded-2xl bg-white z-[60] flex flex-col shadow-2xl overflow-hidden">
         <div className="px-5 py-3.5 border-b flex items-center gap-3 flex-shrink-0">
           {paso > 0 && (
             <button onClick={() => { setError(null); setTrazando(null); setPaso(p => p - 1) }} disabled={guardando}

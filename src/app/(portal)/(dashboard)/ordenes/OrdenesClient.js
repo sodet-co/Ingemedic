@@ -22,11 +22,11 @@ import NuevoPrestamo from '@/components/prestamos/NuevoPrestamo'
 import AccionPrestamo from '@/components/prestamos/AccionPrestamo'
 import HistorialPrestamo from '@/components/prestamos/HistorialPrestamo'
 import { seRecarga } from '@/lib/actas/acciones'
-import { cancelarAccion, proximaRecarga, NOMBRE_ACCION, accionDeEntrega } from '@/lib/accionesPrestamo'
+import { cancelarAccion, proximaRecarga, NOMBRE_ACCION, accionDeEntrega, nombreVisita } from '@/lib/accionesPrestamo'
 import { useOrdenable } from '@/hooks/useOrdenable'
 import { usePaginacion } from '@/hooks/usePaginacion'
 import {
-  Plus, X, Search, FileText, CheckCircle2, AlertTriangle, Clock, User, Edit3, Truck, ChevronRight, Ban, ArrowLeftRight, Undo2, RefreshCw
+  Plus, X, Search, FileText, CheckCircle2, AlertTriangle, Clock, User, Edit3, Truck, ChevronRight, Ban, ArrowLeftRight, Undo2, RefreshCw, MoreHorizontal
 } from 'lucide-react'
 
 const E = {
@@ -249,6 +249,9 @@ export default function OrdenesClient({
   const [guardandoCambio, setGuardandoCambio] = useState(false)
   const [formDevolucion, setFormDevolucion]   = useState({ fecha: '', observaciones: '' })
   const [modalCancelar, setModalCancelar]     = useState(false)
+  const [menuMas, setMenuMas]                 = useState(false) // menú "Más" del detalle
+  const [verDevueltos, setVerDevueltos]       = useState(false) // equipos devueltos en el detalle
+  const [verHistorial, setVerHistorial]       = useState(false) // historial del detalle (plegado)
 
   function showToast(msg, tipo = 'success') {
     setToast({ msg, tipo })
@@ -351,6 +354,7 @@ export default function OrdenesClient({
   }, [drawer])
 
   function abrirDrawer(orden) {
+    setMenuMas(false); setVerDevueltos(false); setVerHistorial(false)
     if (!drawer && listaScrollRef.current) listaScrollTop.current = listaScrollRef.current.scrollTop
     setDrawer(orden)
     setEditRepartidor(false)
@@ -482,8 +486,8 @@ export default function OrdenesClient({
   async function cancelarVisita(v) {
     const { error } = await cancelarAccion(supabase, v)
     if (error) { showToast('Error: ' + error.message, 'error'); return }
-    registrarBitacora({ modulo: 'ordenes', accion: 'cancelar', entidad: NOMBRE_ACCION[accionDeEntrega(v)].toLowerCase(), entidad_id: v.id, detalle: { codigo: drawer?.codigo } })
-    showToast(`${NOMBRE_ACCION[accionDeEntrega(v)]} cancelada`)
+    registrarBitacora({ modulo: 'ordenes', accion: 'cancelar', entidad: nombreVisita(v).toLowerCase(), entidad_id: v.id, detalle: { codigo: drawer?.codigo } })
+    showToast(`${nombreVisita(v)} cancelada`)
     router.refresh()
   }
   async function guardarFrecuencia() {
@@ -872,420 +876,346 @@ export default function OrdenesClient({
 
           {/* Detalle en ventana ancha, igual que Entregas, Inventario y Clientes */}
           {drawer && (
-            <VentanaDetalle onCerrar={() => setDrawer(null)} ancho={860}>
+            <VentanaDetalle onCerrar={() => setDrawer(null)} ancho={1100}>
             <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
               <EncabezadoDetalle icono={drawer.cliente?.nombre?.charAt(0)?.toUpperCase() || '?'} imagen={drawer.cliente?.logo_url}
                 etiqueta={<span className="font-mono">{drawer.codigo}</span>} titulo={drawer.cliente?.nombre || '—'}
                 subtitulo={drawer.paciente?.nombre ? `Paciente: ${drawer.paciente.nombre}` : undefined}
                 onCerrar={() => setDrawer(null)} />
 
-              <div className="flex-1 overflow-y-auto divide-y divide-slate-100 pb-4">
+              <div className="flex-1 overflow-y-auto pb-4">
 
-                {/* Estado + timeline + acción */}
-                <div className="p-5">
-                  <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+                {/* Barra superior: estado, avisos y las acciones (una sola vez). Cambiar
+                    incluye la recarga (con su motivo); recoger y cambiar van con acta
+                    opcional; finalizar es sin acta; cancelar queda en "Más". */}
+                <div className="px-5 md:px-6 py-4 border-b border-slate-100">
+                  <div className="flex flex-wrap items-center gap-2">
                     <EstadoBadge orden={drawer} retrasada={drawerRetrasada} />
-                    <div className="flex items-center gap-2">
+                    {drawerEstado === 'En reparto' && (
+                      <span className="text-[12px] text-[#B45309] bg-[#FFFBEB] px-2.5 py-1 rounded-full border border-[#F59E0B]/30 font-semibold flex items-center gap-1.5">
+                        <Truck size={12} /> En ruta con el repartidor
+                      </span>
+                    )}
+                    {drawerRetrasada && (
+                      <span className="text-[12px] text-[#D81B43] bg-[#FEF2F2] px-2.5 py-1 rounded-full font-semibold flex items-center gap-1.5"><AlertTriangle size={12} /> Entrega retrasada</span>
+                    )}
+                    {drawerVencida && drawerEstado !== 'Finalizada' && (
+                      <span className="text-[12px] text-[#D81B43] bg-[#FEF2F2] px-2.5 py-1 rounded-full font-semibold flex items-center gap-1.5"><Clock size={12} /> Vigencia vencida</span>
+                    )}
+                    <div className="ml-auto flex flex-wrap items-center gap-2">
                       {conActa && equiposDrawer.length > 0 && (
                         <>
-                          <button onClick={() => iniciarAccion('devolucion')}
-                            className="flex items-center gap-1.5 px-3 py-1.5 bg-[#D81B43] text-white text-[12px] font-semibold rounded-[7px] hover:bg-[#B0172F]">
-                            <Undo2 size={13} /> Recoger
-                          </button>
-                          {recargables.length > 0 && (
-                            <button onClick={() => iniciarAccion('recarga')}
-                              className="flex items-center gap-1.5 px-3 py-1.5 border border-[#0E86A0]/40 text-[#0E86A0] text-[12px] font-semibold rounded-[7px] hover:bg-[#E8F7FB]">
-                              <RefreshCw size={13} /> Recarga
-                            </button>
-                          )}
                           <button onClick={() => iniciarAccion('cambio')}
-                            className="flex items-center gap-1.5 px-3 py-1.5 border border-[#1B3A6B]/25 text-[#1B3A6B] text-[12px] font-semibold rounded-[7px] hover:bg-[#1B3A6B]/[0.05]">
-                            <ArrowLeftRight size={13} /> Cambiar
+                            className="flex items-center gap-2 h-10 px-4 bg-[#1B3A6B] text-white text-[13px] font-semibold rounded-[9px] hover:bg-[#152D54]">
+                            <ArrowLeftRight size={15} /> Cambiar o recargar
+                          </button>
+                          <button onClick={() => iniciarAccion('devolucion')}
+                            className="flex items-center gap-2 h-10 px-4 border border-[#D81B43]/35 text-[#D81B43] bg-white text-[13px] font-semibold rounded-[9px] hover:bg-[#D81B43]/[0.05]">
+                            <Undo2 size={15} /> Recoger
                           </button>
                         </>
                       )}
                       {puedeFinalizarUnico && !conActa && (
                         <button onClick={() => abrirModalDevolucion(equiposDrawer[0])}
-                          className="flex items-center gap-1.5 px-3 py-1.5 bg-[#D81B43] text-white text-[12px] font-semibold rounded-[7px] hover:bg-[#B0172F]">
-                          <CheckCircle2 size={13} /> Finalizar préstamo
+                          className="flex items-center gap-2 h-10 px-4 border border-slate-200 text-slate-700 bg-white text-[13px] font-semibold rounded-[9px] hover:border-slate-300">
+                          <CheckCircle2 size={15} /> Finalizar préstamo
                         </button>
                       )}
                       {/* Finalizar sin acta: siempre que esté entregado, tenga uno o varios equipos */}
                       {transicion && (
                         <button onClick={() => setModalConfirm({ orden: drawer, transicion })}
-                          className="flex items-center gap-1.5 px-3 py-1.5 bg-[#D81B43] text-white text-[12px] font-semibold rounded-[7px] hover:bg-[#B0172F]">
-                          <CheckCircle2 size={13} /> Finalizar préstamo
+                          className="flex items-center gap-2 h-10 px-4 border border-slate-200 text-slate-700 bg-white text-[13px] font-semibold rounded-[9px] hover:border-slate-300">
+                          <CheckCircle2 size={15} /> Finalizar préstamo
                         </button>
-                      )}
-                      {drawerEstado === 'En reparto' && (
-                        <span className="text-[12px] text-[#B45309] bg-[#FFFBEB] px-3 py-1.5 rounded-[7px] border border-[#F59E0B]/30 font-medium flex items-center gap-1.5">
-                          <Truck size={12} /> En ruta con el repartidor
-                        </span>
                       )}
                       {puedeCancelarOrden && (
-                        <button onClick={() => setModalCancelar(true)}
-                          className="flex items-center gap-1.5 px-3 py-1.5 border border-red-200 text-red-600 text-[12px] font-semibold rounded-[7px] hover:bg-red-50">
-                          <Ban size={13} /> Cancelar préstamo
-                        </button>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Aviso orden incompleta */}
-                  {drawerIncompleta && (
-                    <div className="mb-4 p-3 bg-[#FFFBEB] border border-[#F59E0B]/40 rounded-[9px]">
-                      <div className="text-[12.5px] font-semibold text-[#B45309] mb-1 flex items-center gap-1.5">
-                        <AlertTriangle size={13} /> Orden sin programar
-                      </div>
-                      <div className="text-[12px] text-[#B45309]/80 space-y-0.5">
-                        {!drawer.repartidor_id && <div>• Falta asignar repartidor</div>}
-                        {!drawer.fecha_entrega && <div>• Falta fecha y hora de entrega</div>}
-                      </div>
-                      <div className="text-[11.5px] text-slate-400 mt-2">
-                        Esta orden no aparecerá en Entregas hasta que tenga repartidor y fecha programada.
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Timeline visual */}
-                  <div className="flex items-start mt-3">
-                    {FLUJO.map((paso, i) => {
-                      const idx = FLUJO.indexOf(drawerEstado)
-                      const st  = i < idx ? 'done' : i === idx ? 'active' : 'pending'
-                      return (
-                        <div key={paso} className="flex-1 flex flex-col items-center relative">
-                          {i > 0 && (
-                            <div className={`absolute top-3 right-1/2 w-full h-0.5 ${st === 'done' || st === 'active' ? 'bg-[#D81B43]' : 'bg-slate-200'}`} />
+                        <div className="relative">
+                          <button onClick={() => setMenuMas(v => !v)} aria-label="Más acciones" aria-expanded={menuMas}
+                            className="flex items-center gap-1.5 h-10 px-3 text-slate-500 text-[13px] font-semibold rounded-[9px] hover:bg-slate-100">
+                            <MoreHorizontal size={17} /> Más
+                          </button>
+                          {menuMas && (
+                            <>
+                              <div className="fixed inset-0 z-10" onClick={() => setMenuMas(false)} />
+                              <div className="absolute right-0 top-11 z-20 w-[220px] bg-white rounded-[10px] border border-slate-200 shadow-lg py-1">
+                                <button onClick={() => { setMenuMas(false); setModalCancelar(true) }}
+                                  className="w-full flex items-center gap-2 px-3 py-2.5 text-left text-[13px] font-semibold text-red-600 hover:bg-red-50">
+                                  <Ban size={14} /> Cancelar préstamo
+                                </button>
+                              </div>
+                            </>
                           )}
-                          <div className={`w-6 h-6 rounded-full z-10 flex items-center justify-center flex-shrink-0 ${
-                            st === 'done'   ? 'bg-[#D81B43]' :
-                            st === 'active' ? 'bg-white border-2 border-[#D81B43]' :
-                            'bg-white border-2 border-slate-200'
-                          }`}>
-                            {st === 'done'   && <CheckCircle2 size={10} className="text-white" />}
-                            {st === 'active' && <div className="w-2 h-2 bg-[#D81B43] rounded-full" />}
-                          </div>
-                          <div className={`text-[9px] font-semibold mt-1 text-center leading-tight ${
-                            st === 'done' || st === 'active' ? 'text-[#D81B43]' : 'text-slate-400'
-                          }`}>{paso}</div>
                         </div>
-                      )
-                    })}
-                  </div>
-
-                  {/* Alertas */}
-                  {drawerRetrasada && (
-                    <div className="mt-4 flex items-center gap-2 text-[12px] text-[#D81B43] bg-[#FEF2F2] px-3 py-2.5 rounded-[8px] border border-[#D81B43]/20">
-                      <AlertTriangle size={13} /> Entrega retrasada — la hora programada ya pasó
-                    </div>
-                  )}
-                  {drawerVencida && drawerEstado !== 'Finalizada' && (
-                    <div className="mt-3 flex items-center gap-2 text-[12px] text-red-500 bg-red-50 px-3 py-2.5 rounded-[8px] border border-red-200">
-                      <Clock size={13} /> Vigencia vencida
-                    </div>
-                  )}
-                </div>
-
-                {/* Repartidor — editable */}
-                <div className="p-5">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="text-[10.5px] font-bold uppercase tracking-[0.1em] text-slate-400">Repartidor</div>
-                    {puedeEdRep && !editRepartidor && (
-                      <button onClick={() => { setEditRepartidor(true); setNuevoRepartidor(drawer.repartidor_id || '') }}
-                        className="flex items-center gap-1 text-[11.5px] text-[#D81B43] font-semibold hover:underline">
-                        <Edit3 size={11} /> {drawer.repartidor ? 'Cambiar' : 'Asignar'}
-                      </button>
-                    )}
-                  </div>
-                  {!editRepartidor ? (
-                    <div className="flex items-center gap-2">
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[12px] font-bold flex-shrink-0 ${drawer.repartidor ? 'bg-[#D81B43]/10 text-[#D81B43]' : 'bg-slate-100 text-slate-400'}`}>
-                        {drawer.repartidor ? drawer.repartidor.nombre.charAt(0).toUpperCase() : <User size={14} />}
-                      </div>
-                      <div>
-                        <div className="text-[13.5px] font-semibold text-slate-700">{drawer.repartidor?.nombre || 'Sin asignar'}</div>
-                        {!drawer.repartidor && drawerEstado === 'Borrador' && (
-                          <div className="text-[11px] text-[#B45309]">Requerido para programar</div>
-                        )}
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      <select value={nuevoRepartidor} onChange={e => setNuevoRepartidor(e.target.value)} className={inputCls}>
-                        <option value="">Seleccionar...</option>
-                        {usuarios.map(u => <option key={u.id} value={u.id}>{u.nombre}</option>)}
-                      </select>
-                      <div className="flex gap-2">
-                        <button onClick={guardarRepartidor}
-                          className="flex-1 py-2 bg-[#D81B43] text-white rounded-[8px] text-[12.5px] font-semibold hover:bg-[#B0172F]">
-                          Guardar
-                        </button>
-                        <button onClick={() => setEditRepartidor(false)}
-                          className="flex-1 py-2 border border-slate-200 text-slate-500 rounded-[8px] text-[12.5px] hover:border-slate-300">
-                          Cancelar
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Fecha entrega — editable si está en Borrador/Programada */}
-                {['Borrador', 'Programada'].includes(drawerEstado) && (
-                  <div className="p-5">
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="text-[10.5px] font-bold uppercase tracking-[0.1em] text-slate-400">Fecha y hora de entrega</div>
-                      {!editFecha && (
-                        <button onClick={() => { setEditFecha(true); setNuevaFecha(drawer.fecha_entrega ? paraInput(drawer.fecha_entrega) : '') }}
-                          className="flex items-center gap-1 text-[11.5px] text-[#D81B43] font-semibold hover:underline">
-                          <Edit3 size={11} /> {drawer.fecha_entrega ? 'Cambiar' : 'Programar'}
-                        </button>
                       )}
                     </div>
-                    {!editFecha ? (
-                      drawer.fecha_entrega
-                        ? <div className={`text-[13.5px] font-semibold ${drawerRetrasada ? 'text-[#D81B43]' : 'text-slate-700'}`}>
-                            {formatear(drawer.fecha_entrega, { month: '2-digit', hour: '2-digit', minute: '2-digit' })}
-                          </div>
-                        : <div className="text-[12.5px] text-[#B45309] font-medium flex items-center gap-1.5">
-                            <AlertTriangle size={12} /> Sin programar
-                          </div>
-                    ) : (
-                      <div className="space-y-2">
-                        <input type="datetime-local" value={nuevaFecha}
-                          onChange={e => setNuevaFecha(e.target.value)} className={inputCls} />
-                        <div className="flex gap-2">
-                          <button onClick={guardarFecha}
-                            className="flex-1 py-2 bg-[#D81B43] text-white rounded-[8px] text-[12.5px] font-semibold hover:bg-[#B0172F]">
-                            Guardar
-                          </button>
-                          <button onClick={() => setEditFecha(false)}
-                            className="flex-1 py-2 border border-slate-200 text-slate-500 rounded-[8px] text-[12.5px] hover:border-slate-300">
-                            Cancelar
-                          </button>
-                        </div>
-                      </div>
-                    )}
                   </div>
-                )}
 
-                {/* Vigencia — editable mientras el préstamo siga en curso (Finalizada/
-                    Cancelada ya terminaron, la vigencia deja de tener sentido) */}
-                {!['Finalizada', 'Cancelada'].includes(drawerEstado) && (
-                  <div className="p-5">
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="text-[10.5px] font-bold uppercase tracking-[0.1em] text-slate-400">Vigencia del préstamo</div>
-                      {!editVigencia && (
-                        <button onClick={() => { setEditVigencia(true); setNuevaVigencia(drawer.fecha_vigencia || null) }}
-                          className="flex items-center gap-1 text-[11.5px] text-[#D81B43] font-semibold hover:underline">
-                          <Edit3 size={11} /> {drawer.fecha_vigencia ? 'Cambiar' : 'Definir'}
-                        </button>
-                      )}
-                    </div>
-                    {!editVigencia ? (
-                      drawer.fecha_vigencia
-                        ? <div className={`text-[13.5px] font-semibold ${drawerVencida ? 'text-[#D81B43]' : 'text-slate-700'}`}>
-                            {formatearSoloFecha(drawer.fecha_vigencia)}
-                          </div>
-                        : <div className="text-[12.5px] text-slate-400 font-medium">Indefinido — sin fecha de vencimiento</div>
-                    ) : (
-                      <div className="space-y-2">
-                        <ControlVigencia value={nuevaVigencia} onChange={setNuevaVigencia} />
-                        <div className="flex gap-2">
-                          <button onClick={guardarVigencia}
-                            className="flex-1 py-2 bg-[#D81B43] text-white rounded-[8px] text-[12.5px] font-semibold hover:bg-[#B0172F]">
-                            Guardar
-                          </button>
-                          <button onClick={() => setEditVigencia(false)}
-                            className="flex-1 py-2 border border-slate-200 text-slate-500 rounded-[8px] text-[12.5px] hover:border-slate-300">
-                            Cancelar
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Datos generales */}
-                <div className="p-5">
-                  <div className="text-[10.5px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-3">Detalles</div>
-                  <div className="grid grid-cols-2 gap-3">
-                    {[
-                      { label: 'Cliente',        value: drawer.cliente?.nombre },
-                      { label: 'Paciente',       value: drawer.paciente?.nombre || '—' },
-                      { label: 'Domicilio',      value: drawer.repartidor_id ? 'Sí' : 'No' },
-                      { label: 'Recibido por',   value: drawer.recibido_por || '—' },
-                      { label: 'Fecha entrega',  value: formatear(drawer.fecha_entrega, { month: '2-digit', hour: '2-digit', minute: '2-digit' }) },
-                      { label: 'Vigencia',       value: formatearSoloFecha(drawer.fecha_vigencia) },
-                      { label: 'Fecha creación', value: formatear(drawer.fecha_creacion) },
-                    ].map(f => (
-                      <div key={f.label}>
-                        <div className="text-[10px] font-semibold uppercase text-slate-400 mb-1">{f.label}</div>
-                        <div className={`text-[13px] font-medium ${
-                          f.label === 'Vigencia' && drawerVencida ? 'text-red-500' :
-                          f.label === 'Fecha entrega' && drawerRetrasada ? 'text-[#D81B43]' :
-                          'text-slate-700'
-                        }`}>{f.value}</div>
-                      </div>
-                    ))}
-                    {drawer.observaciones && (
-                      <div className="col-span-2">
-                        <div className="text-[10px] font-semibold uppercase text-slate-400 mb-1">Observaciones</div>
-                        <div className="text-[13px] text-slate-600 italic">{drawer.observaciones}</div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Recogidas, recargas y cambios programados a domicilio */}
-                {visitasPendientes.length > 0 && (
-                  <div className="p-5">
-                    <div className="text-[10.5px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-3">Programado ({visitasPendientes.length})</div>
-                    <div className="space-y-2">
-                      {visitasPendientes.map(v => {
-                        const eqs = v.tipo === 'cambio' ? (v.datos?.cambios || []).map(c => `${c.sale?.codigo} → ${c.entra?.codigo}`) : (v.datos?.equipos || []).map(x => x.equipo?.codigo)
+                  {/* Línea de estado: solo mientras la entrega a domicilio está en curso */}
+                  {['Programada', 'En reparto'].includes(drawerEstado) && (
+                    <div className="flex items-start mt-4 max-w-[640px]">
+                      {FLUJO.map((paso, i) => {
+                        const idx = FLUJO.indexOf(drawerEstado)
+                        const st  = i < idx ? 'done' : i === idx ? 'active' : 'pending'
                         return (
-                          <div key={v.id} className="flex items-start gap-3 p-3 rounded-[10px] border border-[#F59E0B]/30 bg-[#FFFBEB]">
-                            <Truck size={15} className="text-[#B45309] flex-shrink-0 mt-0.5" />
-                            <div className="min-w-0 flex-1">
-                              <div className="text-[13px] font-semibold text-slate-800">{NOMBRE_ACCION[accionDeEntrega(v)]} · {v.estado?.nombre === 'En progreso' ? 'en camino' : 'por iniciar'}</div>
-                              <div className="text-[12px] text-slate-500 truncate">{v.repartidor?.nombre || 'Sin repartidor'} · {formatear(v.fecha_programada, { month: '2-digit', hour: '2-digit', minute: '2-digit' })}</div>
-                              <div className="text-[11.5px] text-slate-400 font-mono truncate">{eqs.join(' · ')}</div>
+                          <div key={paso} className="flex-1 flex flex-col items-center relative">
+                            {i > 0 && <div className={`absolute top-2.5 right-1/2 w-full h-0.5 ${st === 'pending' ? 'bg-slate-200' : 'bg-[#D81B43]'}`} />}
+                            <div className={`w-5 h-5 rounded-full z-10 flex items-center justify-center ${st === 'done' ? 'bg-[#D81B43]' : st === 'active' ? 'bg-white border-2 border-[#D81B43]' : 'bg-white border-2 border-slate-200'}`}>
+                              {st === 'done' && <CheckCircle2 size={9} className="text-white" />}
+                              {st === 'active' && <div className="w-1.5 h-1.5 bg-[#D81B43] rounded-full" />}
                             </div>
-                            {v.estado?.nombre !== 'En progreso' && (
-                              <button onClick={() => cancelarVisita(v)} className="text-[12px] font-semibold text-red-500 hover:underline flex-shrink-0">Cancelar</button>
-                            )}
+                            <div className={`text-[10px] font-semibold mt-1 ${st === 'pending' ? 'text-slate-400' : 'text-[#D81B43]'}`}>{paso}</div>
                           </div>
                         )
                       })}
                     </div>
-                  </div>
-                )}
+                  )}
 
-                {/* Recarga periódica: solo si el préstamo tiene equipos que se recargan */}
-                {recargables.length > 0 && !['Finalizada', 'Cancelada'].includes(drawerEstado) && (
-                  <div className="p-5">
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="text-[10.5px] font-bold uppercase tracking-[0.1em] text-slate-400">Recargas</div>
-                      {!editRecarga && (
-                        <button onClick={() => { setEditRecarga(true); setNuevaFrecuencia(drawer.recarga_cada_dias ? String(drawer.recarga_cada_dias) : '') }}
-                          className="flex items-center gap-1 text-[11.5px] text-[#D81B43] font-semibold hover:underline">
-                          <Edit3 size={11} /> {drawer.recarga_cada_dias ? 'Cambiar' : 'Definir frecuencia'}
-                        </button>
-                      )}
-                    </div>
-                    {!editRecarga ? (
-                      <div className="text-[13px] text-slate-700">
-                        {drawer.recarga_cada_dias
-                          ? <>Cada <b>{drawer.recarga_cada_dias} días</b>{proxima && <> · próxima <b className={new Date(proxima) < new Date() ? 'text-[#D81B43]' : ''}>{formatearSoloFecha(proxima.slice(0, 10))}</b></>}</>
-                          : <span className="text-slate-400">A demanda (sin frecuencia)</span>}
-                        {drawer.ultima_recarga && <div className="text-[12px] text-slate-400 mt-0.5">Última: {formatear(drawer.ultima_recarga)}</div>}
+                  {drawerIncompleta && (
+                    <div className="mt-4 p-3 bg-[#FFFBEB] border border-[#F59E0B]/40 rounded-[9px] text-[12.5px] text-[#B45309]">
+                      <div className="font-semibold flex items-center gap-1.5"><AlertTriangle size={13} /> Orden sin programar</div>
+                      <div className="text-[12px] mt-0.5">
+                        {[!drawer.repartidor_id && 'falta el repartidor', !drawer.fecha_entrega && 'falta la fecha de entrega'].filter(Boolean).join(' y ')}. No aparece en Entregas hasta tenerlos.
                       </div>
-                    ) : (
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2">
-                          <span className="text-[13px] text-slate-600">Cada</span>
-                          <input type="number" min={1} value={nuevaFrecuencia} onChange={e => setNuevaFrecuencia(e.target.value)} placeholder="15" className={`${inputCls} !w-24`} />
-                          <span className="text-[13px] text-slate-600">días</span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="lg:grid lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:divide-x lg:divide-slate-100">
+                  {/* ── Columna izquierda: datos, fechas y recargas, lo programado ── */}
+                  <div className="divide-y divide-slate-100 min-w-0">
+                    <div className="px-5 md:px-6 py-4">
+                      <div className="text-[10.5px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-3">Datos del préstamo</div>
+                      <dl className="space-y-3">
+                        {/* Repartidor: editable antes de la entrega */}
+                        <div className="flex items-start gap-3">
+                          <dt className="w-[110px] flex-shrink-0 text-[12px] text-slate-400 pt-0.5">Repartidor</dt>
+                          <dd className="flex-1 min-w-0">
+                            {!editRepartidor ? (
+                              <div className="flex items-center justify-between gap-2">
+                                <span className={`text-[13px] font-semibold ${drawer.repartidor ? 'text-slate-700' : 'text-slate-400'}`}>
+                                  {drawer.repartidor?.nombre || (drawer.repartidor_id ? '—' : 'En oficina')}
+                                </span>
+                                {puedeEdRep && (
+                                  <button onClick={() => { setEditRepartidor(true); setNuevoRepartidor(drawer.repartidor_id || '') }}
+                                    className="flex items-center gap-1 text-[11.5px] text-[#D81B43] font-semibold hover:underline flex-shrink-0">
+                                    <Edit3 size={11} /> {drawer.repartidor ? 'Cambiar' : 'Asignar'}
+                                  </button>
+                                )}
+                              </div>
+                            ) : (
+                              <div className="space-y-2">
+                                <select value={nuevoRepartidor} onChange={e => setNuevoRepartidor(e.target.value)} className={inputCls}>
+                                  <option value="">Seleccionar...</option>
+                                  {usuarios.map(u => <option key={u.id} value={u.id}>{u.nombre}</option>)}
+                                </select>
+                                <div className="flex gap-2">
+                                  <button onClick={guardarRepartidor} className="flex-1 py-2 bg-[#D81B43] text-white rounded-[8px] text-[12.5px] font-semibold hover:bg-[#B0172F]">Guardar</button>
+                                  <button onClick={() => setEditRepartidor(false)} className="flex-1 py-2 border border-slate-200 text-slate-500 rounded-[8px] text-[12.5px] hover:border-slate-300">Cancelar</button>
+                                </div>
+                              </div>
+                            )}
+                          </dd>
                         </div>
-                        <div className="text-[11.5px] text-slate-400">Déjalo vacío para recargas solo a demanda. Cuando toque, aparece en los avisos del inicio.</div>
-                        <div className="flex gap-2">
-                          <button onClick={guardarFrecuencia} className="flex-1 py-2 bg-[#D81B43] text-white rounded-[8px] text-[12.5px] font-semibold hover:bg-[#B0172F]">Guardar</button>
-                          <button onClick={() => setEditRecarga(false)} className="flex-1 py-2 border border-slate-200 text-slate-500 rounded-[8px] text-[12.5px] hover:border-slate-300">Cancelar</button>
+                        {/* Fecha de entrega: editable en Borrador/Programada */}
+                        <div className="flex items-start gap-3">
+                          <dt className="w-[110px] flex-shrink-0 text-[12px] text-slate-400 pt-0.5">Entrega</dt>
+                          <dd className="flex-1 min-w-0">
+                            {!editFecha ? (
+                              <div className="flex items-center justify-between gap-2">
+                                <span className={`text-[13px] font-semibold ${drawerRetrasada ? 'text-[#D81B43]' : drawer.fecha_entrega ? 'text-slate-700' : 'text-[#B45309]'}`}>
+                                  {drawer.fecha_entrega ? formatear(drawer.fecha_entrega, { month: '2-digit', hour: '2-digit', minute: '2-digit' }) : 'Sin programar'}
+                                </span>
+                                {['Borrador', 'Programada'].includes(drawerEstado) && (
+                                  <button onClick={() => { setEditFecha(true); setNuevaFecha(drawer.fecha_entrega ? paraInput(drawer.fecha_entrega) : '') }}
+                                    className="flex items-center gap-1 text-[11.5px] text-[#D81B43] font-semibold hover:underline flex-shrink-0">
+                                    <Edit3 size={11} /> {drawer.fecha_entrega ? 'Cambiar' : 'Programar'}
+                                  </button>
+                                )}
+                              </div>
+                            ) : (
+                              <div className="space-y-2">
+                                <input type="datetime-local" value={nuevaFecha} onChange={e => setNuevaFecha(e.target.value)} className={inputCls} />
+                                <div className="flex gap-2">
+                                  <button onClick={guardarFecha} className="flex-1 py-2 bg-[#D81B43] text-white rounded-[8px] text-[12.5px] font-semibold hover:bg-[#B0172F]">Guardar</button>
+                                  <button onClick={() => setEditFecha(false)} className="flex-1 py-2 border border-slate-200 text-slate-500 rounded-[8px] text-[12.5px] hover:border-slate-300">Cancelar</button>
+                                </div>
+                              </div>
+                            )}
+                          </dd>
+                        </div>
+                        {drawer.recibido_por && (
+                          <div className="flex items-start gap-3">
+                            <dt className="w-[110px] flex-shrink-0 text-[12px] text-slate-400 pt-0.5">Recibió</dt>
+                            <dd className="flex-1 min-w-0 text-[13px] font-semibold text-slate-700">{drawer.recibido_por}</dd>
+                          </div>
+                        )}
+                        {/* Vigencia: editable mientras siga en curso */}
+                        <div className="flex items-start gap-3">
+                          <dt className="w-[110px] flex-shrink-0 text-[12px] text-slate-400 pt-0.5">Vigencia</dt>
+                          <dd className="flex-1 min-w-0">
+                            {!editVigencia ? (
+                              <div className="flex items-center justify-between gap-2">
+                                <span className={`text-[13px] font-semibold ${drawerVencida ? 'text-[#D81B43]' : drawer.fecha_vigencia ? 'text-slate-700' : 'text-slate-400'}`}>
+                                  {drawer.fecha_vigencia ? `Hasta el ${formatearSoloFecha(drawer.fecha_vigencia)}` : 'Indefinida'}
+                                </span>
+                                {!['Finalizada', 'Cancelada'].includes(drawerEstado) && (
+                                  <button onClick={() => { setEditVigencia(true); setNuevaVigencia(drawer.fecha_vigencia || null) }}
+                                    className="flex items-center gap-1 text-[11.5px] text-[#D81B43] font-semibold hover:underline flex-shrink-0">
+                                    <Edit3 size={11} /> {drawer.fecha_vigencia ? 'Cambiar' : 'Definir'}
+                                  </button>
+                                )}
+                              </div>
+                            ) : (
+                              <div className="space-y-2">
+                                <ControlVigencia value={nuevaVigencia} onChange={setNuevaVigencia} />
+                                <div className="flex gap-2">
+                                  <button onClick={guardarVigencia} className="flex-1 py-2 bg-[#D81B43] text-white rounded-[8px] text-[12.5px] font-semibold hover:bg-[#B0172F]">Guardar</button>
+                                  <button onClick={() => setEditVigencia(false)} className="flex-1 py-2 border border-slate-200 text-slate-500 rounded-[8px] text-[12.5px] hover:border-slate-300">Cancelar</button>
+                                </div>
+                              </div>
+                            )}
+                          </dd>
+                        </div>
+                        {/* Recargas: solo si tiene equipos que se recargan */}
+                        {recargables.length > 0 && !['Finalizada', 'Cancelada'].includes(drawerEstado) && (
+                          <div className="flex items-start gap-3">
+                            <dt className="w-[110px] flex-shrink-0 text-[12px] text-slate-400 pt-0.5">Recargas</dt>
+                            <dd className="flex-1 min-w-0">
+                              {!editRecarga ? (
+                                <div className="flex items-start justify-between gap-2">
+                                  <div className="text-[13px] text-slate-700">
+                                    {drawer.recarga_cada_dias
+                                      ? <span className="font-semibold">Cada {drawer.recarga_cada_dias} días{proxima && <> · próxima <span className={new Date(proxima) < new Date() ? 'text-[#D81B43]' : ''}>{formatearSoloFecha(proxima.slice(0, 10))}</span></>}</span>
+                                      : <span className="text-slate-400 font-semibold">A demanda</span>}
+                                    {drawer.ultima_recarga && <div className="text-[11.5px] text-slate-400">Última: {formatear(drawer.ultima_recarga)}</div>}
+                                  </div>
+                                  <button onClick={() => { setEditRecarga(true); setNuevaFrecuencia(drawer.recarga_cada_dias ? String(drawer.recarga_cada_dias) : '') }}
+                                    className="flex items-center gap-1 text-[11.5px] text-[#D81B43] font-semibold hover:underline flex-shrink-0">
+                                    <Edit3 size={11} /> {drawer.recarga_cada_dias ? 'Cambiar' : 'Definir'}
+                                  </button>
+                                </div>
+                              ) : (
+                                <div className="space-y-2">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-[13px] text-slate-600">Cada</span>
+                                    <input type="number" min={1} value={nuevaFrecuencia} onChange={e => setNuevaFrecuencia(e.target.value)} placeholder="15" className={`${inputCls} !w-24`} />
+                                    <span className="text-[13px] text-slate-600">días</span>
+                                  </div>
+                                  <div className="text-[11.5px] text-slate-400">Vacío = solo a demanda. Cuando toque, sale en los avisos del inicio.</div>
+                                  <div className="flex gap-2">
+                                    <button onClick={guardarFrecuencia} className="flex-1 py-2 bg-[#D81B43] text-white rounded-[8px] text-[12.5px] font-semibold hover:bg-[#B0172F]">Guardar</button>
+                                    <button onClick={() => setEditRecarga(false)} className="flex-1 py-2 border border-slate-200 text-slate-500 rounded-[8px] text-[12.5px] hover:border-slate-300">Cancelar</button>
+                                  </div>
+                                </div>
+                              )}
+                            </dd>
+                          </div>
+                        )}
+                        <div className="flex items-start gap-3">
+                          <dt className="w-[110px] flex-shrink-0 text-[12px] text-slate-400 pt-0.5">Creado</dt>
+                          <dd className="flex-1 min-w-0 text-[13px] text-slate-600">{formatear(drawer.fecha_creacion)}</dd>
+                        </div>
+                        {drawer.observaciones && (
+                          <div className="flex items-start gap-3">
+                            <dt className="w-[110px] flex-shrink-0 text-[12px] text-slate-400 pt-0.5">Observaciones</dt>
+                            <dd className="flex-1 min-w-0 text-[13px] text-slate-600 italic">{drawer.observaciones}</dd>
+                          </div>
+                        )}
+                      </dl>
+                    </div>
+
+                    {/* Recogidas, recargas y cambios programados a domicilio */}
+                    {visitasPendientes.length > 0 && (
+                      <div className="px-5 md:px-6 py-4">
+                        <div className="text-[10.5px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-3">Programado ({visitasPendientes.length})</div>
+                        <div className="space-y-2">
+                          {visitasPendientes.map(v => {
+                            const eqs = v.tipo === 'cambio' ? (v.datos?.cambios || []).map(c => `${c.sale?.codigo} → ${c.entra?.codigo}`) : (v.datos?.equipos || []).map(x => x.equipo?.codigo)
+                            return (
+                              <div key={v.id} className="flex items-start gap-3 p-3 rounded-[10px] border border-[#F59E0B]/30 bg-[#FFFBEB]">
+                                <Truck size={15} className="text-[#B45309] flex-shrink-0 mt-0.5" />
+                                <div className="min-w-0 flex-1">
+                                  <div className="text-[13px] font-semibold text-slate-800">{nombreVisita(v)} · {v.estado?.nombre === 'En progreso' ? 'en camino' : 'por iniciar'}</div>
+                                  <div className="text-[12px] text-slate-500 truncate">{v.repartidor?.nombre || 'Sin repartidor'} · {formatear(v.fecha_programada, { month: '2-digit', hour: '2-digit', minute: '2-digit' })}</div>
+                                  <div className="text-[11.5px] text-slate-400 font-mono truncate">{eqs.join(' · ')}</div>
+                                </div>
+                                {v.estado?.nombre !== 'En progreso' && (
+                                  <button onClick={() => cancelarVisita(v)} className="text-[12px] font-semibold text-red-500 hover:underline flex-shrink-0">Cancelar</button>
+                                )}
+                              </div>
+                            )
+                          })}
                         </div>
                       </div>
                     )}
                   </div>
-                )}
 
-                {/* Equipos — en grilla con ícono, mismo estilo que Cliente/Paciente */}
-                <div className="p-5">
-                  <div className="text-[10.5px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-3">
-                    Equipos ({drawer.equipos?.length || 0})
-                  </div>
-                  {!drawer.equipos?.length
-                    ? <div className="text-[13px] text-slate-400">Sin equipos asociados</div>
-                    : <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        {drawer.equipos.map(oe => {
-                          const devuelto = !!oe.fecha_devolucion
-                          return (
-                            <div key={oe.id} className="border border-slate-200 rounded-[10px] p-3 flex gap-3 items-start">
-                              <div className="w-12 h-12 rounded-[9px] bg-slate-50 border border-slate-200 flex items-center justify-center flex-shrink-0">
-                                <IconoTipo tipo={oe.equipo?.tipo_equipo} categorias={categorias} size={28} />
-                              </div>
-                              <div className="min-w-0 flex-1">
-                                <div className="flex items-start justify-between gap-2">
-                                  <div className="text-[13px] font-bold text-slate-800 truncate">{nombreEquipo(oe.equipo)}</div>
-                                  {devuelto ? (
-                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-bold bg-[#ECFDF5] text-[#0F7B55] flex-shrink-0">
-                                      <CheckCircle2 size={9} /> Devuelto
-                                    </span>
-                                  ) : (
-                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-bold bg-[#E8F7FB] text-[#0E86A0] flex-shrink-0">
-                                      Activo
-                                    </span>
-                                  )}
-                                </div>
-                                <div className="text-[11.5px] text-slate-400 truncate">
-                                  {[oe.equipo?.codigo, oe.equipo?.atributos?.serie && `Serie ${oe.equipo.atributos.serie}`].filter(Boolean).join(' · ')}
-                                </div>
-                                {devuelto && (
-                                  <div className="text-[11px] text-slate-400 mt-1.5">
-                                    Devuelto el {formatear(oe.fecha_devolucion)}
-                                    {oe.observaciones_devolucion && (
-                                      <div className="italic mt-0.5">&ldquo;{oe.observaciones_devolucion}&rdquo;</div>
-                                    )}
-                                  </div>
-                                )}
-                                {!devuelto && conActa && (
-                                  <div className="mt-2.5 flex flex-wrap gap-2">
-                                    <button type="button" onClick={() => iniciarAccion('devolucion', [oe.id])}
-                                      className="inline-flex items-center gap-1.5 h-8 px-3 rounded-[8px] border border-[#D81B43]/25 bg-[#D81B43]/[0.05] text-[12px] font-semibold text-[#D81B43] hover:bg-[#D81B43]/10 transition-colors">
-                                      <Undo2 size={13} /> Recoger
-                                    </button>
-                                    {seRecarga(oe.equipo?.tipo_equipo) && (
-                                      <button type="button" onClick={() => iniciarAccion('recarga', [oe.id])}
-                                        className="inline-flex items-center gap-1.5 h-8 px-3 rounded-[8px] border border-[#0E86A0]/25 bg-[#E8F7FB] text-[12px] font-semibold text-[#0E86A0] hover:border-[#0E86A0]/45 transition-colors">
-                                        <RefreshCw size={13} /> Recargar
-                                      </button>
-                                    )}
-                                    <button type="button" onClick={() => iniciarAccion('cambio', [oe.id])}
-                                      className="inline-flex items-center gap-1.5 h-8 px-3 rounded-[8px] border border-[#1B3A6B]/20 bg-[#1B3A6B]/[0.05] text-[12px] font-semibold text-[#1B3A6B] hover:bg-[#1B3A6B]/10 transition-colors">
-                                      <ArrowLeftRight size={13} /> Cambiar
-                                    </button>
-                                  </div>
-                                )}
-                                {!devuelto && puedeCambiarEquipo && !conActa && (
-                                  <div className="mt-2.5 flex flex-wrap gap-2">
-                                    <button type="button" onClick={() => setModalCambio(oe)}
-                                      className="inline-flex items-center gap-1.5 h-8 px-3 rounded-[8px] border border-[#1B3A6B]/20 bg-[#1B3A6B]/[0.05] text-[12px] font-semibold text-[#1B3A6B] hover:bg-[#1B3A6B]/10 hover:border-[#1B3A6B]/35 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2EB5D4]">
-                                      <ArrowLeftRight size={13} /> Cambiar equipo
-                                    </button>
-                                    {!esUnicoEquipo && (
-                                      <button type="button" onClick={() => abrirModalDevolucion(oe)}
-                                        className="inline-flex items-center gap-1.5 h-8 px-3 rounded-[8px] border border-[#D81B43]/25 bg-[#D81B43]/[0.05] text-[12px] font-semibold text-[#D81B43] hover:bg-[#D81B43]/10 hover:border-[#D81B43]/40 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2EB5D4]">
-                                        <Undo2 size={13} /> Marcar como devuelto
-                                      </button>
-                                    )}
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          )
-                        })}
+                  {/* ── Columna derecha: equipos y actas ── */}
+                  <div className="divide-y divide-slate-100 min-w-0 border-t border-slate-100 lg:border-t-0">
+                    <div className="px-5 md:px-6 py-4">
+                      <div className="text-[10.5px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-3">
+                        Equipos ({equiposDrawer.length}){drawer.equipos?.length > equiposDrawer.length && <span className="normal-case tracking-normal font-semibold"> · {drawer.equipos.length - equiposDrawer.length} devuelto{drawer.equipos.length - equiposDrawer.length !== 1 ? 's' : ''}</span>}
                       </div>
-                  }
+                      {!drawer.equipos?.length
+                        ? <div className="text-[13px] text-slate-400">Sin equipos asociados</div>
+                        : (
+                          <div className="rounded-[10px] border border-slate-200 divide-y divide-slate-100">
+                            {[...drawer.equipos].sort((a, b) => !!a.fecha_devolucion - !!b.fecha_devolucion)
+                              .filter(oe => !oe.fecha_devolucion || verDevueltos)
+                              .map(oe => {
+                                const devuelto = !!oe.fecha_devolucion
+                                return (
+                                  <div key={oe.id} className={`flex items-center gap-3 px-3 py-2.5 ${devuelto ? 'bg-slate-50/60' : ''}`}>
+                                    <div className="w-9 h-9 rounded-[8px] bg-slate-50 border border-slate-200 flex items-center justify-center flex-shrink-0">
+                                      <IconoTipo tipo={oe.equipo?.tipo_equipo} categorias={categorias} size={22} />
+                                    </div>
+                                    <div className="min-w-0 flex-1">
+                                      <div className={`text-[13px] font-semibold truncate ${devuelto ? 'text-slate-500' : 'text-slate-800'}`}>{nombreEquipo(oe.equipo)}</div>
+                                      <div className="text-[11.5px] text-slate-400 truncate">
+                                        {[oe.equipo?.codigo, oe.equipo?.atributos?.serie && `Serie ${oe.equipo.atributos.serie}`].filter(Boolean).join(' · ')}
+                                        {devuelto && ` · devuelto el ${formatear(oe.fecha_devolucion)}${oe.observaciones_devolucion ? ` · ${oe.observaciones_devolucion}` : ''}`}
+                                      </div>
+                                    </div>
+                                    {/* Antes de entregarse: cambiarlo o devolverlo aquí mismo */}
+                                    {!devuelto && puedeCambiarEquipo && !conActa && (
+                                      <div className="flex gap-1.5 flex-shrink-0">
+                                        <button type="button" onClick={() => setModalCambio(oe)} className={ui.btnChico}>Cambiar</button>
+                                        {!esUnicoEquipo && <button type="button" onClick={() => abrirModalDevolucion(oe)} className={ui.btnChico}>Devolver</button>}
+                                      </div>
+                                    )}
+                                    {devuelto
+                                      ? <span className="px-2 py-0.5 rounded-full text-[10.5px] font-bold bg-[#ECFDF5] text-[#0F7B55] flex-shrink-0">Devuelto</span>
+                                      : <span className="px-2 py-0.5 rounded-full text-[10.5px] font-bold bg-[#E8F7FB] text-[#0E86A0] flex-shrink-0">Activo</span>}
+                                  </div>
+                                )
+                              })}
+                            {drawer.equipos.length > equiposDrawer.length && (
+                              <button type="button" onClick={() => setVerDevueltos(v => !v)}
+                                className="w-full px-3 py-2 text-[12px] font-semibold text-[#1B3A6B] hover:bg-slate-50 text-left">
+                                {verDevueltos ? 'Ocultar devueltos' : `Ver devueltos (${drawer.equipos.length - equiposDrawer.length})`}
+                              </button>
+                            )}
+                          </div>
+                        )}
+                    </div>
+
+                    <div className="px-5 md:px-6 py-4">
+                      <div className="text-[10.5px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-3">Actas</div>
+                      <ActasPrestamo key={drawer.id} ordenId={drawer.id} ordenCodigo={drawer.codigo} onToast={showToast} />
+                    </div>
+                  </div>
                 </div>
 
-                {/* Actas firmadas (lib/actas) */}
-                <div className="p-5">
-                  <div className="text-[10.5px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-3">Actas</div>
-                  <ActasPrestamo key={drawer.id} ordenId={drawer.id} ordenCodigo={drawer.codigo} onToast={showToast} />
-                </div>
-
-                {/* Historial: todo lo que le pasó al préstamo, con quién y su acta */}
-                <div className="p-5">
-                  <div className="text-[10.5px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-3">Historial</div>
-                  <HistorialPrestamo key={drawer.id} orden={drawer} />
+                {/* Historial: todo lo que le pasó al préstamo, con quién y su acta (plegado) */}
+                <div className="px-5 md:px-6 py-4 border-t border-slate-100">
+                  <button type="button" onClick={() => setVerHistorial(v => !v)} aria-expanded={verHistorial}
+                    className="w-full flex items-center justify-between text-[10.5px] font-bold uppercase tracking-[0.1em] text-slate-400 hover:text-slate-600">
+                    Historial
+                    <span className="flex items-center gap-1 normal-case tracking-normal text-[12px] font-semibold text-[#1B3A6B]">
+                      {verHistorial ? 'Ocultar' : 'Ver todo lo que pasó'} <ChevronRight size={14} className={`transition-transform ${verHistorial ? 'rotate-90' : ''}`} />
+                    </span>
+                  </button>
+                  {verHistorial && <div className="mt-4"><HistorialPrestamo key={drawer.id} orden={drawer} plantillas={plantillas} /></div>}
                 </div>
               </div>
             </div>

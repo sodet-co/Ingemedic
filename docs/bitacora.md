@@ -59,6 +59,51 @@ Lo que está sin resolver, ordenado por prioridad.
 
 # Entradas
 
+## 2026-10-25 — Todas las actas del préstamo en un solo lugar
+**Qué se hizo:** la sección Actas del préstamo (`actas/ActasPrestamo.js`, reescrito) muestra todas las actas, firmadas o no, agrupadas: Préstamo y cada recogida, cambio o recarga, con su fecha, "Firmada"/"Sin firmas" y "Firmar" (o "Llenar datos" en el préstamo sin firmar). "Ver todas" y "Descargar PDF" llevan todo. Se generaron sin firmas las actas de las 5 visitas que no tenían (ENT-2026-026 y 027 de ORD-2026-518; 028, 029 y 030 de ORD-2026-520, con cambio + recarga), con los datos que había.
+
+## 2026-10-25 — Siempre queda acta (sin firmas si no se firma)
+**Qué se hizo:** en oficina, el botón de hacer (sin "Firmar formatos") ya no deja la visita sin acta: guarda las actas sugeridas llenas con los datos que hay y sin firmas. En las Actas del préstamo y del equipo, las visitas sin firmar (con acta sin firmas, o sin acta si son de antes) tienen "Firmar"; al firmar, el acta sin firmas se borra y se guarda la firmada. Si RLS no deja borrar, se avisa en vez de dejar dos actas.
+**Archivos:** `prestamos/AccionPrestamo.js`, `actas/ActasPrestamo.js`, `inventario/ActasEquipo.js`.
+**SQL:** política `actas_borrar_sin_firmas` (DELETE para authenticated cuando `firma_recibe IS NULL`). Ya se corrió.
+**Pendiente:** probar en el navegador firmar un acta sin firmas (el borrado con la sesión de un usuario no se pudo probar desde aquí: el script usa service_role, que se salta RLS).
+
+## 2026-10-25 — Recarga con dos actas; actas en la hoja de vida del equipo; filtros generales en Inventario
+**Qué se hizo:**
+- Una recarga (cambio con `datos.recarga`) lleva **dos actas**: la de cambio de equipo (para el préstamo) y la de recarga (para el equipo). `formatosDeVisita(e)` da las acciones; `sugeridasDe`/`ofrecidasDe` (lib/actas/acciones.js) sugieren de varias acciones. `guardarActas` ahora guarda en `actas.accion` la acción de cada plantilla (antes, la misma para todas).
+- Hoja de vida del equipo (Inventario) → **Actas del equipo** (`components/inventario/ActasEquipo.js`): cada vez que estuvo en un préstamo (prestado, recogido, cambiado, salió a recargar / entró recargado) con sus actas: ver, PDF, o "Llenar y firmar" si se hizo sin formatos.
+- Inventario, vista de categorías: el buscador encuentra equipos de todo el inventario (código, serie, estado, quién lo tiene); filtro por categoría y chips por estado con conteo; lista paginada que abre la hoja de vida. El aviso "Por recargar": cada código abre el equipo y "Ver todos" filtra por ese estado.
+**Verificado:** prueba desechable: se sugieren el acta de cambio y la de recarga de Ingemedic, las dos quedan pegadas a la visita con su acción, y la visita cuenta para el equipo que salió y el que entró. Borrado al final.
+**Pendiente:** verlo en el navegador.
+
+## 2026-10-25 — Estado "Por recargar" y aviso en Inventario
+**Qué se hizo:** en un cambio con motivo Recarga, el equipo que sale (vacío) queda **"Por recargar"** en vez de Disponible: no se puede prestar ni elegir. Inventario muestra arriba un aviso con los equipos por recargar y "Marcar recargados" (uno o varios → Disponible, con bitácora). `cambiarEquipo` recibe `estadoSale`; si el estado no existe en la BD, el cambio falla con mensaje claro. Color violeta en Inventario, Dashboard y el selector de mantenimientos; también en la ayuda de Inventario.
+**Archivos:** `lib/prestamos.js`, `lib/accionesPrestamo.js`, `components/inventario/AvisoPorRecargar.js` (nuevo), `inventario/InventarioClient.js`, `dashboard/DashboardClient.js`, `mantenimientos/SelectorEquipos.js`, `lib/ayuda.js`, `prestamos/AccionPrestamo.js`.
+**SQL:** `INSERT` del estado "Por recargar" en `estados_equipo`. Ya se corrió.
+**Verificado:** prueba desechable: en la recarga el vacío queda Por recargar y el recargado En préstamo; en un cambio por falla, el que sale queda Disponible; al marcarlo recargado pasa a Disponible. Todo borrado al final.
+**Pendiente:** ver el aviso de Inventario en el navegador.
+
+## 2026-10-25 — Recarga = cambio de equipo con motivo; menos botones; ventanas más anchas
+**Qué se hizo:**
+- La recarga se hace como **cambio de equipo con motivo "Recarga"** (se deja uno recargado, el vacío vuelve a Disponible). Ese motivo usa los formatos de recarga y guarda `ultima_recarga`. Se guarda como `entregas.tipo='cambio'` con `datos.recarga=true`; helpers `esRecargaVisita`, `formatoDeEntrega`, `nombreVisita` en `lib/accionesPrestamo.js`. Las filas viejas con tipo 'recarga' siguen funcionando. Se quitó el botón Recargar (Préstamos y Clientes); los avisos de recarga abren el cambio con ese motivo.
+- Asistente: Cómo · Equipos (+ motivo obligatorio en un cambio). En oficina: "Hacer el cambio" (sin formatos) o "Firmar formatos" (firma ahí mismo); y si no, "Llenar formatos" después en el historial. A domicilio: + Confirmación con los formatos (al menos uno, los firma el repartidor) y "Llenar datos (opcional)".
+- Detalle del préstamo: Cambiar equipo · Recoger · Finalizar préstamo, y Cancelar en "Más".
+- Ventanas más anchas: Modal (sm 480, md 720, lg 960, xl 1180), VentanaDetalle 1200, firma de actas 1120, vista previa 1200, elegir equipo 1120, confirmar 460, y otras sueltas.
+**Verificado:** prueba desechable de recarga como cambio en oficina: el vacío queda Disponible, el recargado En préstamo, `ultima_recarga` guardada; todo borrado al final.
+**Archivos:** `AccionPrestamo.js` (reescrito), `accionesPrestamo.js`, `historialPrestamo.js`, `HistorialPrestamo.js`, `informeCliente.js`, `OrdenesClient.js`, `EntregasClient.js`, `EntregasRepartidorClient.js`, `EntregaEnCurso.js`, `ClientesClient.js`, `EquiposDelCliente.js`, `Modal.js`, `VentanaDetalle.js`, `FirmaActas.js`, `PreviaActas.js`, `ModalCambioEquipo.js`, `ConfirmDialog.js` y anchos sueltos.
+**Pendiente:** recorrerlo en el navegador (la sesión de pruebas venció). A domicilio sigue pidiendo al menos un formato porque el repartidor cierra la visita firmando.
+
+## 2026-10-25 — Un equipo puede volver al préstamo en el que ya estuvo
+**Qué se hizo:** el cambio de equipo fallaba con `orden_equipos_orden_id_equipo_id_key` cuando el equipo que entra ya había estado en ese préstamo (cambio de ida y vuelta). Se cambió la regla: un equipo no puede estar dos veces *activo* en el mismo préstamo, pero sí volver. El historial guarda cada vez que entró y salió.
+**SQL:** `DROP CONSTRAINT orden_equipos_orden_id_equipo_id_key` + índice único parcial `orden_equipos_activo_unico (orden_id, equipo_id) WHERE fecha_devolucion IS NULL`. Ya se corrió y se verificó con filas desechables: repetida cerrada entra, dos activas se bloquean.
+**Además:** en el cambio, al marcar el equipo que sale se abre de una vez para elegir el que entra, y si no, queda un botón grande "Elegir el equipo que entra".
+
+## 2026-10-24 — Recoger, recargar y cambiar: primero "¿se crea una entrega a domicilio?"
+**Qué se hizo:** en el asistente de un préstamo ya entregado, el primer paso pregunta si se crea una entrega a domicilio. Si no, son dos pasos (Cómo · Equipos) y se hace de una vez, sin formatos. Los formatos se llenan y firman después, si se quiere, desde el historial del préstamo ("Llenar formatos" en la visita sin acta). A domicilio sigue igual: equipos, formatos, confirmación y programar.
+**Por qué:** menos pasos para lo del día a día en oficina. Se quitaron del asistente "Firmar ahora" y "Registrar sin firmas".
+**Archivos:** `components/prestamos/AccionPrestamo.js`, `components/prestamos/HistorialPrestamo.js`, `ordenes/OrdenesClient.js`.
+**Pendiente:** probarlo en el navegador. La sesión guardada para las pruebas venció y no se pudo recorrer; solo se verificó con lint.
+
 ## 2026-10-23 — "Finalizar préstamo" siempre, aunque tenga un solo equipo
 **Qué se hizo:** el botón para finalizar sin acta solo salía en préstamos entregados con varios equipos; con uno solo no había forma. Ahora sale en todo préstamo "Entregada". Al finalizar también se cancelan las recogidas, recargas y cambios que quedaron programados (en un cambio, libera el equipo reservado).
 **Archivos:** `ordenes/OrdenesClient.js`.

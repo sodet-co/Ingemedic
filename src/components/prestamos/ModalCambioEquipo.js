@@ -148,7 +148,7 @@ export default function ModalCambioEquipo({ equipoActual, disponibles, categoria
       <div className="fixed inset-0 bg-slate-900/50 z-[75] backdrop-blur-sm" onClick={() => !guardando && onCancelar()} />
       <div className="fixed inset-x-0 bottom-0 h-[92vh] md:inset-0 md:h-auto z-[75] flex md:items-center justify-center md:p-6 pointer-events-none">
         <div role="dialog" aria-modal="true" aria-labelledby="cambio-equipo-titulo"
-          className="pointer-events-auto bg-[#F8FAFC] w-full h-full md:h-[min(88vh,820px)] md:max-w-[920px] rounded-t-2xl md:rounded-2xl flex flex-col shadow-2xl overflow-hidden">
+          className="pointer-events-auto bg-[#F8FAFC] w-full h-full md:h-[min(88vh,820px)] md:max-w-[1120px] rounded-t-2xl md:rounded-2xl flex flex-col shadow-2xl overflow-hidden">
 
           {/* Encabezado */}
           <div className="bg-white px-5 md:px-7 py-4 border-b border-slate-200 flex items-start justify-between gap-4 flex-shrink-0">

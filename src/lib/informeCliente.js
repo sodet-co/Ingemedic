@@ -67,10 +67,11 @@ export function armarInforme(ordenes = [], { esCliente = true, entregas = [] } =
     }
   }
 
-  // Recargas (solo existen como acción)
-  for (const e of completadas.filter(e => e.tipo === 'recarga')) {
+  // Recargas (solo existen como acción). Ahora se hacen como cambio de equipo con
+  // motivo recarga (datos.recarga): cuenta el equipo recargado que entró.
+  for (const e of completadas.filter(e => e.tipo === 'recarga' || (e.tipo === 'cambio' && e.datos?.recarga))) {
     const persona = personaDe.get(e.orden?.id || e.orden_id)
-    const eqs = (e.datos?.equipos || []).map(x => x.equipo).filter(Boolean)
+    const eqs = (e.tipo === 'cambio' ? (e.datos?.cambios || []).map(c => c.entra) : (e.datos?.equipos || []).map(x => x.equipo)).filter(Boolean)
     for (const eq of eqs) historia(eq, { tipo: 'recarga', fecha: e.fecha_completada, texto: `Recargado ${MODO[e.modo] || ''}${e.recibido_por ? ` · recibió ${e.recibido_por}` : ''}`.trim() })
     if (!eqs.length) continue
     const tipos = [...new Set(eqs.map(eq => nombreTipo(eq.tipo_equipo)))]

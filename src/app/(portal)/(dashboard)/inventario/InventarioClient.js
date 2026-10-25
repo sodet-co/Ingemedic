@@ -1,5 +1,7 @@
 'use client'
 import { registrarBitacora } from '@/lib/bitacora'
+import AvisoPorRecargar from '@/components/inventario/AvisoPorRecargar'
+import ActasEquipo from '@/components/inventario/ActasEquipo'
 import Image from 'next/image'
 import { useState, useMemo, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
@@ -45,6 +47,7 @@ const ESTADO_STYLES = {
   'Reservado': { bg: '#FFFBEB', color: '#B45309', dot: '#F59E0B' },
   'En préstamo': { bg: '#E8F7FB', color: '#0E86A0', dot: '#2EB5D4' },
   'En mantenimiento': { bg: '#FFFBEB', color: '#B45309', dot: '#F59E0B' },
+  'Por recargar': { bg: '#F5F3FF', color: '#6D28D9', dot: '#8B5CF6' },
   'Con novedad': { bg: '#FEF2F2', color: '#D81B43', dot: '#D81B43' },
   'Baja': { bg: '#F1F5F9', color: '#64748B', dot: '#94A3B8' },
 }
@@ -120,6 +123,8 @@ export default function InventarioClient({ categorias: catsIniciales, tipos: tip
   const [tipoActual, setTipoActual] = useState(null)
   const [search, setSearch] = useState('')
   const [buscarCategoria, setBuscarCategoria] = useState('')
+  const [estadoGeneral, setEstadoGeneral] = useState('') // filtro de equipos por estado, en la vista de categorías
+  const [catGeneral, setCatGeneral] = useState('')       // y por categoría
   const [buscarUnidad, setBuscarUnidad] = useState('')
   const [filtroEstado, setFiltroEstado] = useState('')
   const [filtroDisponibilidad, setFiltroDisponibilidad] = useState('todos')
@@ -212,10 +217,40 @@ export default function InventarioClient({ categorias: catsIniciales, tipos: tip
   }, [equipos])
 
   const categoriasFiltradas = useMemo(() => {
+    // Con un filtro de estado o categoría puesto se listan equipos, no categorías
+    if (estadoGeneral || catGeneral) return []
     if (!buscarCategoria.trim()) return categorias
     const q = buscarCategoria.trim().toLowerCase()
     return categorias.filter(c => c.nombre.toLowerCase().includes(q))
-  }, [categorias, buscarCategoria])
+  }, [categorias, buscarCategoria, estadoGeneral, catGeneral])
+
+  // Desde la vista de categorías el buscador también encuentra equipos de todo el
+  // inventario: por código, serie u otro dato de la unidad, o por su estado
+  // ("por recargar", "en préstamo"…)
+  // Filtros generales por estado y categoría: con alguno puesto se listan los equipos
+  const filtrandoEquipos = buscarCategoria.trim().length >= 2 || !!estadoGeneral || !!catGeneral
+  const tiposPorId = useMemo(() => Object.fromEntries(tipos.map(t => [t.id, t])), [tipos])
+  const equiposBuscados = useMemo(() => {
+    if (!filtrandoEquipos) return []
+    const q = buscarCategoria.trim().toLowerCase()
+    return equipos.filter(e => {
+      if (estadoGeneral && e.estado?.nombre !== estadoGeneral) return false
+      if (catGeneral && tiposPorId[e.tipo_equipo_id]?.categoria_id !== catGeneral) return false
+      if (q.length < 2) return true
+      return e.codigo?.toLowerCase().includes(q) ||
+        e.estado?.nombre?.toLowerCase().includes(q) ||
+        e.paciente_actual?.nombre?.toLowerCase().includes(q) ||
+        e.cliente_actual?.nombre?.toLowerCase().includes(q) ||
+        Object.values(e.atributos || {}).some(v => v?.toString().toLowerCase().includes(q))
+    })
+  }, [filtrandoEquipos, buscarCategoria, estadoGeneral, catGeneral, equipos, tiposPorId])
+  // Cuántos hay en cada estado (para los chips del filtro)
+  const conteoEstados = useMemo(() => {
+    const m = {}
+    for (const e of equipos) { const n = e.estado?.nombre || 'Sin estado'; m[n] = (m[n] || 0) + 1 }
+    return m
+  }, [equipos])
+  const paginacionBuscados = usePaginacion(equiposBuscados, 20)
 
   const tiposFiltrados = useMemo(() => {
     return tiposDeCat.filter(t => {
@@ -300,6 +335,20 @@ export default function InventarioClient({ categorias: catsIniciales, tipos: tip
     setFiltroEstado('')
     setFiltrosCampos({})
     setVista('unidades')
+  }
+
+  // Abre un equipo en su tipo con la hoja de vida, como al buscarlo dentro del tipo
+  function abrirEquipo(eq) {
+    const tipo = tipos.find(t => t.id === eq.tipo_equipo_id)
+    const cat = tipo && categorias.find(c => c.id === tipo.categoria_id)
+    if (cat) setCatActual(cat)
+    if (tipo) irATipo(tipo)
+    setDrawer(eq)
+  }
+  // "Ver todos" del aviso: vuelve a categorías con la búsqueda puesta
+  function verEstadoEnInventario(estado) {
+    setVista('categorias'); setCatActual(null); setTipoActual(null); setBuscarUnidad('')
+    setBuscarCategoria(''); setCatGeneral(''); setEstadoGeneral(estado)
   }
 
   function volver() {
@@ -750,6 +799,10 @@ export default function InventarioClient({ categorias: catsIniciales, tipos: tip
 
       <div className="flex-1 overflow-y-auto p-3 md:p-6 pb-20 md:pb-6">
 
+        {/* Equipos que volvieron vacíos de una recarga: hay que marcarlos recargados */}
+        <AvisoPorRecargar equipos={equipos} estados={estados} onListo={msg => { showToast(msg); router.refresh() }}
+          onVer={abrirEquipo} onVerTodos={() => verEstadoEnInventario('Por recargar')} />
+
         {/* Stats — PC: 4 tarjetas / celular: 2 */}
         {(() => {
           const statsItems = [
@@ -803,14 +856,66 @@ export default function InventarioClient({ categorias: catsIniciales, tipos: tip
                   <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                   <input
                     value={buscarCategoria} onChange={e => setBuscarCategoria(e.target.value)}
-                    placeholder="Buscar categoría..."
+                    placeholder="Buscar categoría, código, serie o estado…"
                     className="w-full pl-9 pr-4 h-[38px] border border-slate-200 rounded-[9px] text-[13px] text-slate-800 bg-white outline-none focus:border-[#D81B43] focus:ring-2 focus:ring-[#D81B43]/10 placeholder:text-slate-400" />
                 </div>
-                <LimpiarFiltros activo={!!buscarCategoria} onLimpiar={() => setBuscarCategoria('')} />
+                <select value={catGeneral} onChange={e => setCatGeneral(e.target.value)} aria-label="Categoría"
+                  className="px-3 h-[38px] border border-slate-200 rounded-[9px] text-[13px] outline-none focus:border-[#D81B43] bg-white text-slate-600 max-w-[200px]">
+                  <option value="">Todas las categorías</option>
+                  {categorias.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                </select>
+                <LimpiarFiltros activo={!!buscarCategoria || !!estadoGeneral || !!catGeneral} onLimpiar={() => { setBuscarCategoria(''); setEstadoGeneral(''); setCatGeneral('') }} />
                 <div className="hidden md:block text-[12px] text-slate-400 flex-shrink-0 ml-auto">
-                  {categoriasFiltradas.length} categoría{categoriasFiltradas.length !== 1 ? 's' : ''}
+                  {filtrandoEquipos ? `${equiposBuscados.length} equipo${equiposBuscados.length !== 1 ? 's' : ''}` : `${categoriasFiltradas.length} categoría${categoriasFiltradas.length !== 1 ? 's' : ''}`}
                 </div>
               </div>
+            )}
+            {/* Filtro por estado: un toque lista los equipos en ese estado */}
+            {categorias.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mb-4" role="group" aria-label="Filtrar por estado">
+                {Object.keys(ESTADO_STYLES).filter(n => conteoEstados[n]).map(n => {
+                  const st = ESTADO_STYLES[n], activo = estadoGeneral === n
+                  return (
+                    <button key={n} type="button" onClick={() => setEstadoGeneral(activo ? '' : n)} aria-pressed={activo}
+                      className={`flex items-center gap-1.5 h-8 px-3 rounded-full border text-[12px] font-semibold transition-colors ${activo ? 'border-transparent' : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'}`}
+                      style={activo ? { background: st.bg, color: st.color, boxShadow: `inset 0 0 0 1.5px ${st.dot}` } : undefined}>
+                      <span className="w-1.5 h-1.5 rounded-full" style={{ background: st.dot }} /> {n} <span className="tabular-nums opacity-70">{conteoEstados[n]}</span>
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+            {equiposBuscados.length > 0 && (
+              <div className="mb-5">
+                <div className="text-[10.5px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-2">
+                  Equipos ({equiposBuscados.length})
+                </div>
+                <div className="bg-white rounded-xl border border-slate-200 divide-y divide-slate-100 overflow-hidden">
+                  {paginacionBuscados.itemsPagina.map(eq => {
+                    const tipo = tipos.find(t => t.id === eq.tipo_equipo_id)
+                    const cat = tipo && categorias.find(c => c.id === tipo.categoria_id)
+                    const estSty = ESTADO_STYLES[eq.estado?.nombre] || {}
+                    return (
+                      <button key={eq.id} type="button" onClick={() => abrirEquipo(eq)}
+                        className="w-full px-4 py-2.5 hover:bg-slate-50 text-left flex items-center gap-3">
+                        <span className="font-mono font-bold text-[13px] text-slate-800 w-[110px] flex-shrink-0 truncate">{eq.codigo || '—'}</span>
+                        <span className="flex-1 min-w-0 text-[13px] text-slate-600 truncate">
+                          {nombreTipo(tipo)}<span className="text-slate-400">{cat ? ` · ${cat.nombre}` : ''}{eq.atributos?.serie ? ` · Serie ${eq.atributos.serie}` : ''}</span>
+                        </span>
+                        {/* Quién lo tiene (si está prestado) */}
+                        <span className="hidden md:block w-[220px] flex-shrink-0 text-[12px] text-slate-500 truncate">{eq.paciente_actual?.nombre || eq.cliente_actual?.nombre || ''}</span>
+                        <span className="text-[10.5px] font-bold px-2 py-0.5 rounded-full flex-shrink-0" style={{ background: estSty.bg, color: estSty.color }}>
+                          {eq.estado?.nombre || '—'}
+                        </span>
+                      </button>
+                    )
+                  })}
+                </div>
+                <Paginador {...paginacionBuscados} />
+              </div>
+            )}
+            {equiposBuscados.length > 0 && categoriasFiltradas.length > 0 && (
+              <div className="text-[10.5px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-2">Categorías</div>
             )}
             <div className="grid grid-cols-1 sm:grid-cols-[repeat(auto-fill,minmax(230px,1fr))] gap-4">
             {categorias.length === 0 && (
@@ -820,10 +925,10 @@ export default function InventarioClient({ categorias: catsIniciales, tipos: tip
                 <div className="text-[13px]">Ve a <a href="/configuracion" className="text-[#D81B43] hover:underline">Configuración → Categorías</a></div>
               </div>
             )}
-            {categorias.length > 0 && categoriasFiltradas.length === 0 && (
+            {categorias.length > 0 && categoriasFiltradas.length === 0 && !equiposBuscados.length && (
               <div className="col-span-full text-center py-16 text-slate-400">
                 <Search className="w-12 h-12 mx-auto mb-3 opacity-20" />
-                <div className="font-semibold">Ninguna categoría coincide con &quot;{buscarCategoria}&quot;</div>
+                <div className="font-semibold">{buscarCategoria ? <>Nada coincide con &quot;{buscarCategoria}&quot;</> : 'Ningún equipo con esos filtros'}</div>
               </div>
             )}
             {categoriasFiltradas.map(cat => {
@@ -1375,6 +1480,11 @@ export default function InventarioClient({ categorias: catsIniciales, tipos: tip
                     </div>
                   )
                 })()}
+                {/* Actas del equipo: préstamos, recogidas, cambios y recargas en que estuvo */}
+                <div className="mt-6 pt-5 border-t border-slate-100">
+                  <div className="text-[13px] font-bold text-slate-700 mb-3">Actas del equipo</div>
+                  <ActasEquipo key={drawer.id} equipo={drawer} onToast={showToast} />
+                </div>
               </div>
             } />
 
@@ -1434,7 +1544,7 @@ export default function InventarioClient({ categorias: catsIniciales, tipos: tip
 
       {/* ── MODAL NUEVO TIPO ── */}
       {modalTipo && (
-        <Modal onCerrar={() => setModalTipo(false)} titulo="Nuevo tipo de equipo" subtitulo={catActual?.nombre} tamano={560} z="z-50"
+        <Modal onCerrar={() => setModalTipo(false)} titulo="Nuevo tipo de equipo" subtitulo={catActual?.nombre} tamano="md" z="z-50"
           pie={<>
                 <button onClick={() => setModalTipo(false)} className={ui.btnSecundario}>Cancelar</button>
                 <button onClick={guardarTipo} disabled={saving}
@@ -1472,7 +1582,7 @@ export default function InventarioClient({ categorias: catsIniciales, tipos: tip
 
       {/* ── MODAL NUEVA UNIDAD ── */}
       {modalNueva && (
-        <Modal onCerrar={() => setModalNueva(false)} titulo="Nueva unidad" subtitulo={<>{nombreTipo(tipoActual)} · {catActual?.nombre}</>} tamano={720} z="z-50"
+        <Modal onCerrar={() => setModalNueva(false)} titulo="Nueva unidad" subtitulo={<>{nombreTipo(tipoActual)} · {catActual?.nombre}</>} tamano="lg" z="z-50"
           pie={<>
                 <button onClick={() => setModalNueva(false)} className={ui.btnSecundario}>Cancelar</button>
                 <button onClick={guardarUnidad} disabled={saving}

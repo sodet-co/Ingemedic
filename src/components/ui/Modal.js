@@ -2,7 +2,8 @@
 import { useEffect } from 'react'
 import { X } from 'lucide-react'
 
-const ANCHOS = { sm: 420, md: 560, lg: 760, xl: 960 }
+// Anchos generosos: con 560px los formularios quedaban amontonados
+const ANCHOS = { sm: 480, md: 720, lg: 960, xl: 1180 }
 
 // Ventana emergente estándar del panel. Todas tienen la misma forma:
 //  - PC: centrada, rounded-2xl, alto máximo de la pantalla menos 3rem.

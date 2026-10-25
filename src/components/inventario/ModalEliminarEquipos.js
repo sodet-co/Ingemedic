@@ -72,7 +72,7 @@ function Contenido({ titulo, descripcion, cargarEquipos, despues, onCancelar, on
     <>
       <div className="fixed inset-0 bg-black/60 z-[60]" onClick={eliminando ? undefined : onCancelar} />
       <div className="fixed inset-0 z-[60] flex items-end md:items-center justify-center p-0 md:p-4 pointer-events-none">
-        <div className="pointer-events-auto bg-white rounded-t-2xl md:rounded-2xl w-full max-w-[480px] max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
+        <div className="pointer-events-auto bg-white rounded-t-2xl md:rounded-2xl w-full max-w-[600px] max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
           <div className="px-6 py-4 border-b flex items-center justify-between flex-shrink-0">
             <h3 className="text-[16px] font-bold text-slate-800">{titulo}</h3>
             <button onClick={onCancelar} disabled={eliminando} className="text-slate-400 hover:text-slate-600 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100"><X size={16} /></button>

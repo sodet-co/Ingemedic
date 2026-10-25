@@ -24,6 +24,7 @@ const ESTADO_EQUIPO_STYLES = {
   'Reservado': { bg: '#FFFBEB', color: '#B45309', dot: '#F59E0B' },
   'En préstamo': { bg: '#E8F7FB', color: '#0E86A0', dot: '#2EB5D4' },
   'En mantenimiento': { bg: '#FFFBEB', color: '#B45309', dot: '#F59E0B' },
+  'Por recargar': { bg: '#F5F3FF', color: '#6D28D9', dot: '#8B5CF6' },
   'Con novedad': { bg: '#FEF2F2', color: '#D81B43', dot: '#D81B43' },
   'Baja': { bg: '#F1F5F9', color: '#64748B', dot: '#94A3B8' },
 }

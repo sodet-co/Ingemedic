@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase'
 import { registrarBitacora } from '@/lib/bitacora'
 import { formatear, soloDia, hoyBogota, sumarDias } from '@/lib/fechas'
 import { crearEntrega, finalizarEntrega } from '@/lib/entregas'
-import { completarAccion, iniciarAccion, accionDeEntrega, equiposDelActa, NOMBRE_ACCION } from '@/lib/accionesPrestamo'
+import { completarAccion, iniciarAccion, accionDeEntrega, equiposDelActa, NOMBRE_ACCION, nombreVisita } from '@/lib/accionesPrestamo'
 import FirmaActas from '@/components/actas/FirmaActas'
 import Ayuda from '@/components/ui/Ayuda'
 import EntregaEnCurso, { RutaAnimada } from '@/components/entregas/EntregaEnCurso'
@@ -152,10 +152,10 @@ export default function EntregasRepartidorClient({ nombreRepartidor = '', entreg
       const { data, error } = await iniciarAccion(supabase, e)
       setSaving(false)
       if (error) { showToast('Error: ' + error.message, 'error'); return }
-      registrarBitacora({ modulo: 'entregas', accion: 'avanzar', entidad: NOMBRE_ACCION[accionDeEntrega(e)].toLowerCase(), entidad_id: e.id, detalle: { estado: 'iniciada', codigo: e.orden?.codigo } })
+      registrarBitacora({ modulo: 'entregas', accion: 'avanzar', entidad: nombreVisita(e).toLowerCase(), entidad_id: e.id, detalle: { estado: 'iniciada', codigo: e.orden?.codigo } })
       setEntregas(prev => prev.map(x => x.id === e.id ? { ...x, ...data, estado: { nombre: 'En progreso' } } : x))
       setEnCursoId(e.id)
-      showToast(`${NOMBRE_ACCION[accionDeEntrega(e)]} iniciada — vas en camino`)
+      showToast(`${nombreVisita(e)} iniciada — vas en camino`)
       return
     }
     const { data, error } = await crearEntrega(supabase, orden)
@@ -199,7 +199,7 @@ export default function EntregasRepartidorClient({ nombreRepartidor = '', entreg
     if (esAccion(entrega)) {
       const { error, cambios } = await completarAccion(supabase, { entrega, orden: entrega.orden, recibidoPor, firma, observaciones, datos: { datos_acta: datosActa } })
       if (error) return error
-      registrarBitacora({ modulo: 'entregas', accion: 'cerrar', entidad: NOMBRE_ACCION[accionDeEntrega(entrega)].toLowerCase(), entidad_id: entrega.id, detalle: { codigo: entrega.codigo, recibido_por: recibidoPor } })
+      registrarBitacora({ modulo: 'entregas', accion: 'cerrar', entidad: nombreVisita(entrega).toLowerCase(), entidad_id: entrega.id, detalle: { codigo: entrega.codigo, recibido_por: recibidoPor } })
       skipSyncUntil.current = Date.now() + 2500
       setEntregas(prev => prev.map(e => e.id === entrega.id ? { ...e, ...cambios } : e))
       return null
@@ -302,7 +302,7 @@ export default function EntregasRepartidorClient({ nombreRepartidor = '', entreg
       {/* Confirmar antes de iniciar (evita toques accidentales) */}
       <ConfirmDialog
         abierto={!!porIniciar}
-        titulo={porIniciar?._entrega ? `¿Iniciar esta ${NOMBRE_ACCION[accionDeEntrega(porIniciar._entrega)].toLowerCase()}?` : '¿Iniciar esta entrega?'}
+        titulo={porIniciar?._entrega ? `¿Iniciar esta ${nombreVisita(porIniciar._entrega).toLowerCase()}?` : '¿Iniciar esta entrega?'}
         mensaje={porIniciar ? `${porIniciar.paciente?.nombre || porIniciar.cliente?.nombre} — quedará marcada "En camino".` : ''}
         textoConfirmar="Sí, iniciar"
         onConfirmar={handleIniciar}
@@ -312,7 +312,7 @@ export default function EntregasRepartidorClient({ nombreRepartidor = '', entreg
       {/* Completar entrega: datos, revisión de los formatos y firmas (FirmaActas) */}
       {modalRegistro && (
         <FirmaActas ordenId={modalRegistro.orden?.id || modalRegistro.orden_id} entregaId={modalRegistro.id}
-          titulo={esAccion(modalRegistro) ? `Completar ${NOMBRE_ACCION[accionDeEntrega(modalRegistro)].toLowerCase()}` : 'Completar entrega'}
+          titulo={esAccion(modalRegistro) ? `Completar ${nombreVisita(modalRegistro).toLowerCase()}` : 'Completar entrega'}
           {...(esAccion(modalRegistro) ? {
             accion: accionDeEntrega(modalRegistro), plantillaIds: modalRegistro.datos?.plantillas || [],
             ...equiposDelActa(accionDeEntrega(modalRegistro), modalRegistro.datos),
@@ -340,7 +340,7 @@ export default function EntregasRepartidorClient({ nombreRepartidor = '', entreg
                 <ChevronLeft size={22} />
               </button>
               <div className="min-w-0">
-                <div className="text-[15px] font-bold text-slate-800 truncate">{NOMBRE_ACCION[accionDeEntrega(e)]} en curso</div>
+                <div className="text-[15px] font-bold text-slate-800 truncate">{nombreVisita(e)} en curso</div>
                 <div className="text-[12px] text-slate-400 font-mono truncate">{e.orden?.codigo} · {e.codigo}</div>
               </div>
             </div>
@@ -382,7 +382,7 @@ function duracion(desde, hasta) {
 // Al cerrar una entrega: confirmación grande con el tiempo, quién recibió y el acta a un toque
 function EntregaExitosa({ exito, descargando, onDescargar, onCerrar }) {
   const { item, recibidoPor, inicio, fin } = exito
-  const nombre = NOMBRE_ACCION[accionDeEntrega(item.entrega)]
+  const nombre = nombreVisita(item.entrega)
   const destino = item.orden?.paciente?.nombre || item.orden?.cliente?.nombre || 'Entrega'
   const tiempo = duracion(inicio, fin)
   const datos = [
@@ -452,7 +452,7 @@ function TarjetaEntrega({ item, saving, hoy, manana, onIniciar, onAbrir }) {
           </span>
         </div>
         {accionE && (
-          <div className="inline-flex mb-1.5 px-2 py-0.5 rounded-full text-[11px] font-bold bg-[#F5F3FF] text-[#6D28D9]">{NOMBRE_ACCION[accionDeEntrega(accionE)]}</div>
+          <div className="inline-flex mb-1.5 px-2 py-0.5 rounded-full text-[11px] font-bold bg-[#F5F3FF] text-[#6D28D9]">{nombreVisita(accionE)}</div>
         )}
 
         {/* Quién recibe: paciente si hay, si no el cliente */}
@@ -512,7 +512,7 @@ function TarjetaEntrega({ item, saving, hoy, manana, onIniciar, onAbrir }) {
           disabled={saving}
           className={`w-full py-3.5 rounded-[12px] text-[15px] font-bold text-white disabled:opacity-50 ${
             enProgreso ? 'bg-[#0E86A0] active:bg-[#0b6f85]' : 'bg-[#D81B43] active:bg-[#B0172F]'}`}>
-          {enProgreso ? `Abrir ${accionE ? NOMBRE_ACCION[accionDeEntrega(accionE)].toLowerCase() : 'entrega'} en curso` : `Iniciar ${accionE ? NOMBRE_ACCION[accionDeEntrega(accionE)].toLowerCase() : 'entrega'}`}
+          {enProgreso ? `Abrir ${accionE ? nombreVisita(accionE).toLowerCase() : 'entrega'} en curso` : `Iniciar ${accionE ? nombreVisita(accionE).toLowerCase() : 'entrega'}`}
         </button>
       </div>
     </article>
