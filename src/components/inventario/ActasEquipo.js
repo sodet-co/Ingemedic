@@ -3,11 +3,11 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { FileText, Download, Loader2, PenLine, RefreshCw, ArrowLeftRight, ArrowDownLeft, ArrowUpRight } from 'lucide-react'
 import { createClient } from '@/lib/supabase'
 import { formatear } from '@/lib/fechas'
-import { descargarActasPDF } from '@/lib/actas/pdf'
 import { SELECT_PLANTILLAS } from '@/lib/actas/firmar'
 import { sugeridasDe } from '@/lib/actas/acciones'
 import { accionDeEntrega, equiposDelActa, formatosDeVisita } from '@/lib/accionesPrestamo'
 import PreviaActas from '@/components/actas/PreviaActas'
+import DescargarActas from '@/components/actas/DescargarActas'
 import FirmaActas from '@/components/actas/FirmaActas'
 
 // Hoja de vida del equipo (Inventario): cada vez que pasó por un préstamo
@@ -33,7 +33,6 @@ export default function ActasEquipo({ equipo, onToast }) {
   const supabase = useMemo(() => createClient(), [])
   const [filas, setFilas] = useState(null)     // [{ visita, orden, actas }]
   const [previa, setPrevia] = useState(null)
-  const [descargando, setDescargando] = useState(null)
   const [llenando, setLlenando] = useState(null) // { visita, orden, plantillas }
 
   const cargar = useCallback(async () => {
@@ -67,12 +66,8 @@ export default function ActasEquipo({ equipo, onToast }) {
 
   useEffect(() => { const t = setTimeout(cargar, 0); return () => clearTimeout(t) }, [cargar])
 
-  async function descargar(f) {
-    setDescargando(f.visita.id)
-    try { await descargarActasPDF(f.actas, `Actas_${f.orden?.codigo || ''}_${equipo.codigo}.pdf`) }
-    catch (e) { onToast?.('No se pudo generar el PDF: ' + e.message, 'error') }
-    finally { setDescargando(null) }
-  }
+  const nombreArchivo = f => `Actas_${f.orden?.codigo || ''}_${equipo.codigo}`
+  const error = msg => onToast?.(msg, 'error')
 
   async function abrirLlenar(f) {
     const { data: plantillas } = await supabase.from('plantillas_acta').select(SELECT_PLANTILLAS).eq('activo', true)
@@ -102,7 +97,7 @@ export default function ActasEquipo({ equipo, onToast }) {
                 {!sinActa && (
                   <div className="mt-1.5 flex flex-wrap gap-1.5">
                     {f.actas.map((a, i) => (
-                      <button key={a.id} type="button" onClick={() => setPrevia({ filas: f.actas, inicial: i, titulo: `${texto} · ${f.orden?.codigo || ''}` })}
+                      <button key={a.id} type="button" onClick={() => setPrevia({ filas: f.actas, inicial: i, titulo: `${texto} · ${f.orden?.codigo || ''}`, nombre: nombreArchivo(f) })}
                         className="inline-flex items-center gap-1 max-w-full px-2 py-0.5 rounded-full border border-slate-200 text-[11.5px] text-slate-600 hover:border-[#1B3A6B]/40 hover:text-[#1B3A6B]">
                         <FileText size={11} className="flex-shrink-0 text-[#D81B43]" /> <span className="truncate">{a.nombre}</span>{!a.firma_recibe && <span className="text-slate-400 flex-shrink-0"> · sin firmas</span>}
                       </button>
@@ -117,17 +112,17 @@ export default function ActasEquipo({ equipo, onToast }) {
                 </button>
               )}
               {!sinActa && (
-                <button type="button" onClick={() => descargar(f)} disabled={descargando === f.visita.id}
+                <DescargarActas actas={f.actas} nombre={nombreArchivo(f)} onError={error}
                   className="flex items-center gap-1 text-[12px] font-semibold text-[#1B3A6B] hover:underline flex-shrink-0 disabled:opacity-50">
-                  {descargando === f.visita.id ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />} PDF
-                </button>
+                  {ocupado => <>{ocupado ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />} PDF</>}
+                </DescargarActas>
               )}
             </div>
           </div>
         )
       })}
 
-      {previa && <PreviaActas actas={previa.filas} inicial={previa.inicial} titulo={previa.titulo} onCerrar={() => setPrevia(null)} />}
+      {previa && <PreviaActas actas={previa.filas} inicial={previa.inicial} titulo={previa.titulo} nombreArchivo={previa.nombre} onError={error} onCerrar={() => setPrevia(null)} />}
 
       {llenando && (() => {
         const v = llenando.visita

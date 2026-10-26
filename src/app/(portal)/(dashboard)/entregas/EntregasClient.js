@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase'
 import {
   Package, CheckCircle2, Clock, Truck, X, Search,
   MapPin, Phone, FileText, User, AlertTriangle,
-  ArrowUpRight, ArrowDownLeft, Filter, Calendar, Lock
+  ArrowUpRight, ArrowDownLeft, Filter, Calendar, Lock, Loader2
 } from 'lucide-react'
 import LimpiarFiltros from '@/components/ui/LimpiarFiltros'
 import EncabezadoModulo from '@/components/ui/EncabezadoModulo'
@@ -18,7 +18,7 @@ import { capturarHTML } from '@/lib/capturar'
 import ActasPrestamo from '@/components/actas/ActasPrestamo'
 import VentanaDetalle, { Columnas, EncabezadoDetalle } from '@/components/ui/VentanaDetalle'
 import EntregaEnCurso, { RutaAnimada } from '@/components/entregas/EntregaEnCurso'
-import { descargarActasPDF } from '@/lib/actas/pdf'
+import DescargarActas from '@/components/actas/DescargarActas'
 import { crearEntrega, finalizarEntrega } from '@/lib/entregas'
 import { completarAccion, iniciarAccion, accionDeEntrega, equiposDelActa, NOMBRE_ACCION, nombreVisita } from '@/lib/accionesPrestamo'
 import { useUsuarioActual } from '@/lib/usuario-context'
@@ -314,19 +314,16 @@ export default function EntregasClient({ entregasIniciales, ordenesEnReparto, es
     return null
   }
 
-  // Acta en PDF: las actas firmadas del préstamo; las entregas de antes de las
-  // actas por cliente siguen saliendo con el formato viejo (generarActaEntregaPDF)
-  async function descargarActa(entrega) {
+  // Acta en PDF: las actas firmadas del préstamo (DescargarActas: juntas o por
+  // separado); las entregas de antes de las actas por cliente siguen saliendo con
+  // el formato viejo (generarActaEntregaPDF)
+  async function actasDeEntrega(entrega) {
     // Una recogida, recarga o cambio: solo sus actas; la entrega: las del préstamo
     let q = supabase.from('actas').select('id, nombre, bloques, datos, firma_recibe, firma_entrega')
     q = esAccion(entrega) ? q.eq('entrega_id', entrega.id) : q.eq('orden_id', entrega.orden?.id || entrega.orden_id).eq('accion', 'prestamo')
-    const { data: actas } = await q.order('fecha_firma')
-    if (actas?.length) {
-      try { await descargarActasPDF(actas, `Actas_${entrega.orden?.codigo || entrega.codigo}.pdf`); showToast('PDF generado') }
-      catch (e) { showToast('No se pudo generar el PDF: ' + e.message, 'error') }
-      return
-    }
-    return generarActaEntregaPDF(entrega)
+    const { data, error } = await q.order('fecha_firma')
+    if (error) throw error
+    return data || []
   }
 
   // ── GENERAR PDF ACTA DE ENTREGA (con firmas) ─────────────
@@ -843,9 +840,11 @@ export default function EntregasClient({ entregasIniciales, ordenesEnReparto, es
               titulo={<span className="font-mono">{drawer.codigo}</span>} subtitulo={drawer.cliente?.nombre}
               onCerrar={() => setDrawer(null)}
               acciones={drawer.estado?.nombre === 'Completada' && (
-                <button onClick={() => descargarActa(drawer)} className={`${ui.btnSecundario} max-sm:hidden`}>
-                  <FileText size={13} /> Acta PDF
-                </button>
+                <DescargarActas cargar={() => actasDeEntrega(drawer)} nombre={`Actas_${drawer.orden?.codigo || drawer.codigo}`}
+                  onSinActas={() => generarActaEntregaPDF(drawer)} onListo={() => showToast('PDF generado')} onError={msg => showToast(msg, 'error')}
+                  className={`${ui.btnSecundario} max-sm:hidden`}>
+                  {ocupado => <>{ocupado ? <Loader2 size={13} className="animate-spin" /> : <FileText size={13} />} Acta PDF</>}
+                </DescargarActas>
               )} />
 
             <Columnas izquierda={<>

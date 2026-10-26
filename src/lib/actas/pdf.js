@@ -83,13 +83,36 @@ function enBlanco(canvas) {
   return true
 }
 
-// actas: filas de la tabla `actas` (con bloques, datos y firmas)
-export async function descargarActasPDF(actas, nombreArchivo) {
+async function armarPDF(actas) {
   const { default: jsPDF } = await import('jspdf')
   const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
   ;(await armarHojas(actas)).forEach((h, i) => {
     if (i) pdf.addPage()
     pdf.addImage(h.imagen, 'JPEG', h.x, h.y, h.ancho, h.alto)
   })
-  pdf.save(nombreArchivo)
+  return pdf
+}
+
+// actas: filas de la tabla `actas` (con bloques, datos y firmas)
+export async function descargarActasPDF(actas, nombreArchivo) {
+  (await armarPDF(actas)).save(nombreArchivo)
+}
+
+// Nombre de archivo a partir del nombre del acta (sin tildes ni símbolos)
+export function nombreDeArchivo(texto) {
+  return String(texto || 'Acta').normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^\w-]+/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '') || 'Acta'
+}
+
+// Un PDF por acta: <prefijo>_<nombre del acta>.pdf. Se bajan uno tras otro con
+// una pausa corta (sin ella, algunos navegadores se quedan solo con el último).
+export async function descargarActasSeparadas(actas, prefijo) {
+  const usados = {}
+  for (const acta of actas) {
+    let nombre = `${prefijo}_${nombreDeArchivo(acta.nombre)}`
+    usados[nombre] = (usados[nombre] || 0) + 1
+    if (usados[nombre] > 1) nombre += `_${usados[nombre]}`
+    ;(await armarPDF([acta])).save(`${nombre}.pdf`)
+    await new Promise(r => setTimeout(r, 400))
+  }
 }

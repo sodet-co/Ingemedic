@@ -59,6 +59,12 @@ Lo que está sin resolver, ordenado por prioridad.
 
 # Entradas
 
+## 2026-10-26 — Actas: descargar juntas o por separado
+**Qué se hizo:** nuevo `<DescargarActas>` (components/actas). Con una sola acta baja el PDF directo; con varias abre un menú: "Todas en un PDF" o "Cada una por separado" (un PDF por acta, `<base>_<nombre del acta>.pdf`). En la vista previa además "Solo esta acta". Se usa en Préstamos (ActasPrestamo), Entregas (detalle), Entregas del repartidor (lista y pantalla de éxito), hoja de vida del equipo y el historial del préstamo (la vista previa ahora deja descargar). `PreviaActas` cambió `onDescargar/descargando` por `nombreArchivo/onError`.
+**Por qué:** por separado son archivos sueltos, no un ZIP: así lo pidieron. El navegador puede pedir permiso la primera vez para "descargar varios archivos".
+**Archivos:** lib/actas/pdf.js, components/actas/{DescargarActas,PreviaActas,ActasPrestamo}.js, components/inventario/ActasEquipo.js, components/prestamos/HistorialPrestamo.js, entregas/{EntregasClient,EntregasRepartidorClient}.js
+**Pendiente:** probarlo en el navegador (escritorio y celular): menú, descarga por separado y el permiso de varias descargas.
+
 ## 2026-10-25 — Ficha del equipo rediseñada y "Marcar disponible"
 **Qué se hizo:** hoja de vida del equipo (Inventario): encabezado con el tipo y la categoría del propio equipo y su estado; resumen con imagen, estado y quién lo tiene; ficha en dos columnas (Esta unidad / Del tipo); Historia y Actas en pestañas. Si está "Por recargar", botón **Marcar disponible** con confirmación (bitácora). Se sacó `Date.now()` del componente (`ahoraMs`) por la regla de pureza de React.
 **Archivos:** `inventario/InventarioClient.js`.

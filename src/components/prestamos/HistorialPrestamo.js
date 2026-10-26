@@ -7,6 +7,7 @@ import { accionDeEntrega, equiposDelActa, nombreVisita, formatosDeVisita } from 
 import { sugeridasDe } from '@/lib/actas/acciones'
 import { armarHistorialPrestamo } from '@/lib/historialPrestamo'
 import PreviaActas from '@/components/actas/PreviaActas'
+import { nombreDeArchivo } from '@/lib/actas/pdf'
 import FirmaActas from '@/components/actas/FirmaActas'
 
 // Historial de un préstamo: todo lo que le pasó, en orden y con quién lo hizo.
@@ -52,7 +53,7 @@ export default function HistorialPrestamo({ orden, plantillas = [] }) {
     let { data } = await supabase.from('actas').select(campos).eq('entrega_id', v.id).order('fecha_firma')
     if (!data?.length && accionDeEntrega(v) === 'prestamo') ({ data } = await supabase.from('actas').select(campos).eq('orden_id', orden.id).eq('accion', 'prestamo').order('fecha_firma'))
     setAbriendo(null)
-    if (data?.length) setPrevia({ filas: data, titulo: `${nombreVisita(v)} · ${orden.codigo}` })
+    if (data?.length) setPrevia({ filas: data, titulo: `${nombreVisita(v)} · ${orden.codigo}`, nombre: `Actas_${orden.codigo}_${nombreDeArchivo(nombreVisita(v))}` })
     else setSinActa(v.id)
   }
 
@@ -93,7 +94,7 @@ export default function HistorialPrestamo({ orden, plantillas = [] }) {
           )
         })}
       </div>
-      {previa && <PreviaActas actas={previa.filas} titulo={previa.titulo} onCerrar={() => setPrevia(null)} />}
+      {previa && <PreviaActas actas={previa.filas} titulo={previa.titulo} nombreArchivo={previa.nombre} onCerrar={() => setPrevia(null)} />}
       {llenando && (() => {
         const accion = accionDeEntrega(llenando)
         const { equipos, retirados } = equiposDelActa(accion, llenando.datos || {})

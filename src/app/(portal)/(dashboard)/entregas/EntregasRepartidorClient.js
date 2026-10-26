@@ -10,7 +10,7 @@ import FirmaActas from '@/components/actas/FirmaActas'
 import Ayuda from '@/components/ui/Ayuda'
 import EntregaEnCurso, { RutaAnimada } from '@/components/entregas/EntregaEnCurso'
 import ConfirmDialog from '@/components/ui/ConfirmDialog'
-import { descargarActasPDF } from '@/lib/actas/pdf'
+import DescargarActas from '@/components/actas/DescargarActas'
 import { ui } from '@/lib/ui'
 import {
   Package, MapPin, Clock, CheckCircle2, Truck, Phone, Navigation, StickyNote, ChevronLeft, Download, Loader2,
@@ -173,25 +173,22 @@ export default function EntregasRepartidorClient({ nombreRepartidor = '', entreg
     setModalRegistro(entrega)
   }
 
-  // PDF con las actas firmadas en una entrega (las de esa entrega; si es de antes
-  // de guardar la entrega en el acta, las del préstamo)
-  const [descargando, setDescargando] = useState(null)
+  // Actas firmadas en una entrega (las de esa entrega; si es de antes de guardar
+  // la entrega en el acta, las del préstamo). DescargarActas las baja juntas o por separado.
   // Pantalla de éxito al cerrar una entrega: tiempo, quién recibió y el acta
   const [exito, setExito] = useState(null)
-  async function descargarActas(item) {
-    setDescargando(item.key)
-    try {
-      const campos = 'id, nombre, fecha_firma, bloques, datos, firma_recibe, firma_entrega'
-      let { data } = await supabase.from('actas').select(campos).eq('entrega_id', item.entrega.id).order('fecha_firma')
-      if (!data?.length && item.orden?.id && !esAccion(item.entrega)) ({ data } = await supabase.from('actas').select(campos).eq('orden_id', item.orden.id).eq('accion', 'prestamo').order('fecha_firma'))
-      if (!data?.length) { showToast('Esta entrega no tiene actas firmadas', 'error'); return }
-      await descargarActasPDF(data, `Acta_${item.orden?.codigo || 'entrega'}.pdf`)
-    } catch (e) {
-      showToast('No se pudo generar el PDF: ' + (e.message || e), 'error')
-    } finally {
-      setDescargando(null)
-    }
+  async function actasDeItem(item) {
+    const campos = 'id, nombre, fecha_firma, bloques, datos, firma_recibe, firma_entrega'
+    let { data, error } = await supabase.from('actas').select(campos).eq('entrega_id', item.entrega.id).order('fecha_firma')
+    if (!error && !data?.length && item.orden?.id && !esAccion(item.entrega)) ({ data, error } = await supabase.from('actas').select(campos).eq('orden_id', item.orden.id).eq('accion', 'prestamo').order('fecha_firma'))
+    if (error) throw error
+    return data || []
   }
+  const descargaDe = item => ({
+    cargar: () => actasDeItem(item), nombre: `Acta_${item.orden?.codigo || 'entrega'}`,
+    onSinActas: () => showToast('Esta entrega no tiene actas firmadas', 'error'),
+    onError: msg => showToast(msg, 'error'),
+  })
 
   // Lo corre FirmaActas antes de guardar las actas: si falla, no se guarda nada
   async function completarEntrega({ recibidoPor, firma, observaciones, datosActa }) {
@@ -283,9 +280,9 @@ export default function EntregasRepartidorClient({ nombreRepartidor = '', entreg
                         <div className="text-[12px] text-slate-500 truncate">Recibió: {item.entrega.recibido_por}</div>
                       )}
                     </div>
-                    <button onClick={() => descargarActas(item)} disabled={!!descargando} className={ui.btnChico} aria-label="Descargar actas en PDF">
-                      {descargando === item.key ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />} PDF
-                    </button>
+                    <DescargarActas {...descargaDe(item)} className={ui.btnChico}>
+                      {ocupado => <>{ocupado ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />} PDF</>}
+                    </DescargarActas>
                   </div>
                 )
               })}
@@ -295,8 +292,7 @@ export default function EntregasRepartidorClient({ nombreRepartidor = '', entreg
       </div>
 
       {exito && (
-        <EntregaExitosa exito={exito} descargando={descargando === 'exito'}
-          onDescargar={() => descargarActas(exito.item)} onCerrar={() => setExito(null)} />
+        <EntregaExitosa exito={exito} descarga={descargaDe(exito.item)} onCerrar={() => setExito(null)} />
       )}
 
       {/* Confirmar antes de iniciar (evita toques accidentales) */}
@@ -380,7 +376,7 @@ function duracion(desde, hasta) {
 }
 
 // Al cerrar una entrega: confirmación grande con el tiempo, quién recibió y el acta a un toque
-function EntregaExitosa({ exito, descargando, onDescargar, onCerrar }) {
+function EntregaExitosa({ exito, descarga, onCerrar }) {
   const { item, recibidoPor, inicio, fin } = exito
   const nombre = nombreVisita(item.entrega)
   const destino = item.orden?.paciente?.nombre || item.orden?.cliente?.nombre || 'Entrega'
@@ -411,10 +407,10 @@ function EntregaExitosa({ exito, descargando, onDescargar, onCerrar }) {
           ))}
         </div>
 
-        <button onClick={onDescargar} disabled={descargando} className={`${ui.btnPrimario} w-full !h-12 mt-5 !text-[14px]`}>
-          {descargando ? <><Loader2 size={16} className="animate-spin" /> Generando acta…</> : <><Download size={16} /> Descargar acta</>}
-        </button>
-        <button onClick={onCerrar} disabled={descargando} className={`${ui.btnSecundario} w-full !h-11 mt-2`}>Listo</button>
+        <DescargarActas {...descarga} className={`${ui.btnPrimario} w-full !h-12 mt-5 !text-[14px]`}>
+          {ocupado => ocupado ? <><Loader2 size={16} className="animate-spin" /> Generando acta…</> : <><Download size={16} /> Descargar acta</>}
+        </DescargarActas>
+        <button onClick={onCerrar} className={`${ui.btnSecundario} w-full !h-11 mt-2`}>Listo</button>
       </div>
       <style>{'@keyframes pop{0%{transform:scale(.5);opacity:0}70%{transform:scale(1.08)}100%{transform:scale(1);opacity:1}}@keyframes aparecer{from{transform:translateY(24px);opacity:0}to{transform:none;opacity:1}}'}</style>
     </div>

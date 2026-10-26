@@ -3,6 +3,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { X, Download, Loader2, FileText, ChevronLeft, ChevronRight, ZoomIn, ZoomOut } from 'lucide-react'
 import { renderPaginas, ANCHO_PAGINA } from '@/lib/actas/render'
 import { contextoDeActa } from '@/lib/actas/firmar'
+import DescargarActas from './DescargarActas'
 
 const ALTO_A4 = Math.round(ANCHO_PAGINA * 297 / 210)
 
@@ -11,7 +12,8 @@ const ALTO_A4 = Math.round(ANCHO_PAGINA * 297 / 210)
 // (también con ← → del teclado o deslizando en el celular). A la izquierda,
 // un índice fijo con los documentos y sus hojas; en el celular, un selector.
 // actas: filas con { nombre, bloques, datos, firma_recibe, firma_entrega }
-export default function PreviaActas({ actas, inicial = 0, titulo, descargando, onDescargar, onCerrar }) {
+// nombreArchivo: si viene, se pueden descargar (esta, todas juntas o por separado)
+export default function PreviaActas({ actas, inicial = 0, titulo, nombreArchivo, onError, onCerrar }) {
   // Todas las hojas de todos los documentos en una sola fila
   const hojas = useMemo(() => actas.flatMap((a, doc) =>
     renderPaginas(a.bloques, contextoDeActa(a)).map((html, i, todas) => ({ html, doc, n: i + 1, de: todas.length }))
@@ -71,12 +73,15 @@ export default function PreviaActas({ actas, inicial = 0, titulo, descargando, o
             <div className="text-[15px] font-bold text-slate-800 truncate">{titulo || 'Vista previa'}</div>
             <div className="text-[12px] text-slate-400 truncate">{actas[hoja.doc].nombre}</div>
           </div>
-          {onDescargar && (
-            <button onClick={onDescargar} disabled={descargando}
+          {nombreArchivo && (
+            <DescargarActas actas={actas} actual={actas.length > 1 ? actas[hoja.doc] : undefined} nombre={nombreArchivo} onError={onError}
               className="flex items-center gap-1.5 px-3 py-2 bg-[#1B3A6B] text-white rounded-[8px] text-[12.5px] font-semibold hover:bg-[#152D54] disabled:opacity-60 flex-shrink-0">
-              {descargando ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
-              <span className="hidden sm:inline">{descargando ? 'Generando…' : 'Descargar PDF'}</span>
-            </button>
+              {ocupado => <>
+                {ocupado ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
+                <span className="sm:hidden">{ocupado ? '…' : 'PDF'}</span>
+                <span className="hidden sm:inline">{ocupado ? 'Generando…' : 'Descargar PDF'}</span>
+              </>}
+            </DescargarActas>
           )}
           <button onClick={onCerrar} aria-label="Cerrar" className="text-slate-400 hover:text-slate-600 w-9 h-9 flex items-center justify-center rounded-lg hover:bg-slate-100 flex-shrink-0"><X size={18} /></button>
         </div>

@@ -3,12 +3,12 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { FileText, Download, Loader2, Eye, PencilLine, AlertCircle, PenLine, CheckCircle2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase'
 import { formatear } from '@/lib/fechas'
-import { descargarActasPDF } from '@/lib/actas/pdf'
 import { cargarParaFirma, SELECT_PLANTILLAS } from '@/lib/actas/firmar'
 import { accionDeEntrega, equiposDelActa, formatosDeVisita, nombreVisita } from '@/lib/accionesPrestamo'
 import FirmaActas from './FirmaActas'
 import { construirContexto, conManuales } from '@/lib/actas/contexto'
 import PreviaActas from './PreviaActas'
+import DescargarActas from './DescargarActas'
 import LlenarFormatos, { VentanaLlenarFormatos } from './LlenarFormatos'
 import { leerDatosActa, camposPedidos, camposVacios } from '@/lib/actas/campos'
 import { ui } from '@/lib/ui'
@@ -29,7 +29,6 @@ export default function ActasPrestamo({ ordenId, ordenCodigo, onToast }) {
   const [actas, setActas] = useState(null)
   const [formatos, setFormatos] = useState([])
   const [visitas, setVisitas] = useState([])     // [{ visita, plantillas }] recogidas, cambios y recargas hechas
-  const [descargando, setDescargando] = useState(false)
   const [previa, setPrevia] = useState(null)     // { filas, inicial } con la vista previa abierta
   const [base, setBase] = useState(null)         // préstamo (y sus formatos sin firmar): cargarParaFirma
   const [editar, setEditar] = useState(null)     // { paciente, diagnostico, acta } mientras se llenan los datos
@@ -98,12 +97,8 @@ export default function ActasPrestamo({ ordenId, ordenCodigo, onToast }) {
     setPrevia({ filas: todas, inicial: i })
   }
 
-  async function descargar(filas = todas) {
-    setDescargando(true)
-    try { await descargarActasPDF(filas, `Actas_${ordenCodigo || 'prestamo'}.pdf`) }
-    catch (e) { onToast?.('No se pudo generar el PDF: ' + e.message, 'error') }
-    finally { setDescargando(false) }
-  }
+  const nombreArchivo = `Actas_${ordenCodigo || 'prestamo'}`
+  const error = msg => onToast?.(msg, 'error')
 
   // Datos que faltan en los formatos del préstamo sin firmar
   const pedidos = useMemo(() => base && formatos.length ? camposPedidos(formatos, { conPaciente: !!base.orden.paciente }) : null, [base, formatos])
@@ -190,11 +185,13 @@ export default function ActasPrestamo({ ordenId, ordenCodigo, onToast }) {
           className="flex items-center gap-1.5 px-3 py-2 bg-white border border-slate-200 text-slate-700 rounded-[8px] text-[12.5px] font-semibold hover:border-slate-300 disabled:opacity-60">
           <Eye size={13} /> Ver todas
         </button>
-        <button onClick={() => descargar()} disabled={descargando || !todas.length}
+        <DescargarActas actas={todas} nombre={nombreArchivo} onError={error}
           className="flex items-center gap-1.5 px-3 py-2 bg-[#1B3A6B] text-white rounded-[8px] text-[12.5px] font-semibold hover:bg-[#152D54] disabled:opacity-60">
-          {descargando ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
-          {descargando ? 'Generando PDF…' : 'Descargar PDF'}
-        </button>
+          {ocupado => <>
+            {ocupado ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
+            {ocupado ? 'Generando PDF…' : 'Descargar PDF'}
+          </>}
+        </DescargarActas>
       </div>
 
       {editar && (
@@ -238,7 +235,7 @@ export default function ActasPrestamo({ ordenId, ordenCodigo, onToast }) {
       {previa && (
         <PreviaActas actas={previa.filas} inicial={previa.inicial}
           titulo={`Actas · ${ordenCodigo || 'préstamo'}`}
-          descargando={descargando} onDescargar={() => descargar(previa.filas)} onCerrar={() => setPrevia(null)} />
+          nombreArchivo={nombreArchivo} onError={error} onCerrar={() => setPrevia(null)} />
       )}
     </div>
   )
