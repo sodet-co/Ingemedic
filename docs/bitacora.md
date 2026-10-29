@@ -31,8 +31,9 @@ Lo que está sin resolver, ordenado por prioridad.
    el `UPDATE usuarios SET email = LOWER(email)` pero nunca se confirmó
    si después quedó restringiendo bien.
 3. **`src/lib/ultima-actualizacion.js`** está en gitignore y se genera en
-   build. Falta confirmar si un clone nuevo necesita un `git add -f`
-   inicial para no romper `npm run dev`.
+   build. Confirmado el 2026-10-28: en un clone nuevo `npm run dev` falla
+   ("Can't resolve '@/lib/ultima-actualizacion'") hasta correr
+   `node scripts/generar-timestamp.js`.
 4. **Columna `domicilio boolean` en `ordenes_servicio`.** Hoy se infiere
    de si `repartidor_id` está presente. Frágil.
 5. **Arreglos mecánicos de la auditoría de diseño**, identificados y no
@@ -58,6 +59,14 @@ Lo que está sin resolver, ordenado por prioridad.
 ---
 
 # Entradas
+
+## 2026-10-28 — Family / FOMAG: formatos separados y acta de cambio Family
+**Qué se hizo:** lo pedido en la videollamada (docs/Video.mp4): el formato único "Family Homecare / FOMAG — Comodato, acta general y F-FAM-11" se cambia por el contrato de comodato solo, tres F-FAM-11 (CPAP-BPAP, Oxígeno, Otros equipos, del Excel "FORMATO ENTREGA DE EQUIPOS BIOMEDICOS 2025") y "Acta de cambio de equipo Family" (la de Ingemedic con el logo y el nombre de Family). Todas con el logo real de Family (`logos/clientes/family-homecare.jpg`). En el F-FAM-11 la edad y los meses de atención se escriben (`{{edad}}`, `{{meses_atencion}}`, campos propios): antes la edad salía de la fecha de nacimiento y "MESES" mostraba el mes de la entrega. Se corrigió del Excel la numeración repetida de oxígeno, "EPS:" doble, "FAMLIAR" y "VENTURY". `render.js` → `tablaFija`: las filas fijas también miran modelo y marca (el tamaño del cilindro solo está en el modelo) y con `juntar` toman todas las unidades que coinciden (cantidad sumada, series separadas por coma).
+**Por qué:** el acta general de Family (entrega/devolución/recarga) no se pidió en las nuevas y quedó fuera.
+**Archivos:** lib/actas/{plantillas-base,render}.js, docs/sql-plantillas-family.sql
+**SQL:** `docs/sql-plantillas-family.sql` (crea las 5, las asigna a FOMAG y FAMILY HOMECARE SAS, desactiva la vieja). Ya aplicado el 2026-10-28 desde un script con service_role (mismo efecto que el SQL; el logo ya está en Storage). El SQL es idempotente: correrlo otra vez no duplica nada.
+**Sugerencias por equipo:** `plantillasSugeridas(…, equipos)` (lib/actas/acciones.js): una plantilla con filas fijas de equipos (los F-FAM-11) solo se sugiere si algún equipo del préstamo cae en una de sus filas; si ninguno cae en ninguna (p. ej. un desfibrilador), se sugieren todas. En Préstamo nuevo se vuelve a sugerir al cambiar el carrito, mientras no se hayan marcado formatos a mano (`formatos_a_mano`). Probado con las plantillas reales: concentrador → contrato + Oxígeno; CPAP → contrato + CPAP; CPAP + concentrador → los tres; otros clientes sin cambio. Archivos: lib/actas/{acciones,firmar}.js, prestamos/NuevoPrestamo.js.
+**Pendiente:** faltan los Word de CPAP (acta de la máscara, recibido a satisfacción) que van a mandar · el cliente de prueba (c57b5124…) tenía la vieja y no recibe las nuevas · probar en el navegador con un préstamo real.
 
 ## 2026-10-26 — Actas: descargar juntas o por separado
 **Qué se hizo:** nuevo `<DescargarActas>` (components/actas). Con una sola acta baja el PDF directo; con varias abre un menú: "Todas en un PDF" o "Cada una por separado" (un PDF por acta, `<base>_<nombre del acta>.pdf`). En la vista previa además "Solo esta acta". Se usa en Préstamos (ActasPrestamo), Entregas (detalle), Entregas del repartidor (lista y pantalla de éxito), hoja de vida del equipo y el historial del préstamo (la vista previa ahora deja descargar). `PreviaActas` cambió `onDescargar/descargando` por `nombreArchivo/onError`.

@@ -163,11 +163,12 @@ function asmedc(base) {
 }
 
 // ── Family Homecare / FOMAG ──
-const familyLogo = sinLogo('FAMILY HOMECARE')
+// Logo sacado del Excel "FORMATO ENTREGA DE EQUIPOS BIOMEDICOS 2025" (docs/)
+const familyLogo = (base, alto = 46) => logo(base, 'clientes/family-homecare.jpg', alto)
 
-function familyComodato() {
+function familyComodato(base) {
   const enc = n => ({
-    tipo: 'encabezado', logos: [familyLogo], ancho_logo: 20,
+    tipo: 'encabezado', logos: [familyLogo(base)], ancho_logo: 20,
     centro: [{ texto: 'CONTRATO DE COMODATO\nO\nPRÉSTAMO DE USO', estilo: 'titulo' }],
     derecha: [{ etiqueta: '', valor: '01 DE MAYO DE 2024' }, { etiqueta: 'ELABORADO POR:', valor: 'VIERIZ LLANES' }, { etiqueta: 'APROBADO POR:', valor: 'RODOLFO RODRÍGUEZ' }],
     logos_derecha: [sinLogo('{fiduprevisora}'), sinLogo('FOMAG')],
@@ -176,8 +177,8 @@ function familyComodato() {
   const folios = { tipo: 'pie', texto: 'Número de Folios Total: 5' }
   const t = texto => ({ tipo: 'texto', tamano: 11, texto })
   return {
-    nombre: 'Family Homecare — Contrato de comodato (FOMAG)',
-    descripcion: 'Contrato de comodato o préstamo de uso de Family Homecare para afiliados del FOMAG (5 páginas).',
+    nombre: 'Family Homecare / FOMAG — Contrato de comodato',
+    descripcion: 'Contrato de comodato o préstamo de uso de Family Homecare para afiliados del FOMAG (5 páginas). Va con todos los préstamos de Family, junto con el F-FAM-11 del tipo de equipo.',
     bloques: [
       enc(1),
       t('A los {{dia}} días del mes de {{mes}} de {{anio}}, en la ciudad de Valledupar, entre la SOCIEDAD **FAMILY HOMECARE S.A.S.**, persona jurídica de derecho privado, identificada con el Nit. 900830296-9, representada legalmente por el señor RODOLFO CARLOS RODRIGUEZ SHORBOGH, mayor de edad, residenciado en la ciudad de Valledupar, parte que se denominará **COMODANTE** y de otra parte el señor (a) {{recibe_nombre}}, identificado (a) con cédula de ciudadanía Nº {{recibe_documento}} en adelante se denominará **COMODATARIO**, celebran por medio de este documento **CONTRATO DE COMODATO** sobre los bienes que recibe el usuario por la prestación del servicio autorizado a la suscripción de este contrato y en las condiciones que a continuación se describen:\n\n' +
@@ -248,76 +249,62 @@ function familyComodato() {
   }
 }
 
-function familyActaGeneral() {
-  const obs = momento => `OBSERVACIONES: ( Especifique en este campo las observaciones que tenga acerca del estado del equipo en el momento de la ${momento})`
-  return {
-    nombre: 'Family Homecare — Acta general de equipos (entrega, devolución, recarga)',
-    descripcion: 'Acta general de equipos médicos domiciliarios o suministro de oxígeno domiciliario de Family Homecare.',
-    bloques: [
-      { tipo: 'encabezado', logos: [familyLogo], ancho_logo: 24,
-        centro: [{ texto: 'ACTA GENERAL DE EQUIPOS MEDICOS DOMICILIARIOS O SUMINISTRO OXIGENO DOMICILIARIO', estilo: 'titulo' }] },
-      { tipo: 'campos', titulo: 'ENTREGA DE EQUIPOS', columnas: 3, borde: true, campos: [
-        { etiqueta: 'CIUDAD', valor: '{{ciudad}}' }, { etiqueta: 'FECHA', valor: '{{fecha}}' }, { etiqueta: 'HORA', valor: '{{hora}}' },
-        { etiqueta: 'EQUIPO ENTREGADO:', valor: '{{equipo_descripcion}}' }, { etiqueta: 'MARCA:', valor: '{{equipo_marca}}' }, { etiqueta: 'MODELO:', valor: '{{equipo_modelo}}' },
-        { etiqueta: 'SERIAL', valor: '{{equipo_serie}}' }, { etiqueta: 'ACCESORIOS:', valor: '{{insumos_resumen}}', span: 2 },
-        { etiqueta: 'OTROS EQUIPOS ENTREGADOS:', valor: '{{otros_equipos}}', span: 3 },
-        { etiqueta: 'QUIEN ENTREGA:', valor: '{{entrega_nombre}}', span: 2 }, { etiqueta: 'FIRMA:', firma: 'entrega' },
-        { etiqueta: 'QUIEN RECIBE:', valor: '{{recibe_nombre}}', span: 2 }, { etiqueta: 'FIRMA:', firma: 'recibe' },
-        { etiqueta: 'DIRECCION:', valor: '{{paciente_direccion}}', span: 2 }, { etiqueta: 'TELEFONO', valor: '{{recibe_telefono}}' },
-        { etiqueta: 'NOMBRE DEL PACIENTE:', valor: '{{paciente_nombre}}', span: 3 },
-        { etiqueta: obs('entrega'), valor: '{{observaciones}}', span: 3, arriba: true },
-      ] },
-      { tipo: 'campos', titulo: 'DEVOLUCION DE EQUIPOS', columnas: 3, borde: true, campos: [
-        { etiqueta: 'CIUDAD', span: 2 }, { etiqueta: 'FECHA' },
-        { etiqueta: 'EQUIPO EN DEVOLUCION:' }, { etiqueta: 'MARCA:' }, { etiqueta: 'MODELO:' },
-        { etiqueta: 'SERIAL' }, { etiqueta: 'ACCESORIOS:', span: 2 },
-        { etiqueta: 'OTROS EQUIPOS ENTREGADOS:', span: 3 },
-        { etiqueta: 'QUIEN RECIBE:', span: 2 }, { etiqueta: 'FIRMA:' },
-        { etiqueta: 'QUIEN ENTREGA:', span: 2 }, { etiqueta: 'FIRMA:' },
-        { etiqueta: obs('devolucion'), span: 3, arriba: true },
-      ] },
-      { tipo: 'campos', titulo: 'RECARGA DE EQUIPOS', columnas: 3, borde: true, campos: [
-        { etiqueta: 'CIUDAD', span: 2 }, { etiqueta: 'FECHA' },
-        { etiqueta: 'RECARGA DE EQUIPOS:' }, { etiqueta: 'MARCA:' }, { etiqueta: 'MODELO:' },
-        { etiqueta: 'SERIAL' }, { etiqueta: 'ACCESORIOS:', span: 2 },
-        { etiqueta: 'TENENCIA ACTUAL', span: 3 },
-        { etiqueta: 'QUIEN RECIBE:', span: 2 }, { etiqueta: 'FIRMA:' },
-        { etiqueta: 'QUIEN ENTREGA:', span: 2 }, { etiqueta: 'DIRECCION:' },
-        { etiqueta: 'TELEFONO O CELULAR', span: 2 }, { etiqueta: 'Correo Electronico:' },
-        { etiqueta: obs('devolucion'), span: 3, arriba: true },
-      ] },
-      { tipo: 'texto', tamano: 11, texto: 'Por medio de la presente acta se hace constar la entrega, devolucion, recarga y tenencia actual de los equipos biomedicos y/o suministros de oxigeno domiciliario en calidad de prestamo . La custodia y buen uso de los equipos entregados antes descritos son responsalidad del paciente o familiar, a partir de la fecha de entrega asumen el compromiso de su cuidado.' },
-      { tipo: 'pie', texto: 'Calle 18 #12-34 B. Gaitán Cel: 310 3636481 – 301 2877254\nE-mail: ingemedisas@hotmail.com | Valledupar- Colombia\nWeb: www.ingemedic.co' },
-    ],
-  }
-}
+// F-FAM-11 versión 02 (Excel "FORMATO ENTREGA DE EQUIPOS BIOMEDICOS 2025"): una hoja
+// por tipo de equipo, como el Excel. Las filas vienen impresas y cada una toma del
+// préstamo lo que le corresponde (render.js → tablaFija); "OTROS" junta lo que sobra.
+// Del Excel se corrigió la numeración repetida de oxígeno, "EPS:" doble, "FAMLIAR"
+// y "VENTURY". Edad y meses se escriben (antes la edad salía de la fecha de nacimiento
+// y los meses eran el mes de la entrega).
+// filas: [texto, coincide] — la expresión mira descripción, categoría, modelo y marca
+const filasFijas = filas => [...filas, ['OTROS:']].map(([texto, coincide], i) =>
+  coincide ? { texto: `${i + 1}. ${texto}`, coincide, juntar: true } : { texto: `${i + 1}. ${texto}`, ...(texto === 'OTROS:' && { resto: true }) })
 
-function familyF11() {
+const HOJAS_F11 = [
+  { hoja: 'CPAP - BPAP', equipos: [['EQUIPO CPAP', '\\bc-?pap'], ['EQUIPO BPAP', '\\bb-?i?pap']],
+    insumos: [['MASCARA ORONASAL', 'oronasal|full ?face'], ['MASCARA NASAL', 'm[aá]scara\\s+nasal'], ['MANGUERA CORRUGADA PARA CPAP Y/O BPAP', 'manguera|corrugad']] },
+  { hoja: 'Oxígeno',
+    equipos: [
+      ['CONCENTRADOR DE OXIGENO BAJO FLUJO', '^(?!.*(port[aá]til|inogen|alto flujo)).*concentrador'],
+      ['CONCENTRADOR DE OXIGENO ALTO FLUJO', '^(?!.*port[aá]til).*concentrador.*alto flujo'],
+      ['CONCENTRADOR DE OXIGENO PORTATIL', 'concentrador.*(port[aá]til|inogen)'],
+      ['CILINDRO 6.5M3', 'cilindro.*6[.,]5\\s*m'],
+      ['REGULADOR DE OXIGENO 6.5M3', 'regulador'],
+      ['BALA PORTATIL 1M3', 'cilindro.*(port[aá]til|\\b1\\s*m3)'],
+      ['REGULADOR BALA PORTATIL'], ['RECARGA CILINDRO 6.5M3'], ['RECARGA CILINDRO 1M3'],
+    ],
+    insumos: [['KIT VENTURI ADULTO', '^(?!.*pedi).*ventur[iy]'], ['KIT VENTURI PEDIATRICO', 'ventur[iy].*pedi'],
+      ['CANULA NASAL ADULTO', '^(?!.*pedi).*c[aá]nula'], ['CANULA NASAL PEDIATRICO', 'c[aá]nula.*pedi'],
+      ['ACOPLE', 'acople'], ['VASO HUMIDIFICADOR', 'humidificador']] },
+  { hoja: 'Otros equipos',
+    equipos: [['ASPIRADOR DE SECRECIONES', 'aspirador'], ['MONITOR DE SIGNOS VITALES', 'monitor'], ['NEBULIZADOR', 'nebulizador'],
+      ['COLCHON ANTIESCARAS', 'colch[oó]n|antiescara'], ['BOMBA DE INFUSION', 'bomba'], ['VENTILADOR MECANICO', 'ventilador'], ['CAMA HOSPITALARIA', 'cama']],
+    insumos: [['MANGUERA DE SUCCION', 'succi[oó]n'], ['CIRCUITO VENTILATORIO', 'circuito']] },
+]
+
+function familyF11(base, { hoja, equipos, insumos }) {
   return {
-    nombre: 'Family Homecare — Entrega de equipos e insumos biomédicos (F-FAM-11)',
-    descripcion: 'Formato F-FAM-11 versión 02 de Family Homecare: paciente, equipos, insumos y quien recibe.',
+    nombre: `Family Homecare / FOMAG — Entrega ${hoja} (F-FAM-11)`,
+    descripcion: `Formato F-FAM-11 versión 02 de Family Homecare, hoja ${hoja}: paciente, equipos, insumos y quien recibe.`,
     bloques: [
-      { tipo: 'encabezado', logos: [familyLogo], ancho_logo: 22,
+      { tipo: 'encabezado', logos: [familyLogo(base, 58)], ancho_logo: 24,
         centro: [{ texto: 'ENTREGA DE EQUIPOS E INSUMOS\nBIOMEDICOS', estilo: 'titulo' }],
         derecha: [{ etiqueta: 'CODIGO:', valor: 'F-FAM-11' }, { etiqueta: 'VERSION:', valor: '02' }, { etiqueta: 'FECHA:', valor: '01/01/2025' }, { etiqueta: 'PAGINA', valor: '1/1' }] },
       { tipo: 'campos', titulo: 'INFORMACION DEL PACIENTE', estilo: 'tabla', columnas: 3, campos: [
         { etiqueta: 'NOMBRE DEL PACIENTE:', valor: '{{paciente_nombre}}', span: 3 },
-        { etiqueta: 'IDENTIFICACION:', valor: '{{paciente_documento}}' }, { etiqueta: 'EDAD:', valor: '{{paciente_edad}}' }, { etiqueta: 'EPS:', valor: '{{paciente_eps}}' },
+        { etiqueta: 'IDENTIFICACION:', valor: '{{paciente_documento}}' }, { etiqueta: 'EDAD:', valor: '{{edad}}' }, { etiqueta: 'EPS:', valor: '{{paciente_eps}}' },
         { etiqueta: 'DIAGNOSTICO:', valor: '{{diagnostico}}', span: 3 },
         { etiqueta: 'DIRECCION:', valor: '{{paciente_direccion}}', span: 2 }, { etiqueta: 'TEL:', valor: '{{paciente_telefono}}' },
         { etiqueta: 'BARRIO:', valor: '{{paciente_barrio}}', span: 2 }, { etiqueta: 'CIUDAD:', valor: '{{ciudad}}' },
-        { etiqueta: 'PERIODO DE ATENCIÓN: MESES:', valor: '{{mes}}', span: 2 }, { etiqueta: 'FECHA:', valor: '{{fecha}}' },
+        { etiqueta: 'PERIODO DE ATENCIÓN: MESES:', valor: '{{meses_atencion}}', span: 2 }, { etiqueta: 'FECHA:', valor: '{{fecha}}' },
       ] },
-      // Las 3 hojas del Excel (CPAP, BPAP, otros) solo cambiaban los equipos: ahora
-      // la tabla lista los del préstamo, sean del tipo que sean
-      { tipo: 'tabla', fuente: 'equipos', titulo: 'ENTREGA DE EQUIPO BIOMEDICO', filas_minimas: 3,
-        columnas: [{ clave: 'descripcion', etiqueta: 'DESCRIPCION DEL EQUIPO', ancho: 40 }, { clave: 'cantidad', etiqueta: 'CANT.', ancho: 10 },
+      { tipo: 'tabla', fuente: 'equipos', titulo: 'ENTREGA DE EQUIPO BIOMEDICO', filas_fijas: filasFijas(equipos),
+        columnas: [{ clave: 'descripcion', etiqueta: 'DESCRIPCION DEL EQUIPO', ancho: 44 }, { clave: 'cantidad', etiqueta: 'CANT.', ancho: 8 },
           { clave: 'marca', etiqueta: 'MARCA' }, { clave: 'serie', etiqueta: 'SERIAL' }] },
       // Insumos: libres, los escribe quien crea el préstamo (no están en el inventario)
-      { tipo: 'tabla', fuente: 'insumos', titulo: 'ENTREGA DE INSUMOS', filas_minimas: 4,
-        columnas: [{ clave: 'descripcion', etiqueta: 'INSUMO', ancho: 40 }, { clave: 'cantidad', etiqueta: 'CANT.', ancho: 10 },
+      { tipo: 'tabla', fuente: 'insumos', titulo: 'ENTREGA DE INSUMOS', filas_fijas: filasFijas(insumos),
+        columnas: [{ clave: 'descripcion', etiqueta: 'INSUMO', ancho: 44 }, { clave: 'cantidad', etiqueta: 'CANT.', ancho: 8 },
           { clave: 'lote', etiqueta: 'LOTE' }, { clave: 'invima', etiqueta: 'REG. INVIMA' }] },
-      { tipo: 'campos', titulo: 'DATOS DEL PACIENTE O FAMLIAR QUE RECIBE', columnas: 1, borde: true, campos: [
+      { tipo: 'campos', titulo: 'DATOS DEL PACIENTE O FAMILIAR QUE RECIBE', columnas: 1, borde: true, campos: [
         { etiqueta: 'NOMBRE:', firma: 'recibe', valor: '{{recibe_nombre}}' },
         { etiqueta: 'CEDULA:', valor: '{{recibe_documento}} DE ____' },
         { etiqueta: 'PARENTESCO:', valor: '{{recibe_parentesco}}' },
@@ -328,7 +315,24 @@ function familyF11() {
         { etiqueta: 'OBSERVACION:', valor: '{{observaciones}}', span: 2 },
         { etiqueta: 'FECHA:', valor: '{{fecha}}' }, { etiqueta: 'HORA:', valor: '{{hora}}' },
       ] },
+      { tipo: 'campos_propios', etiquetas: { edad: 'Edad', meses_atencion: 'Meses de atención' } },
     ],
+  }
+}
+
+// Cambio de equipo de Family: igual al de Ingemedic, con el logo y el nombre de Family
+export function cambioFamily(base) {
+  const c = cambioIngemedic(base)
+  return {
+    ...c,
+    nombre: 'Acta de cambio de equipo Family',
+    descripcion: 'Cambio de equipos médicos domiciliarios de Family Homecare / FOMAG: el que se retira y el que se entrega.',
+    es_estandar: false,
+    bloques: c.bloques.map(b =>
+      b.tipo === 'encabezado' ? { ...b, logos: [familyLogo(base, 62)] }
+      : b.tipo === 'texto' ? { ...b, texto: b.texto.replace('INGEMEDIC DE COLOMBIA S.A.S', 'FAMILY HOMECARE S.A.S') }
+      : b.tipo === 'campos' ? { ...b, campos: b.campos.map(x => ({ ...x, etiqueta: x.etiqueta.replace('en el momento de la cambio', 'en el momento del cambio') })) }
+      : b),
   }
 }
 
@@ -341,15 +345,6 @@ function estandarConPagare(base) {
     ...e,
     descripcion: 'Contrato de arriendo de suministro integral de oxígeno domiciliario, entrega y devolución de equipos, declaración de capacitación, carta de instrucciones y pagaré. Se usa con los clientes que no tienen formato propio.',
     bloques: [...e.bloques, SALTO, ...pagare(base).bloques],
-  }
-}
-
-// Family / FOMAG en un solo formato: comodato, acta general y F-FAM-11
-function family() {
-  return {
-    nombre: 'Family Homecare / FOMAG — Comodato, acta general y F-FAM-11',
-    descripcion: 'Contrato de comodato (5 páginas), acta general de equipos y entrega de equipos e insumos F-FAM-11 de Family Homecare.',
-    bloques: [...familyComodato().bloques, SALTO, ...familyActaGeneral().bloques, SALTO, ...familyF11().bloques],
   }
 }
 
@@ -440,6 +435,12 @@ export function plantillasBase(supabaseUrl) {
     { ...estandarConPagare(supabaseUrl), clientes: [] },
     { ...solidaridad(supabaseUrl), clientes: ['SOLIDARIDAD'] },
     { ...asmedc(supabaseUrl), clientes: ['ASMEDC'] },
-    { ...family(), clientes: ['FAMILY HOMECARE SAS', 'FOMAG'] },
+    // Family / FOMAG: el contrato, un F-FAM-11 por tipo de equipo y su acta de cambio
+    // (antes era un solo formato con comodato, acta general y F-FAM-11)
+    { ...familyComodato(supabaseUrl), clientes: FAMILY },
+    ...HOJAS_F11.map(h => ({ ...familyF11(supabaseUrl, h), clientes: FAMILY })),
+    { ...cambioFamily(supabaseUrl), clientes: FAMILY },
   ]
 }
+
+const FAMILY = ['FAMILY HOMECARE SAS', 'FOMAG']

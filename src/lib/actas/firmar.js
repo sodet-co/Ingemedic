@@ -31,11 +31,12 @@ export async function cargarParaFirma(supabase, ordenId, { plantillaIds } = {}) 
     : { data: null }
 
   // Los formatos elegidos al crear el préstamo; los préstamos viejos no tienen y usan la sugerencia
-  const ids = plantillaIds || (orden.plantillas_acta?.length ? orden.plantillas_acta : plantillasSugeridas(plantillas, orden.cliente_id))
+  const equipos = (orden.equipos || []).filter(oe => !oe.fecha_devolucion).map(oe => oe.equipo).filter(Boolean)
+  const ids = plantillaIds || (orden.plantillas_acta?.length ? orden.plantillas_acta : plantillasSugeridas(plantillas, orden.cliente_id, 'prestamo', equipos))
   const elegidas = ids.map(id => plantillas.find(p => p.id === id)).filter(Boolean)
   return {
     orden,
-    equipos: (orden.equipos || []).filter(oe => !oe.fecha_devolucion).map(oe => oe.equipo).filter(Boolean),
+    equipos,
     plantillas: elegidas,
     empresa: empresa || {},
     usuario: usuario || {},
