@@ -13,9 +13,10 @@
 //                junto al valor si también lo hay; arriba: true pone la etiqueta en su
 //                propio renglón, para las largas)
 //   tabla        fuente 'equipos' | 'insumos' | 'ambos', titulo?, columnas [{clave, etiqueta, ancho}],
-//                filas_minimas, ocultar_vacia, filas_fijas [{texto, coincide?, resto?}]
-//                (filas preimpresas: cada una toma la primera fila cuya descripción
-//                coincide con la expresión `coincide`; la de `resto` junta las que sobran)
+//                filas_minimas, ocultar_vacia, filas_fijas [{texto, coincide?, juntar?, resto?}]
+//                (filas preimpresas: cada una toma la primera fila cuya descripción,
+//                categoría, modelo o marca coincide con la expresión `coincide`, o todas
+//                con `juntar`; la de `resto` junta las que sobran)
 //   firmas       firmas [{rol 'recibe' | 'entrega' | 'vacia', titulo, lineas [{etiqueta, valor}]}]
 //   imagen       url, alto (px), alineacion (logos o sellos sueltos, p. ej. de un Word importado)
 //   espacio      alto (px)
@@ -202,28 +203,40 @@ function tabla(b, ctx, bi) {
     <tbody>${cuerpo}</tbody></table>`
 }
 
-// Tabla con las filas ya impresas en el formato (F-FAM-11: "1. EQUIPO CPAP", "3. OTROS:")
+// Tabla con las filas ya impresas en el formato (F-FAM-11: "1. EQUIPO CPAP", "3. OTROS:").
+// El tamaño del cilindro solo está en el modelo ("Cilindro 6.5 M3"): por eso se mira también
 function tablaFija(b, filas) {
   const libres = [...filas]
-  const tomar = re => {
-    const i = libres.findIndex(f => new RegExp(re, 'i').test(`${f.descripcion} ${f.categoria || ''}`))
-    return i < 0 ? null : libres.splice(i, 1)[0]
+  const texto = f => `${f.descripcion} ${f.categoria || ''} ${f.modelo || ''} ${f.marca || ''}`
+  const tomar = (re, todas) => {
+    const r = new RegExp(re, 'i')
+    const tomadas = []
+    for (let i = 0; i < libres.length; i++) {
+      if (!r.test(texto(libres[i]))) continue
+      tomadas.push(libres.splice(i--, 1)[0])
+      if (!todas) break
+    }
+    return tomadas
   }
-  const asignadas = b.filas_fijas.map(ff => ({ ff, f: ff.coincide ? tomar(ff.coincide) : null }))
   const cols = b.columnas
+  // Varias unidades en una fila (dos cilindros): la cantidad se suma y lo demás va separado por comas
+  const juntar = (lista, conModelo) => lista.length ? {
+    descripcion: lista.map(x => conModelo ? [x.descripcion, x.modelo].filter(Boolean).join(' ') : x.descripcion).join(', '),
+    ...Object.fromEntries(cols.slice(1).map(c => {
+      const valores = lista.map(x => x[c.clave]).filter(v => v !== '' && v != null)
+      // Cantidades en número se suman; si alguna es texto ("1 caja") se listan
+      const suma = c.clave === 'cantidad' && valores.every(v => Number.isFinite(Number(v)))
+      return [c.clave, suma ? valores.reduce((s, v) => s + Number(v), 0) || '' : valores.join(', ')]
+    })),
+  } : null
+  const asignadas = b.filas_fijas.map(ff => ({ ff, f: ff.coincide ? juntar(tomar(ff.coincide, ff.juntar)) : null }))
   const celdas = (ff, f) => cols.map((c, j) => {
     if (j === 0) return `<td>${esc(ff.texto)}${f && ff.resto ? ' ' + esc(f.descripcion) : ''}</td>`
     return `<td>${esc(f?.[c.clave] ?? '')}&nbsp;</td>`
   }).join('')
-  const cuerpo = asignadas.map(({ ff, f }) => {
-    if (!ff.resto) return `<tr>${celdas(ff, f)}</tr>`
-    // La fila de "OTROS" junta lo que no encajó en las anteriores
-    const juntas = libres.length ? {
-      descripcion: libres.map(x => x.descripcion).join(', '),
-      ...Object.fromEntries(cols.slice(1).map(c => [c.clave, libres.map(x => x[c.clave]).filter(v => v !== '' && v != null).join(', ')])),
-    } : null
-    return `<tr>${celdas(ff, juntas)}</tr>`
-  }).join('')
+  // La fila de "OTROS" junta lo que no encajó en las anteriores (con el modelo, que en
+  // los cilindros es el tamaño)
+  const cuerpo = asignadas.map(({ ff, f }) => `<tr>${celdas(ff, ff.resto ? juntar(libres, true) : f)}</tr>`).join('')
   const titulo = b.titulo ? `<div class="sub">${esc(b.titulo)}</div>` : ''
   return titulo + `<table class="tabla"><thead><tr>${cols.map(c =>
     `<th${c.ancho ? ` style="width:${c.ancho}%"` : ''}>${esc(c.etiqueta || COLUMNAS_TABLA[c.clave] || c.clave)}</th>`).join('')}</tr></thead>

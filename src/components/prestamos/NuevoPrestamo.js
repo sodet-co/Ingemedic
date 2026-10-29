@@ -38,7 +38,7 @@ const FORM_VACIO = {
   cliente_id: '', sinPaciente: false, paciente_id: '', paciente: { ...PACIENTE_VACIO }, pacienteNuevo: false,
   diagnostico: '', equipos_ids: [],
   modo: 'oficina', fecha_oficina: '', fecha_domicilio: '', repartidor_id: '', inicioDistinto: false, fecha_inicio: '',
-  fecha_vigencia: null, observaciones: '', plantillas_acta: [], datos_acta: DATOS_ACTA_VACIO,
+  fecha_vigencia: null, observaciones: '', plantillas_acta: [], formatos_a_mano: false, datos_acta: DATOS_ACTA_VACIO,
 }
 
 const nombreEquipo = eq => eq?.tipo_equipo?.atributos?.nombre || eq?.tipo_equipo?.nombre || '—'
@@ -115,7 +115,7 @@ export default function NuevoPrestamo({
   }, [pacientes, buscarPaciente])
 
   function elegirCliente(id) {
-    setF(x => ({ ...x, cliente_id: id, plantillas_acta: plantillasSugeridas(plantillas, id) }))
+    setF(x => ({ ...x, cliente_id: id, formatos_a_mano: false, plantillas_acta: plantillasSugeridas(plantillas, id, 'prestamo', unidadesDe(x.equipos_ids)) }))
     setBuscarCliente('')
     setErrores(e => ({ ...e, cliente: null }))
   }
@@ -135,10 +135,17 @@ export default function NuevoPrestamo({
   const editandoPaciente = f.pacienteNuevo || !!f.paciente_id
 
   // ── Paso 2: equipos (E) ──────────────────────────────────
-  const carrito = f.equipos_ids.map(id => equipos.find(e => e.id === id)).filter(Boolean)
+  const unidadesDe = ids => ids.map(id => equipos.find(e => e.id === id)).filter(Boolean)
+  const carrito = unidadesDe(f.equipos_ids)
 
+  // Los formatos sugeridos dependen de los equipos (F-FAM-11 de CPAP, oxígeno…):
+  // se vuelven a sugerir al cambiar el carrito, salvo que ya se hayan elegido a mano
   function alternarEquipo(id) {
-    setF(x => ({ ...x, equipos_ids: x.equipos_ids.includes(id) ? x.equipos_ids.filter(i => i !== id) : [...x.equipos_ids, id] }))
+    setF(x => {
+      const equipos_ids = x.equipos_ids.includes(id) ? x.equipos_ids.filter(i => i !== id) : [...x.equipos_ids, id]
+      const plantillas_acta = x.cliente_id && !x.formatos_a_mano ? plantillasSugeridas(plantillas, x.cliente_id, 'prestamo', unidadesDe(equipos_ids)) : x.plantillas_acta
+      return { ...x, equipos_ids, plantillas_acta }
+    })
     setErrores(e => ({ ...e, equipos: null }))
   }
   // ── Paso 3: entrega (F) ──────────────────────────────────
@@ -534,7 +541,7 @@ export default function NuevoPrestamo({
                     return (
                       <label key={p.id} title={p.nombre} className={`flex items-center gap-2 max-w-[320px] px-3 h-9 rounded-full border cursor-pointer text-[12.5px] transition-colors ${marcado ? 'border-[#D81B43]/50 bg-[#D81B43]/[0.05] text-slate-800 font-semibold' : 'border-slate-200 text-slate-500 hover:border-slate-300'}`}>
                         <input type="checkbox" checked={marcado}
-                          onChange={e => { set('plantillas_acta', e.target.checked ? [...f.plantillas_acta, p.id] : f.plantillas_acta.filter(id => id !== p.id)); setErrores({}) }} />
+                          onChange={e => { setF(x => ({ ...x, formatos_a_mano: true, plantillas_acta: e.target.checked ? [...x.plantillas_acta, p.id] : x.plantillas_acta.filter(id => id !== p.id) })); setErrores({}) }} />
                         <span className="truncate">{p.nombre}</span>
                         {p.tipo === 'anexo' && <span className="text-[11px] font-normal text-slate-400">anexo</span>}
                       </label>
