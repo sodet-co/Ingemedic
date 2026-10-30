@@ -7,7 +7,7 @@ import { hoyBogota, formatear, formatearSoloFecha, paraGuardar } from '@/lib/fec
 import { ACCIONES, sugeridasDe, ofrecidasDe, seRecarga } from '@/lib/actas/acciones'
 import { cargarParaFirma, guardarActas } from '@/lib/actas/firmar'
 import { leerDatosActa, camposPedidos, camposVacios } from '@/lib/actas/campos'
-import { construirContexto, conManuales } from '@/lib/actas/contexto'
+import { construirContexto, paraPlantilla } from '@/lib/actas/contexto'
 import { programarAccion, registrarEnOficina, copiaEquipo, NOMBRE_ACCION } from '@/lib/accionesPrestamo'
 import LlenarFormatos, { VentanaLlenarFormatos } from '@/components/actas/LlenarFormatos'
 import PreviaActas from '@/components/actas/PreviaActas'
@@ -477,7 +477,7 @@ export default function AccionPrestamo({ orden, accion: accionPedida, preselecci
                     </div>
                     <div className="mt-3 flex flex-wrap gap-2">
                       <button type="button" onClick={() => setLlenando(true)} className={ui.btnSecundario}><PenLine size={14} /> Llenar datos (opcional)</button>
-                      <button type="button" onClick={() => setPrevia(elegidas.map(p => ({ id: p.id, nombre: p.nombre, bloques: p.bloques, datos: conManuales(contexto(), p.id), firma_recibe: null, firma_entrega: null })))}
+                      <button type="button" onClick={() => setPrevia(elegidas.map(p => ({ id: p.id, nombre: p.nombre, bloques: p.bloques, datos: paraPlantilla(contexto(), p), firma_recibe: null, firma_entrega: null })))}
                         className={ui.btnSecundario}><Eye size={14} /> Ver cómo queda</button>
                     </div>
                   </>

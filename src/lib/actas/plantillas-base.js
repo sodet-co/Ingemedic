@@ -260,7 +260,7 @@ const filasFijas = filas => [...filas, ['OTROS:']].map(([texto, coincide], i) =>
   coincide ? { texto: `${i + 1}. ${texto}`, coincide, juntar: true } : { texto: `${i + 1}. ${texto}`, ...(texto === 'OTROS:' && { resto: true }) })
 
 const HOJAS_F11 = [
-  { hoja: 'CPAP - BPAP', equipos: [['EQUIPO CPAP', '\\bc-?pap'], ['EQUIPO BPAP', '\\bb-?i?pap']],
+  { hoja: 'CPAP - BPAP', mascara: true, equipos: [['EQUIPO CPAP', '\\bc-?pap'], ['EQUIPO BPAP', '\\bb-?i?pap']],
     insumos: [['MASCARA ORONASAL', 'oronasal|full ?face'], ['MASCARA NASAL', 'm[aá]scara\\s+nasal'], ['MANGUERA CORRUGADA PARA CPAP Y/O BPAP', 'manguera|corrugad']] },
   { hoja: 'Oxígeno',
     equipos: [
@@ -281,10 +281,13 @@ const HOJAS_F11 = [
     insumos: [['MANGUERA DE SUCCION', 'succi[oó]n'], ['CIRCUITO VENTILATORIO', 'circuito']] },
 ]
 
-function familyF11(base, { hoja, equipos, insumos }) {
+// Cada F-FAM-11 lleva después, en hojas aparte, el acta de entrega de equipos de
+// Family; el de CPAP - BPAP también la de la máscara (así lo pidió el cliente: una
+// plantilla con sus actas). Una hoja que no se use se quita en el editor.
+function familyF11(base, { hoja, equipos, insumos, mascara }) {
   return {
     nombre: `Family Homecare / FOMAG — Entrega ${hoja} (F-FAM-11)`,
-    descripcion: `Formato F-FAM-11 versión 02 de Family Homecare, hoja ${hoja}: paciente, equipos, insumos y quien recibe.`,
+    descripcion: `Formato F-FAM-11 versión 02 de Family Homecare, hoja ${hoja}: paciente, equipos, insumos y quien recibe. Con el acta de entrega de equipos${mascara ? ' y la de la máscara' : ''}.`,
     bloques: [
       { tipo: 'encabezado', logos: [familyLogo(base, 58)], ancho_logo: 24,
         centro: [{ texto: 'ENTREGA DE EQUIPOS E INSUMOS\nBIOMEDICOS', estilo: 'titulo' }],
@@ -315,6 +318,8 @@ function familyF11(base, { hoja, equipos, insumos }) {
         { etiqueta: 'OBSERVACION:', valor: '{{observaciones}}', span: 2 },
         { etiqueta: 'FECHA:', valor: '{{fecha}}' }, { etiqueta: 'HORA:', valor: '{{hora}}' },
       ] },
+      SALTO, ...hojaEntregaFamily(base),
+      ...(mascara ? [SALTO, ...hojaMascaraFamily(base)] : []),
       { tipo: 'campos_propios', etiquetas: { edad: 'Edad', meses_atencion: 'Meses de atención' } },
     ],
   }
@@ -334,6 +339,49 @@ export function cambioFamily(base) {
       : b.tipo === 'campos' ? { ...b, campos: b.campos.map(x => ({ ...x, etiqueta: x.etiqueta.replace('en el momento de la cambio', 'en el momento del cambio') })) }
       : b),
   }
+}
+
+// ── Actas generales de Family (Excel "ACTA DE ENTREGA DE EQUIPOS FAMILY" y "ACTA DE
+// ENTREGA INSUMO (MASCARA)"): hojas que van dentro de los F-FAM-11 (familyF11). Cada
+// Excel trae entrega, devolución y recarga en una hoja; como las de Ingemedic, aquí va
+// solo la parte de la entrega (son del préstamo). La máscara sale de los insumos del
+// préstamo (contexto.js → mascara_*).
+const encFamilyGeneral = base => ({ tipo: 'encabezado', logos: [familyLogo(base, 58)], ancho_logo: 24,
+  centro: [{ texto: 'ACTA GENERAL DE EQUIPOS MEDICOS DOMICILIARIOS O SUMINISTRO OXIGENO DOMICILIARIO', estilo: 'titulo' }] })
+const quienesFamily = () => [
+  { etiqueta: 'QUIEN ENTREGA:', valor: '{{entrega_nombre}}', span: 2 }, { etiqueta: 'FIRMA:', firma: 'entrega' },
+  { etiqueta: 'QUIEN RECIBE:', valor: '{{recibe_nombre}}', span: 2 }, { etiqueta: 'FIRMA:', firma: 'recibe' },
+  { etiqueta: 'DIRECCION:', valor: '{{paciente_direccion}}', span: 2 }, { etiqueta: 'TELEFONO', valor: '{{recibe_telefono}}' },
+  { etiqueta: 'NOMBRE DEL PACIENTE:', valor: '{{paciente_nombre}}', span: 3 },
+  { etiqueta: obsGeneral('entrega'), valor: '{{observaciones}}', span: 3, arriba: true },
+]
+
+export function hojaEntregaFamily(base) {
+  return [
+      encFamilyGeneral(base),
+      { tipo: 'campos', titulo: 'ENTREGA DE EQUIPOS', columnas: 3, borde: true, campos: [
+        { etiqueta: 'CIUDAD', valor: '{{ciudad}}' }, { etiqueta: 'FECHA', valor: '{{fecha}}' }, { etiqueta: 'HORA', valor: '{{hora}}' },
+        { etiqueta: 'EQUIPO ENTREGADO:', valor: '{{equipo_descripcion}}' }, { etiqueta: 'MARCA:', valor: '{{equipo_marca}}' }, { etiqueta: 'MODELO:', valor: '{{equipo_modelo}}' },
+        { etiqueta: 'SERIAL', valor: '{{equipo_serie}}' }, { etiqueta: 'ACCESORIOS:', valor: '{{insumos_resumen}}', span: 2 },
+        { etiqueta: 'OTROS EQUIPOS ENTREGADOS:', valor: '{{otros_equipos}}', span: 3 },
+        ...quienesFamily(),
+      ] },
+      constanciaGeneral,
+  ]
+}
+
+export function hojaMascaraFamily(base) {
+  return [
+      encFamilyGeneral(base),
+      { tipo: 'campos', titulo: 'ENTREGA DE INSUMO', columnas: 3, borde: true, campos: [
+        { etiqueta: 'CIUDAD', valor: '{{ciudad}}' }, { etiqueta: 'FECHA', valor: '{{fecha}}' }, { etiqueta: 'HORA', valor: '{{hora}}' },
+        { etiqueta: 'INSUMO ENTREGADO:', valor: '{{mascara_descripcion}}' }, { etiqueta: 'MARCA:', valor: '{{mascara_marca}}' }, { etiqueta: 'MODELO:', valor: '{{mascara_modelo}}' },
+        { etiqueta: 'REG. INVIMA', valor: '{{mascara_invima}}', span: 3 },
+        { etiqueta: 'OTROS EQUIPOS ENTREGADOS:', valor: '{{equipos_resumen}}', span: 3 },
+        ...quienesFamily(),
+      ] },
+      constanciaGeneral,
+  ]
 }
 
 const SALTO = { tipo: 'salto_pagina' }
@@ -435,8 +483,9 @@ export function plantillasBase(supabaseUrl) {
     { ...estandarConPagare(supabaseUrl), clientes: [] },
     { ...solidaridad(supabaseUrl), clientes: ['SOLIDARIDAD'] },
     { ...asmedc(supabaseUrl), clientes: ['ASMEDC'] },
-    // Family / FOMAG: el contrato, un F-FAM-11 por tipo de equipo y su acta de cambio
-    // (antes era un solo formato con comodato, acta general y F-FAM-11)
+    // Family / FOMAG: el contrato, un F-FAM-11 por tipo de equipo (con el acta de entrega
+    // de equipos y, el de CPAP, la de máscara) y su acta de cambio. Antes era un solo
+    // formato con comodato, acta general y F-FAM-11.
     { ...familyComodato(supabaseUrl), clientes: FAMILY },
     ...HOJAS_F11.map(h => ({ ...familyF11(supabaseUrl, h), clientes: FAMILY })),
     { ...cambioFamily(supabaseUrl), clientes: FAMILY },

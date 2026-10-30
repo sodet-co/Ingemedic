@@ -11,6 +11,7 @@
 
 import JSZip from 'jszip'
 import { aVariables, normalizar, TABLAS, FIRMAS, NOMBRE_FIRMA } from './nombres'
+import { COLUMNAS_ESTANDAR, columnasEstandar } from './render'
 
 // ── XML mínimo: árbol { n: nombre, a: atributos, h: hijos } y textos como string ──
 const ENT = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'" }
@@ -137,6 +138,11 @@ const CLAVES = [[/item|ítem|^n[°ºo.]?$/i, 'item'], [/descrip|equipo|insumo|el
   [/lote/i, 'lote'], [/invima|registro/i, 'invima']]
 const claveColumna = t => CLAVES.find(([re]) => re.test(t))?.[1]
 
+const estandar = (titulo, columnas, filasMinimas) => ({
+  tipo: 'tabla', fuente: 'equipos', agrupar: 'tipo_equipo', ...(titulo ? { titulo } : {}),
+  columnas: columnasEstandar(columnas.length ? columnas : null), filas_minimas: filasMinimas,
+})
+
 // Tabla con [Equipos] / [Insumos]: la fila de títulos da las columnas
 function tablaDeDatos(t, fuente) {
   const filas = t.filas.filter(f => f.some(c => c.texto.trim()))
@@ -152,6 +158,8 @@ function tablaDeDatos(t, fuente) {
     return { clave, etiqueta: c.texto.replace(/\*\*/g, '').trim() }
   })
   const resto = cab >= 0 ? filas.length - cab - 1 : 0
+  // Equipos: la tabla estándar (una fila por tipo, con cantidad; render.js → tablaEstandar)
+  if (fuente === 'equipos') return estandar(titulo, columnas.filter(c => COLUMNAS_ESTANDAR[c.clave]), Math.max(1, resto))
   return {
     tipo: 'tabla', fuente, ...(titulo ? { titulo } : {}),
     columnas: columnas.length ? columnas : [{ clave: 'item' }, { clave: 'descripcion' }, { clave: 'marca' }, { clave: 'modelo' }, { clave: 'serie' }],
@@ -212,7 +220,7 @@ function convertir(cuerpo, { primeraTablaEsEncabezado = true } = {}) {
         else bloques.push({ tipo: 'firmas', firmas: [f] })
         continue
       }
-      if (m?.tabla) { bloques.push({ tipo: 'tabla', fuente: m.tabla, filas_minimas: 3 }); continue }
+      if (m?.tabla) { bloques.push(m.tabla === 'equipos' ? estandar(null, [], 1) : { tipo: 'tabla', fuente: m.tabla, filas_minimas: 3 }); continue }
       const corto = texto.replace(/\*\*/g, '').length < 110
       const mayus = /[A-ZÁÉÍÓÚÑ]/.test(texto) && texto === texto.toUpperCase()
       if (corto && ((p.negrita && (p.alineacion === 'centro' || mayus)) || (p.alineacion === 'centro' && mayus))) {

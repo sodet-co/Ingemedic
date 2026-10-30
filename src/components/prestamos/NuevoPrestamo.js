@@ -7,7 +7,7 @@ import { paraGuardar, hoyBogota, formatear, formatearSoloFecha } from '@/lib/fec
 import { buscarCedulaDuplicada, mensajeCedulaDuplicada, esErrorCedulaDuplicada, MENSAJE_CEDULA_DUPLICADA } from '@/lib/pacientes'
 import { plantillasSugeridas, plantillasOfrecidas } from '@/lib/actas/acciones'
 import { DATOS_ACTA_VACIO, leerDatosActa, camposPedidos, camposVacios } from '@/lib/actas/campos'
-import { construirContexto, conManuales } from '@/lib/actas/contexto'
+import { construirContexto, paraPlantilla } from '@/lib/actas/contexto'
 import LlenarFormatos, { VentanaLlenarFormatos } from '@/components/actas/LlenarFormatos'
 import PreviaActas from '@/components/actas/PreviaActas'
 import ControlVigencia from '@/components/prestamos/ControlVigencia'
@@ -168,7 +168,7 @@ export default function NuevoPrestamo({
   })
   function filasPrevia() {
     const ctx = contextoFormatos()
-    return elegidas.map(p => ({ id: p.id, nombre: p.nombre, bloques: p.bloques, datos: conManuales(ctx, p.id), firma_recibe: null, firma_entrega: null }))
+    return elegidas.map(p => ({ id: p.id, nombre: p.nombre, bloques: p.bloques, datos: paraPlantilla(ctx, p), firma_recibe: null, firma_entrega: null }))
   }
   // Lo que la hoja necesita además de lo que se escribe (LlenarFormatos)
   const fechaFormatos = (f.modo === 'oficina' ? f.fecha_oficina && f.fecha_oficina + 'T12:00:00' : f.fecha_domicilio) || undefined

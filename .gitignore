@@ -44,3 +44,8 @@ yarn-error.log*
 next-env.d.ts
 docs/manual/.perfil-capturas*/
 docs/manual/capturas/*.png
+
+# archivos sueltos de trabajo en docs/ (actas reales, borradores) — no versionar
+/docs/Acta_entrega_Fase1_Ingemedic_rellenable.pdf
+/docs/Actas_ORD-2026-520.pdf
+/docs/Gemini_Generated_Image_zbwkhazbwkhazbwk.jpg

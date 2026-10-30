@@ -23,17 +23,15 @@ const ICONO = {
   recarga: [RefreshCw, '#6D28D9', '#F5F3FF'], cambio: [ArrowLeftRight, '#1B3A6B', '#E8EEF9'],
   programado: [Clock, '#B45309', '#FFFBEB'], cancelado: [Ban, '#64748B', '#F1F5F9'],
   vigencia: [CalendarClock, '#1B3A6B', '#E8EEF9'], finalizado: [CheckCircle2, '#0F7B55', '#E7F6EF'],
+  renovacion: [RefreshCw, '#6D28D9', '#F5F3FF'],
 }
 
-export default function HistorialPrestamo({ orden, plantillas = [] }) {
+// Los eventos del préstamo (del más nuevo al más viejo); null mientras se lee la bitácora.
+// Lo usan el historial completo y "Último evento" del resumen.
+export function useEventosPrestamo(orden) {
   const supabase = useMemo(() => createClient(), [])
   const [bitacora, setBitacora] = useState(null)
-  const [previa, setPrevia] = useState(null)
-  const [abriendo, setAbriendo] = useState(null)
-  const [sinActa, setSinActa] = useState(null) // visita sin acta guardada
-  const [llenando, setLlenando] = useState(null) // visita a la que se le llenan los formatos ahora
   const visitas = useMemo(() => orden.visitas || [], [orden])
-
   useEffect(() => {
     let cancelado = false
     const ids = [orden.id, ...visitas.map(v => v.id)]
@@ -42,10 +40,40 @@ export default function HistorialPrestamo({ orden, plantillas = [] }) {
       .then(({ data }) => { if (!cancelado) setBitacora(data || []) })
     return () => { cancelado = true }
   }, [supabase, orden.id, visitas])
+  return useMemo(() => bitacora ? armarHistorialPrestamo(orden, bitacora) : null, [bitacora, orden])
+}
 
-  const eventos = useMemo(() => {
-    return bitacora ? armarHistorialPrestamo(orden, bitacora) : []
-  }, [bitacora, orden])
+// Lo último que pasó (resumen del préstamo)
+export function UltimoEvento({ orden, onVerTodo }) {
+  const eventos = useEventosPrestamo(orden)
+  if (!eventos) return <div className="flex items-center gap-2 text-[12.5px] text-slate-400"><Loader2 size={13} className="animate-spin" /> Cargando…</div>
+  const e = eventos[0]
+  if (!e) return <div className="text-[12.5px] text-slate-400">Sin eventos todavía.</div>
+  const [Icono, color, fondo] = ICONO[e.tipo] || ICONO.creado
+  return (
+    <div className="flex items-start gap-3">
+      <span className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: fondo, color }}><Icono size={15} /></span>
+      <div className="min-w-0 flex-1">
+        <div className="text-[13px] font-semibold text-slate-700 leading-snug">{e.texto}</div>
+        <div className="text-[11.5px] text-slate-400 mt-0.5">
+          {formatear(e.fecha, String(e.fecha).length > 10 ? { hour: '2-digit', minute: '2-digit' } : {})}{e.quien && ` · ${e.quien}`}
+        </div>
+        {eventos.length > 1 && (
+          <button type="button" onClick={onVerTodo} className="mt-1 text-[12px] font-semibold text-[#1B3A6B] hover:underline">Ver historial ({eventos.length})</button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+export default function HistorialPrestamo({ orden, plantillas = [] }) {
+  const supabase = useMemo(() => createClient(), [])
+  const [previa, setPrevia] = useState(null)
+  const [abriendo, setAbriendo] = useState(null)
+  const [sinActa, setSinActa] = useState(null) // visita sin acta guardada
+  const [llenando, setLlenando] = useState(null) // visita a la que se le llenan los formatos ahora
+  const leidos = useEventosPrestamo(orden) // null mientras se lee
+  const eventos = useMemo(() => leidos || [], [leidos])
 
   async function verActa(v) {
     setAbriendo(v.id)
@@ -57,7 +85,15 @@ export default function HistorialPrestamo({ orden, plantillas = [] }) {
     else setSinActa(v.id)
   }
 
-  if (!bitacora) return <div className="flex items-center gap-2 text-[12.5px] text-slate-400"><Loader2 size={13} className="animate-spin" /> Cargando historial…</div>
+  // Una renovación: su acta, por id
+  async function verRenovacion(e) {
+    setAbriendo(e.acta_id)
+    const { data } = await supabase.from('actas').select('id, nombre, accion, fecha_firma, bloques, datos, firma_recibe, firma_entrega').eq('id', e.acta_id).maybeSingle()
+    setAbriendo(null)
+    if (data) setPrevia({ filas: [data], titulo: `Renovación · ${orden.codigo}`, nombre: `Acta_${orden.codigo}_renovacion` })
+  }
+
+  if (!leidos) return <div className="flex items-center gap-2 text-[12.5px] text-slate-400"><Loader2 size={13} className="animate-spin" /> Cargando historial…</div>
 
   return (
     <div className="relative pl-7">
@@ -80,6 +116,12 @@ export default function HistorialPrestamo({ orden, plantillas = [] }) {
                 <button type="button" onClick={() => verActa(e.visita)} disabled={abriendo === e.visita.id}
                   className="mt-1 inline-flex items-center gap-1 text-[11.5px] font-semibold text-[#1B3A6B] hover:underline disabled:opacity-50">
                   {abriendo === e.visita.id ? <Loader2 size={11} className="animate-spin" /> : <FileText size={11} />} {sinActa === e.visita.id ? 'Sin acta guardada' : 'Ver acta'}
+                </button>
+              )}
+              {e.acta_id && (
+                <button type="button" onClick={() => verRenovacion(e)} disabled={abriendo === e.acta_id}
+                  className="mt-1 inline-flex items-center gap-1 text-[11.5px] font-semibold text-[#1B3A6B] hover:underline disabled:opacity-50">
+                  {abriendo === e.acta_id ? <Loader2 size={11} className="animate-spin" /> : <FileText size={11} />} Ver acta
                 </button>
               )}
               {e.visita && sinActa === e.visita.id && e.visita.tipo !== 'entrega' && (

@@ -21,7 +21,8 @@ import { filaPortal } from '@/lib/portalClientes'
 import { equiposDeTipos } from '@/lib/equipos'
 import ModalEliminarEquipos from '@/components/inventario/ModalEliminarEquipos'
 import PreviaActas from '@/components/actas/PreviaActas'
-import AsignarPlantilla from '@/components/actas/AsignarPlantilla'
+import ConfigPlantilla from '@/components/actas/ConfigPlantilla'
+import { categoriasDe, esRenovable } from '@/lib/actas/contexto'
 import { ACCIONES, accionDe, seRecarga } from '@/lib/actas/acciones'
 import EditorPlantilla from '@/components/actas/EditorPlantilla'
 import NuevaPlantilla from '@/components/actas/NuevaPlantilla'
@@ -353,7 +354,7 @@ export default function ConfiguracionClient({
   // Plantilla de acta abierta en vista previa
   const [vistaActa, setVistaActa] = useState(null)
   const [plantillasActa, setPlantillasActa] = useState(plantillasActaIniciales)
-  const [asignando, setAsignando] = useState(null) // plantilla cuyos clientes se están editando
+  const [asignando, setAsignando] = useState(null) // plantilla en Configuración (nombre, equipos, renovable, clientes)
   const [editorPlantilla, setEditorPlantilla] = useState(null) // { plantilla } o { inicial, avisos } (nueva)
   const [nuevaPlantilla, setNuevaPlantilla] = useState(false)
   const [clienteAcceso, setClienteAcceso] = useState(null) // Acceso de clientes: el elegido
@@ -1354,13 +1355,12 @@ export default function ConfiguracionClient({
                           {p.tipo === 'anexo' && <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-700">Anexo opcional</span>}
                           {p.uso_general && <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-[#0F7B55]/10 text-[#0F7B55]">Uso general</span>}
                           {!p.uso_general && clientesP.length === 0 && <span className="text-[11px] text-slate-400">Sin cliente asignado</span>}
+                          {esRenovable(p.bloques) && <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-[#F5F3FF] text-[#6D28D9]">Renovable</span>}
+                          {categoriasDe(p.bloques).map(c => <span key={c.id || c.nombre} className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-[#E8F7FB] text-[#0E7490]">{c.nombre}</span>)}
                         </div>
                         <div className="flex items-center gap-2 pt-1">
-                          <button onClick={() => setEditorPlantilla({ plantilla: p })} className="flex-1 px-3 py-1.5 border border-slate-200 rounded-[7px] text-[12px] font-medium text-slate-600 hover:border-[#1B3A6B] hover:text-[#1B3A6B] transition-all">
-                            Editar
-                          </button>
                           <button onClick={() => setAsignando(p)} className="flex-1 px-3 py-1.5 border border-slate-200 rounded-[7px] text-[12px] font-medium text-slate-600 hover:border-[#1B3A6B] hover:text-[#1B3A6B] transition-all">
-                            Clientes
+                            Configuración
                           </button>
                           <button onClick={() => setVistaActa(p)} className="flex-1 px-3 py-1.5 border border-slate-200 rounded-[7px] text-[12px] font-medium text-slate-600 hover:border-[#D81B43] hover:text-[#D81B43] transition-all">
                             Previsualizar
@@ -1829,13 +1829,19 @@ export default function ConfiguracionClient({
       )}
 
       {asignando && (
-        <AsignarPlantilla plantilla={asignando} clientes={clientes} onCerrar={() => setAsignando(null)}
+        <ConfigPlantilla plantilla={asignando} clientes={clientes} onCerrar={() => setAsignando(null)}
           onGuardado={cambios => {
             // Solo una de Ingemedic por acción: si esta pasó a serlo, las demás de su acción dejan de serlo
             setPlantillasActa(l => l.map(p => p.id === asignando.id ? { ...p, ...cambios }
-              : cambios.es_estandar && accionDe(p) === accionDe(asignando) ? { ...p, es_estandar: false } : p))
-            registrarBitacora({ modulo: 'configuracion', accion: 'editar', entidad: 'plantilla de acta', entidad_id: asignando.id, detalle: { nombre: asignando.nombre, uso_general: cambios.uso_general, clientes: cambios.clientes.length } })
-            setAsignando(null); showToast('Clientes de la plantilla guardados')
+              : cambios.es_estandar && accionDe(p) === cambios.accion ? { ...p, es_estandar: false } : p))
+            registrarBitacora({ modulo: 'configuracion', accion: 'editar', entidad: 'plantilla de acta', entidad_id: asignando.id, detalle: { nombre: cambios.nombre, uso_general: cambios.uso_general, clientes: cambios.clientes.length } })
+            setAsignando(null); showToast('Plantilla guardada')
+          }}
+          // Editar plantilla: se guarda la configuración y se abre el editor con lo guardado
+          onEditar={guardado => setEditorPlantilla({ plantilla: { ...asignando, ...guardado } })}
+          onDesactivada={() => {
+            registrarBitacora({ modulo: 'configuracion', accion: 'desactivar', entidad: 'plantilla de acta', entidad_id: asignando.id, detalle: { nombre: asignando.nombre } })
+            setPlantillasActa(l => l.filter(p => p.id !== asignando.id)); setAsignando(null); showToast('Plantilla desactivada')
           }} />
       )}
 
@@ -1849,7 +1855,9 @@ export default function ConfiguracionClient({
             setEditorPlantilla(null)
             if (fila.activo === false) { setPlantillasActa(l => l.filter(p => p.id !== fila.id)); showToast('Plantilla desactivada'); return }
             setPlantillasActa(l => nueva ? [...l, { ...fila, clientes: [] }] : l.map(p => p.id === fila.id ? { ...p, ...fila, clientes: p.clientes } : p))
-            showToast(nueva ? 'Plantilla creada. Asígnala con «Clientes».' : 'Plantilla guardada')
+            // Una nueva sigue en su Configuración: a qué clientes va, equipos, renovable
+            if (nueva) setAsignando({ ...fila, clientes: [] })
+            showToast(nueva ? 'Plantilla creada. Ahora configúrala.' : 'Plantilla guardada')
             router.refresh()
           }} />
       )}

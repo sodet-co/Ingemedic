@@ -20,7 +20,7 @@ import AvatarCliente from '@/components/clientes/AvatarCliente'
 import ControlVigencia from '@/components/prestamos/ControlVigencia'
 import NuevoPrestamo from '@/components/prestamos/NuevoPrestamo'
 import AccionPrestamo from '@/components/prestamos/AccionPrestamo'
-import HistorialPrestamo from '@/components/prestamos/HistorialPrestamo'
+import HistorialPrestamo, { UltimoEvento } from '@/components/prestamos/HistorialPrestamo'
 import { seRecarga } from '@/lib/actas/acciones'
 import { cancelarAccion, proximaRecarga, NOMBRE_ACCION, accionDeEntrega, nombreVisita } from '@/lib/accionesPrestamo'
 import { useOrdenable } from '@/hooks/useOrdenable'
@@ -250,8 +250,9 @@ export default function OrdenesClient({
   const [formDevolucion, setFormDevolucion]   = useState({ fecha: '', observaciones: '' })
   const [modalCancelar, setModalCancelar]     = useState(false)
   const [menuMas, setMenuMas]                 = useState(false) // menú "Más" del detalle
-  const [verDevueltos, setVerDevueltos]       = useState(false) // equipos devueltos en el detalle
-  const [verHistorial, setVerHistorial]       = useState(false) // historial del detalle (plegado)
+  // Pestaña del detalle: { id del préstamo, pestaña }; al abrir otro préstamo vuelve a Resumen
+  const [pestana, setPestana]                 = useState({ id: null, p: 'resumen' })
+  const [versionHistorial, setVersionHistorial] = useState(0) // sube al renovar un acta: se relee el historial
 
   function showToast(msg, tipo = 'success') {
     setToast({ msg, tipo })
@@ -354,7 +355,7 @@ export default function OrdenesClient({
   }, [drawer])
 
   function abrirDrawer(orden) {
-    setMenuMas(false); setVerDevueltos(false); setVerHistorial(false)
+    setMenuMas(false)
     if (!drawer && listaScrollRef.current) listaScrollTop.current = listaScrollRef.current.scrollTop
     setDrawer(orden)
     setEditRepartidor(false)
@@ -593,6 +594,54 @@ export default function OrdenesClient({
   // Solo cuentan los que siguen en el préstamo: un equipo cambiado deja su fila
   // vieja como devuelta y no debe volver "múltiple" un préstamo de un solo equipo
   const equiposDrawer   = (drawer?.equipos || []).filter(oe => !oe.fecha_devolucion)
+  const pestanaDrawer   = pestana.id === drawer?.id ? pestana.p : 'resumen'
+  // El tipo con su imagen (la consulta del préstamo no la trae; tiposEquipo sí)
+  const tipoDe = eq => ({ ...(eq?.tipo_equipo || {}), ...(tiposEquipo.find(t => t.id === eq?.tipo_equipo_id) || {}) })
+  // Resumen: los activos agrupados por tipo
+  const resumenEquipos = []
+  for (const oe of equiposDrawer) {
+    const clave = oe.equipo?.tipo_equipo_id || nombreEquipo(oe.equipo)
+    const r = resumenEquipos.find(x => x.clave === clave)
+    if (r) r.n++
+    else resumenEquipos.push({ clave, n: 1, nombre: nombreEquipo(oe.equipo), tipo: tipoDe(oe.equipo) })
+  }
+  // Pestaña Equipos: la tarjeta de cada uno, con la imagen de su tipo
+  const tarjetaEquipo = oe => {
+    const devuelto = !!oe.fecha_devolucion
+    const eq = oe.equipo
+    return (
+      <div key={oe.id} className={`flex gap-3 p-3 rounded-xl border ${devuelto ? 'border-slate-200 bg-slate-50/70' : 'border-slate-200 bg-white shadow-sm'}`}>
+        <div className={`w-16 h-16 rounded-[10px] bg-slate-50 border border-slate-100 flex items-center justify-center overflow-hidden flex-shrink-0 ${devuelto ? 'opacity-60' : ''}`}>
+          <IconoTipo tipo={tipoDe(eq)} categorias={categorias} size={52} />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-start gap-2">
+            <div className={`text-[13.5px] font-bold leading-snug flex-1 min-w-0 ${devuelto ? 'text-slate-500' : 'text-slate-800'}`}>{nombreEquipo(eq)}</div>
+            {devuelto
+              ? <span className="px-2 py-0.5 rounded-full text-[10.5px] font-bold bg-[#ECFDF5] text-[#0F7B55] flex-shrink-0">Devuelto</span>
+              : <span className="px-2 py-0.5 rounded-full text-[10.5px] font-bold bg-[#E8F7FB] text-[#0E86A0] flex-shrink-0">Activo</span>}
+          </div>
+          <div className="text-[11.5px] text-slate-400 truncate">{eq?.tipo_equipo?.categoria?.nombre}</div>
+          <div className="mt-1 text-[12px] text-slate-600">
+            <span className="font-mono font-semibold">{eq?.codigo}</span>
+            {eq?.atributos?.serie && <span className="text-slate-400"> · Serie {eq.atributos.serie}</span>}
+          </div>
+          <div className="text-[11.5px] text-slate-400">
+            {devuelto
+              ? `Devuelto el ${formatear(oe.fecha_devolucion)}${oe.observaciones_devolucion ? ` · ${oe.observaciones_devolucion}` : ''}`
+              : oe.fecha_entrega ? `Entregado el ${formatear(oe.fecha_entrega)}` : 'Por entregar'}
+          </div>
+          {/* Antes de entregarse: cambiarlo o devolverlo aquí mismo */}
+          {!devuelto && puedeCambiarEquipo && !conActa && (
+            <div className="flex gap-1.5 mt-2">
+              <button type="button" onClick={() => setModalCambio(oe)} className={ui.btnChico}>Cambiar</button>
+              {!esUnicoEquipo && <button type="button" onClick={() => abrirModalDevolucion(oe)} className={ui.btnChico}>Devolver</button>}
+            </div>
+          )}
+        </div>
+      </div>
+    )
+  }
   const esUnicoEquipo   = equiposDrawer.length === 1
   const puedeFinalizarUnico = esUnicoEquipo && !['Finalizada', 'Cancelada'].includes(drawerEstado)
   const puedeCambiarEquipo  = drawer && !['Finalizada', 'Cancelada'].includes(drawerEstado)
@@ -980,6 +1029,17 @@ export default function OrdenesClient({
                   )}
                 </div>
 
+                {/* Pestañas: el resumen y, aparte, equipos, actas e historial (menos scroll) */}
+                <div className="sticky top-0 z-10 bg-white border-b border-slate-200 px-3 md:px-5 flex gap-1 overflow-x-auto" role="tablist">
+                  {[['resumen', 'Resumen'], ['equipos', `Equipos (${equiposDrawer.length})`], ['actas', 'Actas'], ['historial', 'Historial']].map(([k, l]) => (
+                    <button key={k} type="button" role="tab" aria-selected={pestanaDrawer === k} onClick={() => setPestana({ id: drawer.id, p: k })}
+                      className={`px-3 py-3 text-[13px] font-semibold whitespace-nowrap border-b-2 -mb-px transition-colors ${pestanaDrawer === k ? 'border-[#D81B43] text-[#D81B43]' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
+                      {l}
+                    </button>
+                  ))}
+                </div>
+
+                {pestanaDrawer === 'resumen' && (
                 <div className="lg:grid lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:divide-x lg:divide-slate-100">
                   {/* ── Columna izquierda: datos, fechas y recargas, lo programado ── */}
                   <div className="divide-y divide-slate-100 min-w-0">
@@ -1124,6 +1184,7 @@ export default function OrdenesClient({
                       </dl>
                     </div>
 
+
                     {/* Recogidas, recargas y cambios programados a domicilio */}
                     {visitasPendientes.length > 0 && (
                       <div className="px-5 md:px-6 py-4">
@@ -1150,73 +1211,76 @@ export default function OrdenesClient({
                     )}
                   </div>
 
-                  {/* ── Columna derecha: equipos y actas ── */}
+                  {/* ── Columna derecha: equipos (resumen), último evento y actas ── */}
                   <div className="divide-y divide-slate-100 min-w-0 border-t border-slate-100 lg:border-t-0">
                     <div className="px-5 md:px-6 py-4">
-                      <div className="text-[10.5px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-3">
-                        Equipos ({equiposDrawer.length}){drawer.equipos?.length > equiposDrawer.length && <span className="normal-case tracking-normal font-semibold"> · {drawer.equipos.length - equiposDrawer.length} devuelto{drawer.equipos.length - equiposDrawer.length !== 1 ? 's' : ''}</span>}
+                      <div className="flex items-center mb-3">
+                        <div className="text-[10.5px] font-bold uppercase tracking-[0.1em] text-slate-400 flex-1">Equipos</div>
+                        {drawer.equipos?.length > 0 && <button type="button" onClick={() => setPestana({ id: drawer.id, p: 'equipos' })} className="text-[12px] font-semibold text-[#1B3A6B] hover:underline">Ver equipos</button>}
                       </div>
-                      {!drawer.equipos?.length
-                        ? <div className="text-[13px] text-slate-400">Sin equipos asociados</div>
-                        : (
-                          <div className="rounded-[10px] border border-slate-200 divide-y divide-slate-100">
-                            {[...drawer.equipos].sort((a, b) => !!a.fecha_devolucion - !!b.fecha_devolucion)
-                              .filter(oe => !oe.fecha_devolucion || verDevueltos)
-                              .map(oe => {
-                                const devuelto = !!oe.fecha_devolucion
-                                return (
-                                  <div key={oe.id} className={`flex items-center gap-3 px-3 py-2.5 ${devuelto ? 'bg-slate-50/60' : ''}`}>
-                                    <div className="w-9 h-9 rounded-[8px] bg-slate-50 border border-slate-200 flex items-center justify-center flex-shrink-0">
-                                      <IconoTipo tipo={oe.equipo?.tipo_equipo} categorias={categorias} size={22} />
-                                    </div>
-                                    <div className="min-w-0 flex-1">
-                                      <div className={`text-[13px] font-semibold truncate ${devuelto ? 'text-slate-500' : 'text-slate-800'}`}>{nombreEquipo(oe.equipo)}</div>
-                                      <div className="text-[11.5px] text-slate-400 truncate">
-                                        {[oe.equipo?.codigo, oe.equipo?.atributos?.serie && `Serie ${oe.equipo.atributos.serie}`].filter(Boolean).join(' · ')}
-                                        {devuelto && ` · devuelto el ${formatear(oe.fecha_devolucion)}${oe.observaciones_devolucion ? ` · ${oe.observaciones_devolucion}` : ''}`}
-                                      </div>
-                                    </div>
-                                    {/* Antes de entregarse: cambiarlo o devolverlo aquí mismo */}
-                                    {!devuelto && puedeCambiarEquipo && !conActa && (
-                                      <div className="flex gap-1.5 flex-shrink-0">
-                                        <button type="button" onClick={() => setModalCambio(oe)} className={ui.btnChico}>Cambiar</button>
-                                        {!esUnicoEquipo && <button type="button" onClick={() => abrirModalDevolucion(oe)} className={ui.btnChico}>Devolver</button>}
-                                      </div>
-                                    )}
-                                    {devuelto
-                                      ? <span className="px-2 py-0.5 rounded-full text-[10.5px] font-bold bg-[#ECFDF5] text-[#0F7B55] flex-shrink-0">Devuelto</span>
-                                      : <span className="px-2 py-0.5 rounded-full text-[10.5px] font-bold bg-[#E8F7FB] text-[#0E86A0] flex-shrink-0">Activo</span>}
-                                  </div>
-                                )
-                              })}
-                            {drawer.equipos.length > equiposDrawer.length && (
-                              <button type="button" onClick={() => setVerDevueltos(v => !v)}
-                                className="w-full px-3 py-2 text-[12px] font-semibold text-[#1B3A6B] hover:bg-slate-50 text-left">
-                                {verDevueltos ? 'Ocultar devueltos' : `Ver devueltos (${drawer.equipos.length - equiposDrawer.length})`}
-                              </button>
-                            )}
-                          </div>
-                        )}
+                      {!drawer.equipos?.length ? <div className="text-[13px] text-slate-400">Sin equipos asociados</div> : (
+                        <div className="flex flex-wrap gap-2">
+                          {resumenEquipos.map(r => (
+                            <div key={r.clave} className="flex items-center gap-2 pl-1.5 pr-3 py-1.5 rounded-[10px] border border-slate-200 bg-white">
+                              <div className="w-8 h-8 rounded-[7px] bg-slate-50 flex items-center justify-center overflow-hidden flex-shrink-0"><IconoTipo tipo={r.tipo} categorias={categorias} size={22} /></div>
+                              <span className="text-[12.5px] font-semibold text-slate-700">{r.nombre}</span>
+                              {r.n > 1 && <span className="text-[12px] font-bold text-[#D81B43]">×{r.n}</span>}
+                            </div>
+                          ))}
+                          {drawer.equipos.length > equiposDrawer.length && (
+                            <span className="self-center text-[12px] text-slate-400">{drawer.equipos.length - equiposDrawer.length} devuelto{drawer.equipos.length - equiposDrawer.length !== 1 ? 's' : ''}</span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="px-5 md:px-6 py-4">
+                      <div className="text-[10.5px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-3">Último evento</div>
+                      <UltimoEvento key={`${drawer.id}-${versionHistorial}`} orden={drawer} onVerTodo={() => setPestana({ id: drawer.id, p: 'historial' })} />
                     </div>
 
                     <div className="px-5 md:px-6 py-4">
                       <div className="text-[10.5px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-3">Actas</div>
-                      <ActasPrestamo key={drawer.id} ordenId={drawer.id} ordenCodigo={drawer.codigo} onToast={showToast} />
+                      <ActasPrestamo key={drawer.id} ordenId={drawer.id} ordenCodigo={drawer.codigo} onToast={showToast} onCambio={() => setVersionHistorial(v => v + 1)} />
                     </div>
                   </div>
                 </div>
+                )}
 
-                {/* Historial: todo lo que le pasó al préstamo, con quién y su acta (plegado) */}
-                <div className="px-5 md:px-6 py-4 border-t border-slate-100">
-                  <button type="button" onClick={() => setVerHistorial(v => !v)} aria-expanded={verHistorial}
-                    className="w-full flex items-center justify-between text-[10.5px] font-bold uppercase tracking-[0.1em] text-slate-400 hover:text-slate-600">
-                    Historial
-                    <span className="flex items-center gap-1 normal-case tracking-normal text-[12px] font-semibold text-[#1B3A6B]">
-                      {verHistorial ? 'Ocultar' : 'Ver todo lo que pasó'} <ChevronRight size={14} className={`transition-transform ${verHistorial ? 'rotate-90' : ''}`} />
-                    </span>
-                  </button>
-                  {verHistorial && <div className="mt-4"><HistorialPrestamo key={drawer.id} orden={drawer} plantillas={plantillas} /></div>}
-                </div>
+                {/* Equipos: cada uno en su tarjeta, con la imagen de su tipo */}
+                {pestanaDrawer === 'equipos' && (
+                  <div className="px-5 md:px-6 py-5">
+                    {!drawer.equipos?.length ? <div className="text-[13px] text-slate-400">Sin equipos asociados</div> : (
+                      <>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          {equiposDrawer.map(oe => tarjetaEquipo(oe))}
+                        </div>
+                        {drawer.equipos.length > equiposDrawer.length && (
+                          <>
+                            <div className="text-[10.5px] font-bold uppercase tracking-[0.1em] text-slate-400 mt-6 mb-3">Devueltos ({drawer.equipos.length - equiposDrawer.length})</div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                              {drawer.equipos.filter(oe => oe.fecha_devolucion).map(oe => tarjetaEquipo(oe))}
+                            </div>
+                          </>
+                        )}
+                      </>
+                    )}
+                  </div>
+                )}
+
+                {/* Actas: solo las actas, con la renovación de las que se renuevan */}
+                {pestanaDrawer === 'actas' && (
+                  <div className="px-5 md:px-6 py-5">
+                    <ActasPrestamo key={drawer.id} ordenId={drawer.id} ordenCodigo={drawer.codigo} onToast={showToast} onCambio={() => setVersionHistorial(v => v + 1)} completa />
+                  </div>
+                )}
+
+                {/* Historial: todo lo que le pasó al préstamo, con quién y su acta */}
+                {pestanaDrawer === 'historial' && (
+                  <div className="px-5 md:px-6 py-5">
+                    <HistorialPrestamo key={`${drawer.id}-${versionHistorial}`} orden={drawer} plantillas={plantillas} />
+                  </div>
+                )}
               </div>
             </div>
             </VentanaDetalle>

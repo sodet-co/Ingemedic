@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { X, Loader2, FileText, ChevronLeft } from 'lucide-react'
 import { createClient } from '@/lib/supabase'
 import { cargarParaFirma, guardarActas } from '@/lib/actas/firmar'
-import { construirContexto, conManuales } from '@/lib/actas/contexto'
+import { construirContexto, paraPlantilla } from '@/lib/actas/contexto'
 import VistaActa from '@/components/actas/VistaActa'
 import { EditorInsumos } from '@/components/actas/LlenarFormatos'
 import { leerDatosActa, camposPedidos } from '@/lib/actas/campos'
@@ -94,6 +94,10 @@ export default function FirmaActas({ ordenId, entregaId = null, titulo = 'Firmar
   const datosRecibe = useMemo(() => recibe.esPaciente && paciente
     ? { ...recibe, nombre: paciente.nombre, documento: pac.cedula, parentesco: '' }
     : recibe, [recibe, paciente, pac.cedula])
+  // Nombre, documento o parentesco de otra persona: deja de ser el paciente
+  const cambiarRecibe = (k, v) => setRecibe(r => r.esPaciente && paciente
+    ? { ...r, esPaciente: false, nombre: paciente.nombre || '', documento: pac.cedula || '', parentesco: '', [k]: v }
+    : { ...r, [k]: v })
 
   // Contexto con lo que se lleva escrito: la revisión muestra el acta tal cual quedará
   const ctx = useMemo(() => base && construirContexto({
@@ -214,14 +218,13 @@ export default function FirmaActas({ ordenId, entregaId = null, titulo = 'Firmar
                   </label>
                 )}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {!recibe.esPaciente && <>
-                    <div><label className={labelCls}>Nombre <span className="text-[#D81B43]">*</span></label>
-                      <input value={recibe.nombre} onChange={e => setRecibe(r => ({ ...r, nombre: e.target.value }))} className={inputCls} /></div>
-                    <div><label className={labelCls}>Documento <span className="text-[#D81B43]">*</span></label>
-                      <input value={recibe.documento} inputMode="numeric" onChange={e => setRecibe(r => ({ ...r, documento: e.target.value }))} className={inputCls} /></div>
-                    <div><label className={labelCls}>Parentesco con el paciente</label>
-                      <input value={recibe.parentesco} placeholder="Hijo, esposa, cuidador…" onChange={e => setRecibe(r => ({ ...r, parentesco: e.target.value }))} className={inputCls} /></div>
-                  </>}
+                  {/* Siempre a la vista: con "el mismo paciente" salen sus datos, y escribir otra persona desmarca la casilla */}
+                  <div><label className={labelCls}>Nombre <span className="text-[#D81B43]">*</span></label>
+                    <input value={datosRecibe.nombre || ''} onChange={e => cambiarRecibe('nombre', e.target.value)} className={inputCls} /></div>
+                  <div><label className={labelCls}>Documento <span className="text-[#D81B43]">*</span></label>
+                    <input value={datosRecibe.documento || ''} inputMode="numeric" onChange={e => cambiarRecibe('documento', e.target.value)} className={inputCls} /></div>
+                  <div><label className={labelCls}>Parentesco con el paciente</label>
+                    <input value={datosRecibe.parentesco || ''} placeholder="Hijo, esposa, cuidador…" onChange={e => cambiarRecibe('parentesco', e.target.value)} className={inputCls} /></div>
                   <div><label className={labelCls}>Teléfono</label>
                     <input value={recibe.telefono} inputMode="tel" onChange={e => setRecibe(r => ({ ...r, telefono: e.target.value }))} className={inputCls} /></div>
                   <div><label className={labelCls}>Correo</label>
@@ -326,7 +329,7 @@ export default function FirmaActas({ ordenId, entregaId = null, titulo = 'Firmar
           {base && docActual && (
             <div className="bg-slate-100 p-3 md:p-6">
               <div className="text-[12.5px] text-slate-500 mb-3">Documento {paso} de {plantillas.length}: <b className="text-slate-700">{docActual.nombre}</b> · revisa los datos; la firma se recoge al final, una sola vez.</div>
-              <VistaActa bloques={docActual.bloques} ctx={conManuales(ctx, docActual.id)} />
+              <VistaActa bloques={docActual.bloques} ctx={paraPlantilla(ctx, docActual)} />
             </div>
           )}
 

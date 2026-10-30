@@ -13,11 +13,11 @@ import { MODULOS_PRINCIPALES, MODULOS_CONFIGURACION } from '@/lib/permisos'
 
 const VERBOS = {
   crear: 'Creó', editar: 'Editó', eliminar: 'Eliminó', activar: 'Activó',
-  desactivar: 'Desactivó', cerrar: 'Cerró', avanzar: 'Avanzó', cancelar: 'Canceló',
+  desactivar: 'Desactivó', cerrar: 'Cerró', avanzar: 'Avanzó', cancelar: 'Canceló', renovar: 'Renovó',
 }
 
 // Entidades con artículo femenino; el resto usa "el"
-const FEMENINAS = ['entrega', 'categoría de equipo', 'lista de mantenimiento', 'configuración de empresa', 'contraseña', 'orden de servicio', 'sesión']
+const FEMENINAS = ['acta', 'entrega','categoría de equipo', 'lista de mantenimiento', 'configuración de empresa', 'contraseña', 'orden de servicio', 'sesión']
 
 const NOMBRE_MODULO = Object.fromEntries(
   [...MODULOS_PRINCIPALES, ...MODULOS_CONFIGURACION].map(m => [m.modulo, m.label])

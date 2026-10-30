@@ -36,6 +36,9 @@ export const NOMBRES = {
     otros_equipos: 'Otros equipos', equipos_adicionales: 'Equipos adicionales', equipos_resumen: 'Lista de equipos', insumos_resumen: 'Lista de insumos',
     observaciones: 'Observaciones', motivo_cambio: 'Motivo del cambio',
   },
+  'Máscara (de los insumos)': {
+    mascara_descripcion: 'Máscara', mascara_marca: 'Marca de la máscara', mascara_modelo: 'Modelo de la máscara', mascara_invima: 'Registro INVIMA de la máscara',
+  },
 }
 
 // Otras formas de escribir lo mismo

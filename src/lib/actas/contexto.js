@@ -34,6 +34,9 @@ export const VARIABLES = {
     otros_equipos: 'Los demás equipos (sin el principal)', equipos_adicionales: 'Equipos que no caben en el recuadro (sin principal, cilindro ni regulador)', equipos_resumen: 'Todos los equipos en una línea', insumos_resumen: 'Todos los insumos en una línea',
     observaciones: 'Observaciones de la entrega', motivo_cambio: 'Motivo del cambio de equipo',
   },
+  'Máscara (de los insumos)': {
+    mascara_descripcion: 'Máscara entregada', mascara_marca: 'Marca', mascara_modelo: 'Modelo', mascara_invima: 'Registro INVIMA',
+  },
 }
 
 const t = v => (v == null ? '' : String(v).trim())
@@ -60,8 +63,15 @@ export function filaEquipo(eq) {
     serie: t(atr.serie),
     codigo: t(eq?.codigo),
     categoria: t(tipo.categoria?.nombre),
+    categoria_id: tipo.categoria?.id || tipo.categoria_id || null,
     estado: 'Bueno',
     cantidad: 1,
+    // Para la tabla estándar (render.js → tablaEstandar): de qué tipo es (las unidades del
+    // mismo tipo van en una fila) y los datos que su categoría define en el inventario
+    // (campos_tipo en el tipo, campos_unidad en la unidad)
+    tipo_id: eq?.tipo_equipo_id || tipo.id || null,
+    atributos: Object.fromEntries(Object.entries({ ...(tipo.atributos || {}), ...atr })
+      .filter(([, v]) => (typeof v === 'string' || typeof v === 'number') && String(v).trim())),
   }
 }
 
@@ -89,17 +99,12 @@ export function construirContexto({ empresa = {}, orden = {}, equipos = [], reti
   const bog = new Date(f.toLocaleString('en-US', { timeZone: 'America/Bogota' }))
   // Estado de cada equipo: "Bueno" salvo que se haya escrito otro (datos_acta.estados)
   const filas = equipos.map(filaEquipo).map(f => ({ ...f, estado: t(datos.estados?.[f.codigo]) || f.estado }))
-  const cat = (re) => filas.find(x => re.test(x.categoria) || re.test(x.descripcion))
-  const cilindro = cat(/cilindro/i), regulador = cat(/regulador/i)
-  // El principal es el equipo (concentrador, aspirador, CPAP…), no un segundo
-  // cilindro o regulador: con dos cilindros, el segundo quedaba como "EQUIPO"
-  const accesorio = x => /cilindro|regulador/i.test(`${x.categoria} ${x.descripcion}`)
-  const principal = filas.find(x => !accesorio(x)) || filas.find(x => x !== cilindro && x !== regulador) || filas[0] || {}
-  const linea = x => [x.descripcion, x.marca || x.modelo, x.serie && `serie ${x.serie}`].filter(Boolean).join(' ')
-  const insumos = (datos.insumos || []).map(i => ({
+  const insumos =(datos.insumos || []).map(i => ({
     descripcion: t(i.descripcion), cantidad: t(i.cantidad), lote: t(i.lote), invima: t(i.invima),
     marca: t(i.marca), modelo: t(i.modelo), estado: t(i.estado) || 'Nuevo',
   }))
+  // La máscara de un CPAP / BPAP (acta de máscara de Family): el primer insumo que lo sea
+  const mascara = insumos.find(i => /m[aá]scara/i.test(i.descripcion)) || {}
   const tipoDoc = t(p.tipo_documento || 'CC').toUpperCase()
   // ¿Firma un responsable o el mismo paciente? Los formatos tienen renglón para cada uno
   const esResponsable = !!t(r.nombre) && t(r.nombre).toLowerCase() !== t(p.nombre).toLowerCase()
@@ -125,6 +130,36 @@ export function construirContexto({ empresa = {}, orden = {}, equipos = [], reti
     recibe_telefono: t(r.telefono || p.telefono), recibe_correo: t(r.correo),
     responsable_nombre: esResponsable ? t(r.nombre) : '', responsable_documento: esResponsable ? t(r.documento) : '',
     entrega_nombre: t(en.nombre), entrega_cargo: t(en.cargo), entrega_tipo_doc: t(en.tipo_documento || 'CC'), entrega_documento: t(en.documento),
+    ...variablesDeEquipos(filas),
+    insumos_resumen: insumos.map(i => [i.cantidad, i.descripcion].filter(Boolean).join(' ')).join(', '),
+    observaciones: t(datos.observaciones),
+    motivo_cambio: t(datos.motivo),
+    mascara_descripcion: mascara.descripcion || '', mascara_marca: mascara.marca || '',
+    mascara_modelo: mascara.modelo || '', mascara_invima: mascara.invima || '',
+  }
+
+  // Lo que la persona escribió encima de lo automático (datos_acta.valores)
+  const escritos = Object.fromEntries(Object.entries(datos.valores || {}).filter(([, v]) => t(v)).map(([k, v]) => [k, t(v)]))
+  Object.assign(variables, escritos)
+
+  // Además de 'recibe' y 'entrega', la firma de quien recibe va en el renglón
+  // del paciente o en el del responsable, según quién sea
+  const todas = { ...firmas, [esResponsable ? 'responsable' : 'paciente']: firmas.recibe }
+  // manuales: renglones en blanco de cada plantilla ({ plantilla_id: { 'bloque.campo': valor } });
+  // quien pinta una plantilla pasa los suyos como ctx.manuales (ver paraPlantilla)
+  return { variables, escritos, equipos: filas, retirados: retirados.map(filaEquipo), insumos, firmas: todas, manualesPorPlantilla: datos.manuales || {} }
+}
+
+// Datos de equipo de las {{variables}}: el principal, cilindro, regulador y listas
+function variablesDeEquipos(filas) {
+  const cat = (re) => filas.find(x => re.test(x.categoria) || re.test(x.descripcion))
+  const cilindro = cat(/cilindro/i), regulador = cat(/regulador/i)
+  // El principal es el equipo (concentrador, aspirador, CPAP…), no un segundo
+  // cilindro o regulador: con dos cilindros, el segundo quedaba como "EQUIPO"
+  const accesorio = x => /cilindro|regulador/i.test(`${x.categoria} ${x.descripcion}`)
+  const principal = filas.find(x => !accesorio(x)) || filas.find(x => x !== cilindro && x !== regulador) || filas[0] || {}
+  const linea = x => [x.descripcion, x.marca || x.modelo, x.serie && `serie ${x.serie}`].filter(Boolean).join(' ')
+  return {
     equipo_descripcion: t(principal.descripcion), equipo_marca: t(principal.marca),
     equipo_modelo: t(principal.modelo), equipo_serie: t(principal.serie), equipo_codigo: t(principal.codigo),
     cilindro_tamano: t((cilindro?.modelo || '').match(/\d+([.,]\d+)?\s*m3/i)?.[0] || cilindro?.modelo),
@@ -134,21 +169,29 @@ export function construirContexto({ empresa = {}, orden = {}, equipos = [], reti
     // Los que no caben en las casillas de equipo, cilindro y regulador del recuadro
     equipos_adicionales: filas.filter(x => x !== principal && x !== cilindro && x !== regulador).map(linea).join('; '),
     equipos_resumen: filas.map(x => [x.descripcion, x.marca, x.serie && `serie ${x.serie}`].filter(Boolean).join(' ')).join('; '),
-    insumos_resumen: insumos.map(i => [i.cantidad, i.descripcion].filter(Boolean).join(' ')).join(', '),
-    observaciones: t(datos.observaciones),
-    motivo_cambio: t(datos.motivo),
   }
-
-  // Lo que la persona escribió encima de lo automático (datos_acta.valores)
-  for (const [k, v] of Object.entries(datos.valores || {})) if (t(v)) variables[k] = t(v)
-
-  // Además de 'recibe' y 'entrega', la firma de quien recibe va en el renglón
-  // del paciente o en el del responsable, según quién sea
-  const todas = { ...firmas, [esResponsable ? 'responsable' : 'paciente']: firmas.recibe }
-  // manuales: renglones en blanco de cada plantilla ({ plantilla_id: { 'bloque.campo': valor } });
-  // quien pinta una plantilla pasa los suyos como ctx.manuales (ver conManuales)
-  return { variables, equipos: filas, retirados: retirados.map(filaEquipo), insumos, firmas: todas, manualesPorPlantilla: datos.manuales || {} }
 }
 
-// Contexto para pintar una plantilla con sus renglones en blanco llenos
-export const conManuales = (ctx, plantillaId) => ({ ...ctx, manuales: ctx?.manualesPorPlantilla?.[plantillaId] || {} })
+// ── Equipos a los que aplica una plantilla ──
+// Bloque que no se dibuja: { tipo: 'para_equipos', categorias: [{ id, nombre }] }. Sin él
+// (o vacío) la plantilla es para todos los equipos. Se elige en el editor (Equipos: Solo algunos).
+export const categoriasDe = bloques => (bloques || []).find(b => b.tipo === 'para_equipos')?.categorias || []
+// ¿Se renueva? (editor → Renovable). Bloque que no se dibuja: { tipo: 'renovable' }.
+// Un acta firmada de esta plantilla se puede renovar en el préstamo: misma firma, fecha nueva
+export const esRenovable = bloques => (bloques || []).some(b => b.tipo === 'renovable')
+// ¿El equipo (fila de filaEquipo) es de una de esas categorías? Por id; si la fila no lo
+// trae (actas viejas), por nombre
+export const deCategorias = (fila, categorias) => categorias.some(c =>
+  (c.id && fila.categoria_id === c.id) || (c.nombre && t(fila.categoria).toLowerCase() === t(c.nombre).toLowerCase()))
+
+// Contexto para pintar una plantilla: sus renglones en blanco llenos y, si la plantilla
+// es solo para algunas categorías, solo esos equipos (tabla y datos de equipo; lo que
+// la persona escribió encima se respeta). plantilla: { id, bloques }
+export function paraPlantilla(ctx, plantilla) {
+  const conSusManuales = { ...ctx, manuales: ctx?.manualesPorPlantilla?.[plantilla?.id] || {} }
+  const categorias = categoriasDe(plantilla?.bloques)
+  if (!categorias.length || !ctx) return conSusManuales
+  const equipos = (ctx.equipos || []).filter(f => deCategorias(f, categorias))
+  const retirados = (ctx.retirados || []).filter(f => deCategorias(f, categorias))
+  return { ...conSusManuales, equipos, retirados, variables: { ...ctx.variables, ...variablesDeEquipos(equipos), ...(ctx.escritos || {}) } }
+}

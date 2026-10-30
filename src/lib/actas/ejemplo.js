@@ -18,6 +18,8 @@ export function contextoEjemplo(empresa = {}) {
     equipos: [
       { codigo: 'RL0001', atributos: { serie: 'SN-000123', modelo: 'G2S A20' }, tipo_equipo: { nombre: 'BMC', atributos: { nombre: 'Equipo CPAP/BPAP' }, categoria: { nombre: 'CPAP - BPAP' } } },
       { codigo: 'RL0002', atributos: { serie: 'BX000456' }, tipo_equipo: { nombre: 'Cilindro 3.5 M3', atributos: { nombre: 'Cilindro de Oxígeno' }, categoria: { nombre: 'Cilindros de Oxígeno' } } },
+      // Dos del mismo tipo: en la tabla estándar van en una fila con cantidad 2
+      { codigo: 'RL0004', atributos: { serie: 'BX000457' }, tipo_equipo: { nombre: 'Cilindro 3.5 M3', atributos: { nombre: 'Cilindro de Oxígeno' }, categoria: { nombre: 'Cilindros de Oxígeno' } } },
     ],
     datos: {
       ciudad: 'Valledupar', motivo: 'Cilindro vacío', observaciones: 'Equipo en óptimas condiciones, se capacita en su manejo.',

@@ -82,6 +82,9 @@ export function armarHistorialPrestamo(orden, bitacora = []) {
       } else if (b.accion === 'editar' && b.detalle?.cambio_equipo) {
         // Cambio sin acta (antes de entregar): ya sale por orden_equipos si hubo historial
         if (!b.detalle.con_historial) ev.push({ tipo: 'cambio', fecha: b.fecha, texto: `${b.detalle.cambio_equipo.sale} cambiado por ${b.detalle.cambio_equipo.entra} antes de entregar`, detalle: b.detalle.motivo || null, quien: b.usuario?.nombre })
+      } else if (b.accion === 'renovar') {
+        // Renovación de un acta (components/actas/RenovarActa.js): misma firma, fecha nueva
+        ev.push({ tipo: 'renovacion', fecha: b.fecha, texto: `Acta renovada: ${b.detalle?.acta || ''}`, detalle: b.detalle?.fecha_acta ? `fecha del acta: ${b.detalle.fecha_acta}` : null, quien: b.usuario?.nombre, acta_id: b.detalle?.acta_id })
       } else if (b.accion === 'cancelar' && b.entidad === 'préstamo') {
         ev.push({ tipo: 'cancelado', fecha: b.fecha, texto: 'Préstamo cancelado', quien: b.usuario?.nombre })
       }
@@ -93,6 +96,6 @@ export function armarHistorialPrestamo(orden, bitacora = []) {
     }
 
     // Por día de Colombia (varias fechas guardan solo el día) y, el mismo día, en el orden en que pasan
-    const RANGO = { creado: 0, programado: 1, entrega: 2, entregado: 3, vigencia: 4, recarga: 5, cambio: 6, devolucion: 7, cancelado: 8, finalizado: 9 }
+    const RANGO = { creado: 0, programado: 1, entrega: 2, entregado: 3, vigencia: 4, recarga: 5, renovacion: 5, cambio: 6, devolucion: 7, cancelado: 8, finalizado: 9 }
     return ev.filter(e => e.fecha).sort((a, b) => diaLocal(b.fecha).localeCompare(diaLocal(a.fecha)) || (RANGO[b.tipo] ?? 0) - (RANGO[a.tipo] ?? 0) || new Date(b.fecha) - new Date(a.fecha))
 }

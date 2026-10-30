@@ -14,6 +14,7 @@
 
 import { VARIABLES } from './contexto'
 import { propiosDe, NOMBRES } from './nombres'
+import { esTablaFijaEditable } from './render'
 
 export const DATOS_ACTA_VACIO = {
   recibe: { esPaciente: true, nombre: '', documento: '', parentesco: '', telefono: '', correo: '' },
@@ -112,6 +113,8 @@ export function camposVacios(campos, valores) {
 //   m:bloque.campo  renglón en blanco del formato (datos_acta.manuales)
 //   estados         columna Estado de la tabla de equipos (datos_acta.estados)
 //   insumos         tabla de insumos (datos_acta.insumos)
+//   t:bloque        tabla de equipos con filas impresas (F-FAM-11): lo automático se
+//                   puede cambiar o borrar (datos_acta.manuales, render.js → celdasTablaFija)
 
 // Datos que salen de otros (X del tipo de documento, tipo de documento): no se llenan aparte
 const DERIVADAS = new Set(['doc_cc', 'doc_ti', 'doc_rc', 'doc_ce', 'paciente_tipo_doc'])
@@ -183,6 +186,7 @@ export function camposDelFormato(plantilla, { conPaciente = true } = {}) {
       if ((b.fuente === 'insumos' || b.fuente === 'ambos') && !vistos.has('insumos')) {
         vistos.add('insumos'); out.push({ clave: 'insumos', tipo: 'insumos', etiqueta: 'Insumos', seccion: sec, pagina, conEstado: (b.columnas || []).some(c => c.clave === 'estado') })
       }
+      if (esTablaFijaEditable(b)) out.push({ clave: `t:${bi}`, tipo: 'tabla_fija', bloque: bi, etiqueta: limpio(b.titulo) || 'Equipos', seccion: sec, pagina })
       // Fila de accesorios de la tabla por tipo (HUMIDIFICADOR, CANULA…): se marcan a mano
       ;(b.accesorios || []).forEach((c, ci) => {
         if (c.valor) agregarVars(c.valor, sinDosPuntos(c.etiqueta))

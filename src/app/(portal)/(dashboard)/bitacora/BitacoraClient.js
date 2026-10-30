@@ -22,6 +22,7 @@ const ACCION_STYLES = {
   'cerrar': { bg: '#FFFBEB', color: '#B45309', label: 'CIERRE' },
   'avanzar': { bg: '#E8F7FB', color: '#0E86A0', label: 'AVANCE' },
   'cancelar': { bg: '#FEF2F2', color: '#D81B43', label: 'CANCELACIÓN' },
+  'renovar': { bg: '#F5F3FF', color: '#6D28D9', label: 'RENOVACIÓN' },
 }
 
 const MODULO_LABELS = {

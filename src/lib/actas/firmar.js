@@ -2,6 +2,7 @@
 // (components/actas/FirmaActas.js) —en Entregas, en la vista del repartidor y al
 // crear un préstamo en oficina— y la descarga del PDF.
 import { plantillasSugeridas } from './acciones.js'
+import { paraPlantilla } from './contexto.js'
 
 const SELECT_ORDEN = `
   id, codigo, diagnostico, plantillas_acta, datos_acta, cliente_id,
@@ -48,14 +49,16 @@ export async function cargarParaFirma(supabase, ordenId, { plantillaIds } = {}) 
 // paciente o el equipo.
 export async function guardarActas(supabase, { ordenId, entregaId = null, accion = 'prestamo', plantillas, ctx, firmas }) {
   const { data: { user } } = await supabase.auth.getUser()
-  const filas = plantillas.map(p => ({
+  // Cada acta con lo suyo: sus renglones escritos y, si la plantilla es para algunas
+  // categorías, solo esos equipos (contexto.js → paraPlantilla)
+  const filas = plantillas.map(p => ({ p, c: paraPlantilla(ctx, p) })).map(({ p, c }) => ({
     orden_id: ordenId,
     entrega_id: entregaId,
     plantilla_id: p.id,
     accion: p.accion || accion,
     nombre: p.nombre,
     bloques: p.bloques,
-    datos: { variables: ctx.variables, equipos: ctx.equipos, insumos: ctx.insumos, retirados: ctx.retirados, manuales: ctx.manualesPorPlantilla?.[p.id] || {} },
+    datos: { variables: c.variables, equipos: c.equipos, insumos: c.insumos, retirados: c.retirados, manuales: c.manuales },
     firma_recibe: firmas.recibe || null,
     firma_entrega: firmas.entrega || null,
     creado_por: user?.id || null,

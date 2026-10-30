@@ -1,9 +1,9 @@
 'use client'
 import { useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { ChevronLeft, ChevronRight, CheckCircle2, AlertCircle, Plus, Trash2, X } from 'lucide-react'
+import { ChevronLeft, ChevronRight, CheckCircle2, AlertCircle, Plus, Trash2, X, Eraser, RotateCcw } from 'lucide-react'
 import { camposDelFormato, valorCampo, conValor, CLAVES_HOJA } from '@/lib/actas/campos'
-import { construirContexto, conManuales, filaEquipo } from '@/lib/actas/contexto'
-import { renderPaginas, ANCHO_PAGINA } from '@/lib/actas/render'
+import { construirContexto, paraPlantilla, filaEquipo } from '@/lib/actas/contexto'
+import { renderPaginas, ANCHO_PAGINA, celdasTablaFija, claveCeldaFija } from '@/lib/actas/render'
 import { NOMBRES } from '@/lib/actas/nombres'
 import { ui } from '@/lib/ui'
 
@@ -50,16 +50,24 @@ export default function LlenarFormatos({ plantillas, valores, conPaciente = true
   const campos = camposPorPlantilla[Math.min(actual, plantillas.length - 1)] || []
 
   // ── Valor de cada campo ──
+  // Todo se puede cambiar: lo automático (fecha, equipo, quien entrega…) se ve ya
+  // escrito, y quien recibe sale del paciente mientras no se escriba otra persona
+  const pac = valores.paciente || {}
+  const delPaciente = { nombre: pac.nombre || '', documento: pac.cedula || '', parentesco: '' }
   const delPlantilla = id => acta.manuales?.[id] || {}
   function valor(c, pid = plantilla?.id) {
     if (c.tipo === 'manual') return delPlantilla(pid)[c.manual] || ''
     if (c.tipo !== 'var') return ''
-    if (c.campo) return c.campo.siRecibeOtro && !recibeOtro ? '' : valorCampo(c.campo, valores)
-    if (!c.pedido) return acta.valores?.[c.variable] || ''
+    if (c.campo) return c.campo.siRecibeOtro && !recibeOtro ? delPaciente[c.campo.clave.split('.')[1]] : valorCampo(c.campo, valores)
+    if (!c.pedido) return acta.valores?.[c.variable] || automaticos[c.variable] || ''
     return acta.extra?.[c.variable] || ''
   }
   function cambiar(c, v) {
-    if (c.tipo === 'manual') return onActa({ ...acta, manuales: { ...acta.manuales, [plantilla.id]: { ...delPlantilla(plantilla.id), [c.manual]: v } } })
+    if (c.tipo === 'manual') return cambiarManuales(m => ({ ...m, [c.manual]: v }))
+    // Escribir otra persona en quien recibe: deja de ser el paciente (lo demás se conserva)
+    if (c.campo?.siRecibeOtro && !recibeOtro) {
+      return onActa({ ...acta, recibe: { ...acta.recibe, ...delPaciente, esPaciente: false, [c.campo.clave.split('.')[1]]: v } })
+    }
     if (c.campo) {
       if (c.campo.en === 'paciente') return onPaciente(c.campo.clave, v)
       if (c.campo.en === 'orden') return onDiagnostico(v)
@@ -68,6 +76,8 @@ export default function LlenarFormatos({ plantillas, valores, conPaciente = true
     if (!c.pedido) return onActa({ ...acta, valores: { ...acta.valores, [c.variable]: v } })
     onActa({ ...acta, extra: { ...acta.extra, [c.variable]: v } })
   }
+  // Renglones escritos a mano del formato actual: fn(anteriores) => nuevos
+  const cambiarManuales = fn => onActa({ ...acta, manuales: { ...acta.manuales, [plantilla.id]: fn(delPlantilla(plantilla.id)) } })
   // Pedidos sin llenar (los de quien recibe no cuentan si recibe el mismo paciente)
   const vaciosEn = (lista, pid) => lista.filter(c => c.tipo === 'var' && c.pedido && !(c.campo?.siRecibeOtro && !recibeOtro) && !String(valor(c, pid)).trim())
   const faltanEn = (lista, pid) => vaciosEn(lista, pid).length
@@ -75,7 +85,9 @@ export default function LlenarFormatos({ plantillas, valores, conPaciente = true
   const faltanTotal = new Set(plantillas.flatMap((p, i) => vaciosEn(camposPorPlantilla[i], p.id).map(c => c.campo?.id || c.clave))).size
 
   // ── Hoja ──
-  const hojas = useMemo(() => plantilla ? renderPaginas(plantilla.bloques, { ...conManuales(ctx, plantilla.id), marcar: CLAVES_HOJA }) : [], [plantilla, ctx])
+  // La plantilla con lo suyo: sus renglones escritos y solo sus equipos (contexto.js → paraPlantilla)
+  const ctxPlantilla = useMemo(() => plantilla ? paraPlantilla(ctx, plantilla) : ctx, [plantilla, ctx])
+  const hojas = useMemo(() => plantilla ? renderPaginas(plantilla.bloques, { ...ctxPlantilla, marcar: CLAVES_HOJA }) : [], [plantilla, ctxPlantilla])
   const hoja = Math.min(pagina, Math.max(0, hojas.length - 1))
 
   function elegir(c) {
@@ -160,10 +172,13 @@ export default function LlenarFormatos({ plantillas, valores, conPaciente = true
               <div className="px-4 py-3 space-y-3">
                 {g.campos.map(c => (
                   <div key={c.clave} data-clave={c.clave} onFocus={() => elegir(c)} onClick={() => elegir(c)}>
-                    <Campo c={c} valor={valor(c)} cambiar={v => cambiar(c, v)} activo={activo === c.clave}
+                    {c.tipo === 'tabla_fija' ? (
+                      <EditorTablaFija key={plantilla.id} bloque={plantilla.bloques[c.bloque]} bi={c.bloque} titulo={c.etiqueta} activo={activo === c.clave}
+                        filas={ctxPlantilla.equipos || []} manuales={delPlantilla(plantilla.id)} onManuales={cambiarManuales} />
+                    ) : <Campo c={c} valor={valor(c)} cambiar={v => cambiar(c, v)} activo={activo === c.clave}
                       auto={c.tipo === 'var' && !c.campo && !c.pedido ? automaticos[c.variable] : null}
-                      bloqueado={c.campo?.siRecibeOtro && !recibeOtro}
-                      valores={valores} acta={acta} onActa={onActa} onPaciente={onPaciente} equipos={base.equipos || []} />
+                      delPaciente={c.campo?.siRecibeOtro && !recibeOtro}
+                      valores={valores} acta={acta} onActa={onActa} onPaciente={onPaciente} equipos={base.equipos || []} />}
                   </div>
                 ))}
               </div>
@@ -176,14 +191,17 @@ export default function LlenarFormatos({ plantillas, valores, conPaciente = true
   )
 }
 
-function Campo({ c, valor, cambiar, activo, auto, bloqueado, valores, acta, onActa, onPaciente, equipos }) {
+function Campo({ c, valor, cambiar, activo, auto, delPaciente, valores, acta, onActa, onPaciente, equipos }) {
   const etiqueta = c.etiqueta || (c.campo ? c.campo.label : NOMBRE_DE[c.variable] || c.variable)
   const vacio = !String(valor).trim()
-  const cls = `${ui.input} ${activo ? activoCls : c.pedido && vacio && !bloqueado ? vacioCls : ''}`
+  const cls = `${ui.input} ${activo ? activoCls : c.pedido && vacio && !delPaciente ? vacioCls : ''}`
+  // De dónde sale lo que ya está escrito (se puede cambiar igual)
+  const origen = delPaciente ? 'del paciente' : auto && valor === auto ? 'automático' : null
   const label = (
     <label className="flex items-baseline gap-1.5 mb-1.5 text-[12px] font-semibold text-slate-600">
       <span className="truncate" title={etiqueta}>{etiqueta}</span>
-      {c.pedido && !bloqueado && <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 self-center ${vacio ? 'bg-amber-400' : 'bg-[#0F7B55]'}`} />}
+      {c.pedido && !delPaciente && <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 self-center ${vacio ? 'bg-amber-400' : 'bg-[#0F7B55]'}`} />}
+      {origen && <span className="ml-auto flex-shrink-0 text-[10.5px] font-medium text-slate-400">{origen}</span>}
     </label>
   )
 
@@ -213,9 +231,6 @@ function Campo({ c, valor, cambiar, activo, auto, bloqueado, valores, acta, onAc
       </div>
     )
   }
-  if (bloqueado) {
-    return <div>{label}<input value="El mismo paciente" disabled className={ui.input} /></div>
-  }
   if (c.campo?.id === 'pac_documento') {
     return (
       <div>{label}
@@ -233,11 +248,83 @@ function Campo({ c, valor, cambiar, activo, auto, bloqueado, valores, acta, onAc
   }
   return (
     <div>{label}
-      <input value={valor} type={c.campo?.tipo || 'text'} placeholder={auto || ''} onChange={e => cambiar(e.target.value)}
+      <input value={valor} type={c.campo?.tipo || 'text'} onChange={e => cambiar(e.target.value)}
         inputMode={/telefono/.test(c.campo?.id || c.variable || '') ? 'tel' : undefined} className={cls} />
     </div>
   )
 }
+
+// Tabla de equipos con filas impresas (F-FAM-11): el sistema pone cada equipo en su
+// fila y aquí se puede cambiar o borrar lo que sale en el acta (render.js →
+// celdasTablaFija). No quita el equipo del préstamo. Se muestran las filas con algo;
+// "Escribir en otra fila" abre una vacía.
+function EditorTablaFija({ bloque, bi, titulo, activo, filas, manuales, onManuales }) {
+  const [abiertas, setAbiertas] = useState([])
+  const cols = bloque?.columnas || []
+  const celdas = useMemo(() => bloque ? celdasTablaFija(bloque, filas, manuales, bi) : [], [bloque, filas, manuales, bi])
+  const tocada = ri => cols.some((_, cj) => manuales[claveCeldaFija(bi, ri, cj)] != null)
+  const visibles = celdas.map((f, ri) => ({ ...f, ri }))
+    .filter(f => f.auto.some(v => v.trim()) || tocada(f.ri) || abiertas.includes(f.ri))
+  const otras = celdas.map((f, ri) => ({ ...f, ri })).filter(f => !visibles.some(v => v.ri === f.ri))
+
+  const poner = (ri, cj, v) => onManuales(m => ({ ...m, [claveCeldaFija(bi, ri, cj)]: v }))
+  const borrar = ri => onManuales(m => ({ ...m, ...Object.fromEntries(cols.map((_, cj) => [claveCeldaFija(bi, ri, cj), ''])) }))
+  const restaurar = ri => {
+    onManuales(m => Object.fromEntries(Object.entries(m).filter(([k]) => !cols.some((_, cj) => k === claveCeldaFija(bi, ri, cj)))))
+    setAbiertas(a => a.filter(x => x !== ri))
+  }
+  const etiquetaCol = (c, cj) => cj === 0 ? 'Descripción' : sinPuntos(c.etiqueta || c.clave)
+
+  return (
+    <div className={`rounded-[10px] p-2 -m-2 ${activo ? 'bg-amber-50' : ''}`}>
+      <div className="text-[12px] font-semibold text-slate-600">{titulo}</div>
+      <div className="text-[11.5px] text-slate-400 mb-2">Puedes cambiar o borrar lo que sale en el acta. Los equipos siguen en el préstamo.</div>
+      {visibles.length === 0 && <div className="text-[12.5px] text-slate-400 mb-2">Ningún equipo va en estas filas.</div>}
+      <div className="space-y-2">
+        {visibles.map(f => {
+          const cambiada = tocada(f.ri)
+          const vacia = f.valores.every(v => !v.trim())
+          return (
+            <div key={f.ri} className={`p-2.5 border rounded-[10px] ${vacia && cambiada ? 'border-dashed border-slate-300 bg-slate-50' : 'border-slate-200'}`}>
+              <div className="flex items-center gap-2 mb-2">
+                <span className="flex-1 min-w-0 text-[12.5px] font-bold text-slate-700 truncate" title={f.texto}>{f.texto}</span>
+                {vacia && cambiada && <span className="text-[11px] font-semibold text-slate-400 flex-shrink-0">Borrada</span>}
+                {!vacia && (
+                  <button type="button" onClick={() => borrar(f.ri)} className="inline-flex items-center gap-1 h-8 px-2 rounded-[8px] text-[12px] font-semibold text-[#D81B43] hover:bg-red-50 flex-shrink-0">
+                    <Eraser size={13} /> Borrar
+                  </button>
+                )}
+                {cambiada && (
+                  <button type="button" onClick={() => restaurar(f.ri)} title="Volver a lo que pone el sistema"
+                    className="inline-flex items-center gap-1 h-8 px-2 rounded-[8px] text-[12px] font-semibold text-[#1B3A6B] hover:bg-slate-100 flex-shrink-0">
+                    <RotateCcw size={13} /> Restaurar
+                  </button>
+                )}
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                {cols.map((c, cj) => (
+                  <label key={cj} className={cj === 0 ? 'col-span-2' : ''}>
+                    <span className="block text-[11px] font-semibold text-slate-500 mb-1">{etiquetaCol(c, cj)}</span>
+                    <input value={f.valores[cj]} onChange={e => poner(f.ri, cj, e.target.value)}
+                      inputMode={c.clave === 'cantidad' ? 'numeric' : undefined} className={ui.input} />
+                  </label>
+                ))}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+      {otras.length > 0 && (
+        <select value="" onChange={e => { const ri = Number(e.target.value); if (e.target.value !== '') setAbiertas(a => [...a, ri]) }}
+          className={`${ui.input} mt-2 !text-[#1B3A6B] font-semibold`}>
+          <option value="">+ Escribir en otra fila…</option>
+          {otras.map(f => <option key={f.ri} value={f.ri}>{f.texto}</option>)}
+        </select>
+      )}
+    </div>
+  )
+}
+const sinPuntos = t => String(t || '').replace(/[:.\s]+$/, '')
 
 // La hoja dentro de un iframe (el CSS del acta no choca con el de la app). Se
 // carga una vez y después solo se cambia su contenido: escribir no la hace parpadear.
