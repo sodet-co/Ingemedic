@@ -248,8 +248,10 @@ function Campo({ c, valor, cambiar, activo, auto, delPaciente, valores, acta, on
   }
   return (
     <div>{label}
-      <input value={valor} type={c.campo?.tipo || 'text'} onChange={e => cambiar(e.target.value)}
-        inputMode={/telefono/.test(c.campo?.id || c.variable || '') ? 'tel' : undefined} className={cls} />
+      {/* Número (edad): solo dígitos */}
+      <input value={valor} type={c.campo?.tipo === 'number' ? 'text' : c.campo?.tipo || 'text'}
+        onChange={e => cambiar(c.campo?.tipo === 'number' ? e.target.value.replace(/[^0-9]/g, '').slice(0, 3) : e.target.value)}
+        inputMode={c.campo?.tipo === 'number' ? 'numeric' : /telefono/.test(c.campo?.id || c.variable || '') ? 'tel' : undefined} className={cls} />
     </div>
   )
 }

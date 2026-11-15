@@ -294,7 +294,7 @@ function familyF11(base, { hoja, equipos, insumos, mascara }) {
         derecha: [{ etiqueta: 'CODIGO:', valor: 'F-FAM-11' }, { etiqueta: 'VERSION:', valor: '02' }, { etiqueta: 'FECHA:', valor: '01/01/2025' }, { etiqueta: 'PAGINA', valor: '1/1' }] },
       { tipo: 'campos', titulo: 'INFORMACION DEL PACIENTE', estilo: 'tabla', columnas: 3, campos: [
         { etiqueta: 'NOMBRE DEL PACIENTE:', valor: '{{paciente_nombre}}', span: 3 },
-        { etiqueta: 'IDENTIFICACION:', valor: '{{paciente_documento}}' }, { etiqueta: 'EDAD:', valor: '{{edad}}' }, { etiqueta: 'EPS:', valor: '{{paciente_eps}}' },
+        { etiqueta: 'IDENTIFICACION:', valor: '{{paciente_documento}}' }, { etiqueta: 'EDAD:', valor: '{{paciente_edad}}' }, { etiqueta: 'EPS:', valor: '{{paciente_eps}}' },
         { etiqueta: 'DIAGNOSTICO:', valor: '{{diagnostico}}', span: 3 },
         { etiqueta: 'DIRECCION:', valor: '{{paciente_direccion}}', span: 2 }, { etiqueta: 'TEL:', valor: '{{paciente_telefono}}' },
         { etiqueta: 'BARRIO:', valor: '{{paciente_barrio}}', span: 2 }, { etiqueta: 'CIUDAD:', valor: '{{ciudad}}' },
@@ -320,7 +320,7 @@ function familyF11(base, { hoja, equipos, insumos, mascara }) {
       ] },
       SALTO, ...hojaEntregaFamily(base),
       ...(mascara ? [SALTO, ...hojaMascaraFamily(base)] : []),
-      { tipo: 'campos_propios', etiquetas: { edad: 'Edad', meses_atencion: 'Meses de atención' } },
+      { tipo: 'campos_propios', etiquetas: { meses_atencion: 'Meses de atención' } },
     ],
   }
 }

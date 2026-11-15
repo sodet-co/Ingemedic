@@ -5,20 +5,21 @@
 //
 // Los valores viven en ordenes_servicio.datos_acta:
 //   { recibe: { esPaciente, nombre, documento, parentesco, telefono, correo },
-//     ciudad, observaciones, insumos: [{ descripcion, cantidad, lote, invima, estado }], extra: { clave: valor },
+//     edad (años, se escribe), ciudad, observaciones, insumos: [{ descripcion, cantidad, lote, invima, estado }], extra: { clave: valor },
 //     valores: { variable: valor }        reemplaza lo que el sistema llena solo (fecha, marca…)
 //     estados: { codigo_equipo: 'Bueno' } estado de cada equipo en la tabla
 //     manuales: { plantilla_id: { 'bloque.campo': valor } }  renglones en blanco del formato }
 // Los del paciente se guardan en el paciente (y el diagnóstico en el préstamo).
 // Todo lo que no está en CAMPOS es opcional (ver camposDelFormato).
 
-import { VARIABLES } from './contexto'
+import { VARIABLES, edadDe } from './contexto'
 import { propiosDe, NOMBRES } from './nombres'
 import { esTablaFijaEditable } from './render'
 
+// Quien recibe arranca vacío: casi nunca es el mismo paciente (se marca si lo es)
 export const DATOS_ACTA_VACIO = {
-  recibe: { esPaciente: true, nombre: '', documento: '', parentesco: '', telefono: '', correo: '' },
-  ciudad: '', observaciones: '', insumos: [], extra: {}, valores: {}, estados: {}, manuales: {},
+  recibe: { esPaciente: false, nombre: '', documento: '', parentesco: '', telefono: '', correo: '' },
+  edad: '', ciudad: '', observaciones: '', insumos: [], extra: {}, valores: {}, estados: {}, manuales: {},
 }
 
 // Normaliza lo que venga de la base (préstamos viejos traen {})
@@ -31,6 +32,9 @@ export const leerDatosActa = d => ({
 
 // Cada campo que se puede pedir: de qué variables depende y dónde se guarda.
 // `en`: 'paciente' (pacientes), 'orden' (ordenes_servicio) o 'acta' (datos_acta)
+// `paciente`: solo se pide si el préstamo tiene paciente (aunque se guarde en el acta)
+// `respaldo`: si no se escribió, se toma del paciente (texto: su campo; función: calculado)
+// `siPaciente`: el respaldo solo aplica si recibe el mismo paciente
 export const CAMPOS = [
   { id: 'pac_documento', grupo: 'Paciente', label: 'Documento', en: 'paciente', clave: 'cedula', vars: ['paciente_documento', 'paciente_tipo_doc', 'doc_cc', 'doc_ti', 'doc_rc', 'doc_ce'] },
   { id: 'pac_direccion', grupo: 'Paciente', label: 'Dirección', en: 'paciente', clave: 'direccion', vars: ['paciente_direccion'] },
@@ -39,13 +43,15 @@ export const CAMPOS = [
   { id: 'pac_telefono', grupo: 'Paciente', label: 'Teléfono', en: 'paciente', clave: 'telefono', vars: ['paciente_telefono'] },
   { id: 'pac_correo', grupo: 'Paciente', label: 'Correo', en: 'paciente', clave: 'correo', vars: ['paciente_correo'], tipo: 'email' },
   { id: 'pac_eps', grupo: 'Paciente', label: 'EPS', en: 'paciente', clave: 'eps', vars: ['paciente_eps'] },
-  { id: 'pac_nacimiento', grupo: 'Paciente', label: 'Fecha de nacimiento', en: 'paciente', clave: 'fecha_nacimiento', vars: ['paciente_edad'], tipo: 'date' },
+  // Edad en años, escrita en el préstamo (no la fecha de nacimiento). Si no se escribe y el
+  // paciente tiene fecha de nacimiento, se calcula de ahí
+  { id: 'pac_edad', grupo: 'Paciente', label: 'Edad (años)', en: 'acta', clave: 'edad', vars: ['paciente_edad'], tipo: 'number', paciente: true, respaldo: p => edadDe(p.fecha_nacimiento) },
   { id: 'diagnostico', grupo: 'Paciente', label: 'Diagnóstico (Dx)', en: 'orden', clave: 'diagnostico', vars: ['diagnostico'], ancho: true },
   { id: 'rec_nombre', grupo: 'Quien recibe', label: 'Nombre', en: 'acta', clave: 'recibe.nombre', vars: ['recibe_nombre', 'responsable_nombre'], siRecibeOtro: true },
   { id: 'rec_documento', grupo: 'Quien recibe', label: 'Documento', en: 'acta', clave: 'recibe.documento', vars: ['recibe_documento', 'responsable_documento'], siRecibeOtro: true },
   { id: 'rec_parentesco', grupo: 'Quien recibe', label: 'Parentesco', en: 'acta', clave: 'recibe.parentesco', vars: ['recibe_parentesco'], siRecibeOtro: true },
-  { id: 'rec_telefono', grupo: 'Quien recibe', label: 'Teléfono', en: 'acta', clave: 'recibe.telefono', vars: ['recibe_telefono'], respaldo: 'telefono' },
-  { id: 'rec_correo', grupo: 'Quien recibe', label: 'Correo', en: 'acta', clave: 'recibe.correo', vars: ['recibe_correo'], tipo: 'email' },
+  { id: 'rec_telefono', grupo: 'Quien recibe', label: 'Teléfono', en: 'acta', clave: 'recibe.telefono', vars: ['recibe_telefono'], respaldo: 'telefono', siPaciente: true },
+  { id: 'rec_correo', grupo: 'Quien recibe', label: 'Correo', en: 'acta', clave: 'recibe.correo', vars: ['recibe_correo'], tipo: 'email', respaldo: 'correo', siPaciente: true },
   { id: 'ciudad', grupo: 'Entrega', label: 'Ciudad de la entrega', en: 'acta', clave: 'ciudad', vars: ['ciudad'], respaldo: 'ciudad' },
   { id: 'observaciones', grupo: 'Entrega', label: 'Observaciones (estado del equipo)', en: 'acta', clave: 'observaciones', vars: ['observaciones'], ancho: true },
 ]
@@ -69,7 +75,7 @@ const usaInsumos = plantillas => (plantillas || []).some(p =>
 // (variables que el sistema no conoce, p. ej. {{numero_contrato}} de una plantilla importada)
 export function camposPedidos(plantillas, { conPaciente = true } = {}) {
   const usadas = variablesUsadas(plantillas)
-  const campos = CAMPOS.filter(c => (conPaciente || c.en !== 'paciente') && c.vars.some(v => usadas.has(v)))
+  const campos = CAMPOS.filter(c => (conPaciente || !dePaciente(c)) && c.vars.some(v => usadas.has(v)))
   const etiquetas = Object.assign({}, ...(plantillas || []).map(p => propiosDe(p.bloques)))
   const extra = [...usadas].filter(v => !CONOCIDAS.has(v)).map(v => ({
     id: `extra_${v}`, grupo: 'Otros datos', label: etiquetas[v] || etiquetaExtra(v), en: 'acta', clave: `extra.${v}`, vars: [v],
@@ -77,19 +83,24 @@ export function camposPedidos(plantillas, { conPaciente = true } = {}) {
   return { campos: [...campos, ...extra], insumos: usaInsumos(plantillas) }
 }
 
+const dePaciente = c => c.en === 'paciente' || !!c.paciente
+
 // numero_contrato → "Número contrato"
 const etiquetaExtra = v => {
   const t = v.replace(/_/g, ' ').trim()
   return t.charAt(0).toUpperCase() + t.slice(1)
 }
 
-// Valor de un campo dentro de { paciente, diagnostico, acta }. Teléfono de quien
-// recibe y ciudad toman el del paciente si no se escribió otro (igual que contexto.js)
+// Valor de un campo dentro de { paciente, diagnostico, acta }. Ciudad y edad toman la del
+// paciente si no se escribió otra; teléfono y correo de quien recibe, solo si recibe el
+// mismo paciente (igual que contexto.js)
 export function valorCampo(c, { paciente = {}, diagnostico = '', acta = DATOS_ACTA_VACIO }) {
   if (c.en === 'paciente') return paciente[c.clave] || ''
   if (c.en === 'orden') return diagnostico || ''
   const [a, b] = c.clave.split('.')
-  return (b ? acta[a]?.[b] : acta[a]) || (c.respaldo ? paciente[c.respaldo] : '') || ''
+  const usaRespaldo = c.respaldo && (!c.siPaciente || acta.recibe?.esPaciente)
+  const respaldo = !usaRespaldo ? '' : typeof c.respaldo === 'function' ? c.respaldo(paciente || {}) : paciente?.[c.respaldo]
+  return (b ? acta[a]?.[b] : acta[a]) || respaldo || ''
 }
 
 // Copia de `acta` con el valor de un campo cambiado
@@ -145,7 +156,7 @@ export function camposDelFormato(plantilla, { conPaciente = true } = {}) {
       }
       if (DERIVADAS.has(v) || vistos.has(`v:${v}`)) continue
       const campo = CAMPO_DE[v] || null
-      if (campo && !conPaciente && campo.en === 'paciente') continue
+      if (campo && !conPaciente && dePaciente(campo)) continue
       // Un campo de CAMPOS que ya salió por otra variable (responsable / recibe) no se repite
       if (campo && out.some(x => x.campo?.id === campo.id)) continue
       vistos.add(`v:${v}`)

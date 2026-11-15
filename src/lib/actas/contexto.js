@@ -75,7 +75,9 @@ export function filaEquipo(eq) {
   }
 }
 
-function edad(fechaNacimiento, hoy) {
+// Edad en años a partir de la fecha de nacimiento (respaldo de {{paciente_edad}} cuando
+// no se escribió la edad en el préstamo: datos_acta.edad)
+export function edadDe(fechaNacimiento, hoy = new Date()) {
   if (!fechaNacimiento) return ''
   const n = new Date(fechaNacimiento)
   let e = hoy.getFullYear() - n.getFullYear()
@@ -90,9 +92,10 @@ function edad(fechaNacimiento, hoy) {
 export function construirContexto({ empresa = {}, orden = {}, equipos = [], retirados = [], datos = {}, firmas = {} }) {
   const p = orden.paciente || {}
   const c = orden.cliente || {}
-  // "Recibe el mismo paciente": nombre y documento salen del paciente
+  // "Recibe el mismo paciente": sus datos salen del paciente. Si no, solo lo escrito
+  // (quien recibe casi nunca es el paciente: su teléfono no sirve de respaldo)
   const r = datos.recibe?.esPaciente && p.nombre
-    ? { ...datos.recibe, nombre: p.nombre, documento: p.cedula, parentesco: '' }
+    ? { ...datos.recibe, nombre: p.nombre, documento: p.cedula, parentesco: '', telefono: datos.recibe.telefono || p.telefono, correo: datos.recibe.correo || p.correo }
     : datos.recibe || {}
   const en = datos.entrega || {}
   const f = datos.fecha ? new Date(datos.fecha) : new Date()
@@ -123,11 +126,12 @@ export function construirContexto({ empresa = {}, orden = {}, equipos = [], reti
     paciente_nombre: t(p.nombre), paciente_tipo_doc: tipoDoc, paciente_documento: t(p.cedula),
     paciente_direccion: t(p.direccion), paciente_barrio: t(p.barrio), paciente_ciudad: t(p.ciudad),
     paciente_telefono: t(p.telefono), paciente_correo: t(p.correo), paciente_eps: t(p.eps),
-    paciente_edad: edad(p.fecha_nacimiento, bog), diagnostico: t(orden.diagnostico),
+    // Edad escrita en el préstamo (antes {{edad}}, campo propio); si no, la de la fecha de nacimiento
+    paciente_edad: t(datos.edad) || t(datos.extra?.edad) || edadDe(p.fecha_nacimiento, bog), diagnostico: t(orden.diagnostico),
     doc_cc: tipoDoc === 'CC' ? 'X' : '', doc_ti: tipoDoc === 'TI' ? 'X' : '',
     doc_rc: tipoDoc === 'RC' ? 'X' : '', doc_ce: tipoDoc === 'CE' ? 'X' : '',
     recibe_nombre: t(r.nombre), recibe_documento: t(r.documento), recibe_parentesco: t(r.parentesco),
-    recibe_telefono: t(r.telefono || p.telefono), recibe_correo: t(r.correo),
+    recibe_telefono: t(r.telefono), recibe_correo: t(r.correo),
     responsable_nombre: esResponsable ? t(r.nombre) : '', responsable_documento: esResponsable ? t(r.documento) : '',
     entrega_nombre: t(en.nombre), entrega_cargo: t(en.cargo), entrega_tipo_doc: t(en.tipo_documento || 'CC'), entrega_documento: t(en.documento),
     ...variablesDeEquipos(filas),

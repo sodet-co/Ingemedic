@@ -60,6 +60,30 @@ Lo que está sin resolver, ordenado por prioridad.
 
 # Entradas
 
+## 2026-11-15 — Edad en número, quien recibe vacío y recarga solo de recargables
+**Qué se hizo:** `{{paciente_edad}}` ya no pide fecha de nacimiento: se escribe la
+edad en años (`datos_acta.edad`); si está vacía, se calcula de `pacientes.fecha_nacimiento`.
+Quien recibe arranca vacío (`esPaciente: false`) y el teléfono/correo del paciente
+solo se usan si se marca "Recibe el mismo paciente"; en cambio/recarga ya no se copia
+quien recibió el préstamo. En el cambio de equipo el motivo va primero y, con Recarga,
+los equipos que no se recargan no se pueden marcar (ni el que entra), y se valida al seguir.
+**Por qué:** antes el motivo iba después de elegir equipos y la recarga solo mostraba un
+aviso: se podía hacer la recarga de un equipo no recargable y quedaba en el acta.
+**Archivos:** `lib/actas/campos.js`, `lib/actas/contexto.js`, `lib/actas/plantillas-base.js`,
+`components/actas/FirmaActas.js`, `components/actas/LlenarFormatos.js`,
+`components/prestamos/AccionPrestamo.js`.
+Después: en el cambio, sin motivo no se muestran equipos; con Recarga solo salen los
+que se recargan (los demás se nombran abajo) y avisa si no hay recargables disponibles en
+inventario. La barra de abajo dice siempre qué falta para seguir ("Para seguir: …").
+Comodato Family: "Nombre del paciente que recibe el servicio" se deja como renglón en blanco
+(texto libre: puede que lo usen para quien recibió). No llenarlo solo hasta que lo pidan.
+**SQL:** 4 plantillas F-FAM-11 / recargas Family tenían la edad como variable rota
+`{{76}}` (una con "76" fijo): pasadas a `{{paciente_edad}}`, corrido y verificado
+(0 plantillas con `{{76}}`). Respaldo `plantillas_acta_bkp_20261115` sin borrar.
+**Pendiente:** 111 préstamos abiertos guardaron `recibe.esPaciente = true` (era el
+default): siguen marcados hasta que se desmarque a mano. Probar en la app un cambio
+con motivo Recarga sobre un préstamo con cilindro + concentrador.
+
 ## 2026-10-29 — Firma fija libre (mover y cambiar tamaño) y Configuración rediseñada
 **Qué se hizo:** la firma fija del editor ahora es un bloque `{ tipo: 'firma_libre', url, x, y, ancho }` (px de la hoja) que render.js dibuja encima de la hoja (`position:absolute` sobre el body, fuera de `.bloque`: no empuja el texto). Se pone con doble clic → Firma fija, **dibujándola o subiendo una imagen**, y queda en el punto tocado. Un clic sobre ella en la vista previa abre el marco (VistaActa → `FirmaMovil`): se arrastra, se agranda desde la esquina y se guarda con el **✓ flotante** (✕ la deja como estaba, papelera la quita). En la lista de bloques sale como "Firma fija" (cambiar imagen, ancho); no está en "Agregar bloque". La ventana de Configuración se rediseñó: dos columnas en PC (general | quién la usa), "Se usa para" con tarjetas e íconos, interruptores para Renovable / De Ingemedic / Uso general, clientes elegidos como etiquetas.
 **Archivos:** lib/actas/render.js, components/actas/{VistaActa,EditorPlantilla,ConfigPlantilla}.js

@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { X, Loader2, FileText, ChevronLeft } from 'lucide-react'
 import { createClient } from '@/lib/supabase'
 import { cargarParaFirma, guardarActas } from '@/lib/actas/firmar'
-import { construirContexto, paraPlantilla } from '@/lib/actas/contexto'
+import { construirContexto, paraPlantilla, edadDe } from '@/lib/actas/contexto'
 import VistaActa from '@/components/actas/VistaActa'
 import { EditorInsumos } from '@/components/actas/LlenarFormatos'
 import { leerDatosActa, camposPedidos } from '@/lib/actas/campos'
@@ -49,6 +49,7 @@ export default function FirmaActas({ ordenId, entregaId = null, titulo = 'Firmar
   const [recibe, setRecibe] = useState({ esPaciente: false, nombre: '', documento: '', parentesco: '', telefono: '', correo: '' })
   const [pac, setPac] = useState({})
   const [diagnostico, setDiagnostico] = useState('')
+  const [edad, setEdad] = useState('') // en años (datos_acta.edad), no la fecha de nacimiento
   const [ciudad, setCiudad] = useState('')
   const [observaciones, setObservaciones] = useState('')
   const [insumos, setInsumos] = useState([])
@@ -71,17 +72,18 @@ export default function FirmaActas({ ordenId, entregaId = null, titulo = 'Firmar
         if (cancelado) return
         const p = b.orden.paciente || {}
         setBase(b)
-        setPac({ tipo_documento: p.tipo_documento || 'CC', cedula: p.cedula || '', barrio: p.barrio || '', eps: p.eps || '', fecha_nacimiento: p.fecha_nacimiento || '' })
+        setPac({ tipo_documento: p.tipo_documento || 'CC', cedula: p.cedula || '', barrio: p.barrio || '', eps: p.eps || '' })
         setDiagnostico(b.orden.diagnostico || '')
         // Lo que se llenó al crear el préstamo (o al programar la acción)
         const d = leerDatosActa(datosIniciales || b.orden.datos_acta)
         setCiudad(d.ciudad || p.ciudad || '')
+        setEdad(d.edad || edadDe(p.fecha_nacimiento) || '')
         setObservaciones(d.observaciones || '')
         setInsumos(d.insumos)
         setExtra(d.extra)
         setOpcionales({ valores: d.valores, estados: d.estados, manuales: d.manuales })
-        setRecibe({ ...d.recibe, esPaciente: !!p.nombre && d.recibe.esPaciente !== false,
-          telefono: d.recibe.telefono || p.telefono || '', correo: d.recibe.correo || p.correo || '' })
+        // Quien recibe arranca vacío salvo que ya se haya marcado que es el mismo paciente
+        setRecibe({ ...d.recibe, esPaciente: !!p.nombre && d.recibe.esPaciente === true })
         setEntrega({ nombre: b.usuario.nombre || '', cargo: b.usuario.cargo || '', tipo_documento: b.usuario.tipo_documento || 'CC', documento: b.usuario.cedula || '' })
         setEditarEntrega(!(b.usuario.nombre && b.usuario.cargo && b.usuario.cedula))
       })
@@ -92,7 +94,7 @@ export default function FirmaActas({ ordenId, entregaId = null, titulo = 'Firmar
 
   const paciente = base?.orden.paciente
   const datosRecibe = useMemo(() => recibe.esPaciente && paciente
-    ? { ...recibe, nombre: paciente.nombre, documento: pac.cedula, parentesco: '' }
+    ? { ...recibe, nombre: paciente.nombre, documento: pac.cedula, parentesco: '', telefono: recibe.telefono || paciente.telefono || '', correo: recibe.correo || paciente.correo || '' }
     : recibe, [recibe, paciente, pac.cedula])
   // Nombre, documento o parentesco de otra persona: deja de ser el paciente
   const cambiarRecibe = (k, v) => setRecibe(r => r.esPaciente && paciente
@@ -104,9 +106,9 @@ export default function FirmaActas({ ordenId, entregaId = null, titulo = 'Firmar
     empresa: base.empresa,
     orden: { ...base.orden, diagnostico, paciente: paciente ? { ...paciente, ...pac, ciudad } : null },
     equipos: equiposActa || base.equipos, retirados,
-    datos: { ciudad, observaciones, recibe: datosRecibe, entrega, insumos, extra, ...opcionales, motivo: datosIniciales?.motivo },
+    datos: { ciudad, edad, observaciones, recibe: datosRecibe, entrega, insumos, extra, ...opcionales, motivo: datosIniciales?.motivo },
     firmas,
-  }), [base, paciente, pac, diagnostico, ciudad, observaciones, datosRecibe, entrega, insumos, extra, opcionales, firmas, equiposActa, retirados, datosIniciales])
+  }), [base, paciente, pac, diagnostico, ciudad, edad, observaciones, datosRecibe, entrega, insumos, extra, opcionales, firmas, equiposActa, retirados, datosIniciales])
 
   const plantillas = useMemo(() => base?.plantillas || [], [base])
   const pedidos = useMemo(() => camposPedidos(plantillas), [plantillas])
@@ -152,7 +154,7 @@ export default function FirmaActas({ ordenId, entregaId = null, titulo = 'Firmar
     }
     // Diagnóstico y datos de los formatos quedan en el préstamo, como se firmaron
     // (en otra acción, los datos se guardan con la acción: alFirmar → datosActa)
-    const datosActa = { recibe, ciudad, observaciones, insumos: insumos.filter(i => i.descripcion?.trim()), extra, ...opcionales, motivo: datosIniciales?.motivo }
+    const datosActa = { recibe, ciudad, edad, observaciones, insumos: insumos.filter(i => i.descripcion?.trim()), extra, ...opcionales, motivo: datosIniciales?.motivo }
     await supabase.from('ordenes_servicio').update(accion === 'prestamo'
       ? { diagnostico: diagnostico || null, datos_acta: datosActa }
       : { diagnostico: diagnostico || null }).eq('id', ordenId)
@@ -226,9 +228,9 @@ export default function FirmaActas({ ordenId, entregaId = null, titulo = 'Firmar
                   <div><label className={labelCls}>Parentesco con el paciente</label>
                     <input value={datosRecibe.parentesco || ''} placeholder="Hijo, esposa, cuidador…" onChange={e => cambiarRecibe('parentesco', e.target.value)} className={inputCls} /></div>
                   <div><label className={labelCls}>Teléfono</label>
-                    <input value={recibe.telefono} inputMode="tel" onChange={e => setRecibe(r => ({ ...r, telefono: e.target.value }))} className={inputCls} /></div>
+                    <input value={datosRecibe.telefono || ''} inputMode="tel" onChange={e => setRecibe(r => ({ ...r, telefono: e.target.value }))} className={inputCls} /></div>
                   <div><label className={labelCls}>Correo</label>
-                    <input value={recibe.correo} type="email" onChange={e => setRecibe(r => ({ ...r, correo: e.target.value }))} className={inputCls} /></div>
+                    <input value={datosRecibe.correo || ''} type="email" onChange={e => setRecibe(r => ({ ...r, correo: e.target.value }))} className={inputCls} /></div>
                 </div>
               </section>
 
@@ -243,8 +245,8 @@ export default function FirmaActas({ ordenId, entregaId = null, titulo = 'Firmar
                       </select></div>
                     <div><label className={labelCls}>Número</label>
                       <input value={pac.cedula} inputMode="numeric" onChange={e => setPac(p => ({ ...p, cedula: e.target.value.replace(/[^0-9]/g, '') }))} className={inputCls} /></div>
-                    <div><label className={labelCls}>Fecha de nacimiento</label>
-                      <input type="date" value={pac.fecha_nacimiento} onChange={e => setPac(p => ({ ...p, fecha_nacimiento: e.target.value }))} className={inputCls} /></div>
+                    <div><label className={labelCls}>Edad (años)</label>
+                      <input value={edad} inputMode="numeric" onChange={e => setEdad(e.target.value.replace(/[^0-9]/g, '').slice(0, 3))} className={inputCls} /></div>
                     <div><label className={labelCls}>EPS</label>
                       <input value={pac.eps} onChange={e => setPac(p => ({ ...p, eps: e.target.value }))} className={inputCls} /></div>
                     <div><label className={labelCls}>Barrio</label>

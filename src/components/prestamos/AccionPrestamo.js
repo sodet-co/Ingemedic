@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useMemo, useState } from 'react'
-import { Check, ChevronLeft, Truck, Store, FileText, Eye, AlertCircle, ArrowRight, Loader2, Package, PenLine, RefreshCw } from 'lucide-react'
+import { Check, ChevronLeft, Truck, Store, FileText, Eye, AlertCircle, ArrowRight, Loader2, PenLine, RefreshCw } from 'lucide-react'
 import { createClient } from '@/lib/supabase'
 import { registrarBitacora } from '@/lib/bitacora'
 import { hoyBogota, formatear, formatearSoloFecha, paraGuardar } from '@/lib/fechas'
@@ -39,6 +39,8 @@ const PASOS_OFICINA = ['Cómo', 'Equipos']
 const MOTIVOS = [['recarga', 'Recarga'], ['falla', 'Falla o daño'], ['otro', 'Otro']]
 const nombreEquipo = eq => eq?.tipo_equipo?.atributos?.nombre || eq?.tipo_equipo?.nombre || 'Equipo'
 const serie = eq => eq?.atributos?.serie
+// En una recarga solo se pueden elegir los equipos que se recargan (Configuración → Tipos → "Se recarga")
+const seRecargaEq = eq => seRecarga(eq?.tipo_equipo)
 
 function Campo({ label, requerido, error, children, className = '' }) {
   return (
@@ -75,7 +77,8 @@ export default function AccionPrestamo({ orden, accion: accionPedida, preselecci
 
   const [sel, setSel] = useState(() => {
     const libres = activos.filter(oe => !ocupados.has(oe.id)).map(oe => oe.id)
-    const pre = preseleccion.filter(id => libres.includes(id))
+    const pre = preseleccion.filter(id => libres.includes(id)
+      && (accionPedida !== 'recarga' || seRecargaEq(activos.find(oe => oe.id === id)?.equipo)))
     if (pre.length) return pre
     return accion === 'cambio' ? [] : libres
   })
@@ -87,6 +90,7 @@ export default function AccionPrestamo({ orden, accion: accionPedida, preselecci
   const [repartidor, setRepartidor] = useState('')
   const [motivoTipo, setMotivoTipo] = useState(accionPedida === 'recarga' ? 'recarga' : '')
   const [motivoDetalle, setMotivoDetalle] = useState('')
+  const [quitados, setQuitados] = useState([])        // equipos que se desmarcaron al elegir Recarga
   const PASOS = modo === 'domicilio' ? PASOS_DOMICILIO : PASOS_OFICINA
   const esRecarga = accion === 'cambio' && motivoTipo === 'recarga'
   // Formatos: una recarga lleva el acta de cambio (para el préstamo) y la de recarga (para el equipo)
@@ -112,10 +116,11 @@ export default function AccionPrestamo({ orden, accion: accionPedida, preselecci
         if (cancelado) return
         setBase(b)
         const previo = leerDatosActa(b.orden.datos_acta)
-        // De lo que se llenó al prestar se conserva quién recibe y la ciudad; lo demás va en blanco
+        // De lo que se llenó al prestar solo se conservan la ciudad y la edad; quien recibe
+        // va en blanco (en cada visita puede recibir otra persona)
         setValores({
           paciente: { ...(b.orden.paciente || {}) }, diagnostico: b.orden.diagnostico || '',
-          acta: leerDatosActa({ recibe: previo.recibe, ciudad: previo.ciudad }),
+          acta: leerDatosActa({ ciudad: previo.ciudad, edad: previo.edad }),
         })
       })
       .catch(e => { if (!cancelado) setErrorCarga(e.message || 'No se pudo cargar el préstamo') })
@@ -166,11 +171,15 @@ export default function AccionPrestamo({ orden, accion: accionPedida, preselecci
         if (!fechaDomicilio) e.fecha = 'Elige la fecha y hora'
       }
     }
+    // Sin motivo no se ven los equipos: solo se pide el motivo
+    if (p === 1 && accion === 'cambio' && !motivoTipo) return { motivo: 'Elige el motivo' }
     if (p === 1) {
       if (!sel.length) e.equipos = 'Elige al menos un equipo'
       else if (accion === 'cambio' && seleccionados.some(oe => !nuevos[oe.id])) e.equipos = 'Elige el equipo que entra en cada cambio'
       if (accion === 'cambio' && !motivoTipo) e.motivo = 'Elige el motivo'
       if (accion === 'cambio' && motivoTipo === 'otro' && !motivoDetalle.trim()) e.motivo = 'Escribe el motivo'
+      if (esRecarga && seleccionados.some(oe => !seRecargaEq(oe.equipo))) e.equipos = 'Solo se pueden recargar los equipos que se recargan'
+      else if (esRecarga && seleccionados.some(oe => nuevos[oe.id] && !seRecargaEq(nuevos[oe.id]))) e.equipos = 'El equipo que entra en una recarga también debe ser de los que se recargan'
     }
     // A domicilio el repartidor firma con el paciente: necesita al menos un formato
     if (p === 2 && !elegidas.length) e.formatos = `Elige el formato de ${nombre.toLowerCase()}`
@@ -248,6 +257,45 @@ export default function AccionPrestamo({ orden, accion: accionPedida, preselecci
     if (!validarHasta(1)) return
     if (!elegidas.length) { setErrorGeneral(`Este cliente no tiene formatos de ${nombre.toLowerCase()}. Créalos en Configuración → Plantillas.`); return }
     setErrorGeneral(null); setFirmando(true)
+  }
+
+  // Motivo del cambio. Con Recarga solo salen (y quedan marcados) los equipos que se recargan
+  const hayRecargables = activos.some(oe => seRecargaEq(oe.equipo))
+  // En un cambio, sin motivo no se muestran equipos: el motivo decide cuáles aplican
+  const sinMotivo = accion === 'cambio' && !motivoTipo
+  const aptos = esRecarga ? activos.filter(oe => seRecargaEq(oe.equipo)) : activos
+  const noAptos = esRecarga ? activos.filter(oe => !seRecargaEq(oe.equipo)) : []
+  const hayRecargadosDisponibles = disponibles.some(seRecargaEq)
+
+  // Lo que falta para seguir en cada paso, dicho en orden: se muestra siempre en la barra
+  function pendientes(p) {
+    const l = []
+    if (p === 0) {
+      if (modo === 'oficina' && !fechaOficina) l.push('elige la fecha')
+      if (modo === 'domicilio' && !repartidor) l.push('elige el repartidor')
+      if (modo === 'domicilio' && !fechaDomicilio) l.push('elige la fecha y hora')
+    }
+    if (p === 1) {
+      if (accion === 'cambio' && !motivoTipo) return ['elige el motivo del cambio']
+      if (accion === 'cambio' && motivoTipo === 'otro' && !motivoDetalle.trim()) l.push('escribe el motivo')
+      if (esRecarga && !aptos.length) return ['ningún equipo de este préstamo se recarga: elige otro motivo']
+      if (!sel.length) l.push(accion === 'cambio' ? (esRecarga ? 'marca el equipo vacío que sale' : 'marca el equipo que sale') : 'marca los equipos que se recogen')
+      const sinNuevo = accion === 'cambio' ? seleccionados.filter(oe => !nuevos[oe.id]) : []
+      if (sinNuevo.length) l.push(`elige el equipo que entra por ${sinNuevo.map(oe => oe.equipo.codigo).join(', ')}`)
+    }
+    if (p === 2 && !elegidas.length) l.push(`elige el formato de ${nombre.toLowerCase()}`)
+    return l
+  }
+  const faltaAhora = base ? pendientes(paso) : []
+  function elegirMotivo(v) {
+    setMotivoTipo(v); setErrores({}); setQuitados([])
+    if (v !== 'recarga') return
+    const fuera = seleccionados.filter(oe => !seRecargaEq(oe.equipo))
+    if (!fuera.length) return
+    const ids = new Set(fuera.map(oe => oe.id))
+    setSel(l => l.filter(id => !ids.has(id)))
+    setNuevos(m => Object.fromEntries(Object.entries(m).filter(([k]) => !ids.has(k))))
+    setQuitados(fuera.map(oe => `${nombreEquipo(oe.equipo)} (${oe.equipo.codigo})`))
   }
 
   const ocupadoCls = 'opacity-50 pointer-events-none'
@@ -337,19 +385,61 @@ export default function AccionPrestamo({ orden, accion: accionPedida, preselecci
           {/* ── PASO 2: EQUIPOS (y en un cambio, el motivo) ── */}
           {paso === 1 && (
             <>
+              {/* El motivo va primero: con Recarga solo se pueden marcar los equipos que se recargan */}
+              {accion === 'cambio' && (
+                <section className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 md:p-6">
+                  <div className="text-[15px] font-bold text-slate-800 mb-1">Motivo del cambio <span className="text-[#D81B43]">*</span></div>
+                  <div className="text-[12.5px] text-slate-400 mb-3">Si es una recarga, se firman el acta de cambio de equipo y la de recarga, y el equipo que sale queda «Por recargar».</div>
+                  <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Motivo del cambio">
+                    {MOTIVOS.map(([v, l]) => {
+                      const bloqueado = v === 'recarga' && !hayRecargables
+                      return (
+                        <button key={v} type="button" role="radio" aria-checked={motivoTipo === v} disabled={bloqueado}
+                          title={bloqueado ? 'Ningún equipo de este préstamo se recarga' : undefined} onClick={() => elegirMotivo(v)}
+                          className={`flex items-center gap-2 px-4 h-10 rounded-full border-2 text-[13px] font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${motivoTipo === v ? 'border-[#D81B43] bg-[#D81B43]/[0.05] text-slate-800' : 'border-slate-200 text-slate-500 hover:border-slate-300'}`}>
+                          {v === 'recarga' && <RefreshCw size={14} className={motivoTipo === v ? 'text-[#D81B43]' : ''} />} {l}
+                        </button>
+                      )
+                    })}
+                  </div>
+                  {!hayRecargables && <div className="mt-2 text-[12px] text-slate-400">Ningún equipo de este préstamo se recarga (se marca en Configuración → Tipos → «Se recarga»).</div>}
+                  <div className="mt-3 max-w-[560px]">
+                    <input value={motivoDetalle} onChange={e => { setMotivoDetalle(e.target.value); setErrores({}) }}
+                      placeholder={motivoTipo === 'otro' ? 'Escribe el motivo' : 'Detalle (opcional). Ej.: falla en el regulador'} className={inputCls} />
+                  </div>
+                  {errores.motivo && <div className="text-[12px] text-[#D81B43] mt-2">{errores.motivo}</div>}
+                  {esRecarga && quitados.length > 0 && (
+                    <div className="mt-3 flex items-start gap-2 text-[12px] text-[#B45309]">
+                      <AlertCircle size={14} className="flex-shrink-0 mt-px" /> Se desmarcó {quitados.join(', ')}: no se recarga{quitados.length > 1 ? 'n' : ''}.
+                    </div>
+                  )}
+                </section>
+              )}
+
               <section className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 md:p-6">
                 <div className="text-[15px] font-bold text-slate-800 mb-1">
-                  {accion === 'devolucion' ? '¿Qué equipos se recogen?' : '¿Qué equipos se cambian?'}
+                  {accion === 'devolucion' ? '¿Qué equipos se recogen?' : esRecarga ? '¿Qué equipos se recargan?' : '¿Qué equipos se cambian?'}
                 </div>
-                <div className="text-[12.5px] text-slate-400 mb-4">
-                  {accion === 'cambio' ? `Marca el equipo que sale y luego elige el que entra en su lugar. ${esRecarga ? 'El que sale queda «Por recargar» hasta que lo marquen recargado en Inventario.' : 'El que sale vuelve a quedar disponible.'}` : 'Los equipos recogidos vuelven a quedar disponibles.'}
-                </div>
+                {!sinMotivo && (
+                  <div className="text-[12.5px] text-slate-400 mb-4">
+                    {accion === 'cambio' ? `Marca el equipo que sale y luego elige el que entra en su lugar. ${esRecarga ? 'Solo salen los equipos que se recargan. El que sale queda «Por recargar» hasta que lo marquen recargado en Inventario.' : 'El que sale vuelve a quedar disponible.'}` : 'Los equipos recogidos vuelven a quedar disponibles.'}
+                  </div>
+                )}
                 {errores.equipos && <div className="text-[12px] text-[#D81B43] mb-3">{errores.equipos}</div>}
-                {activos.length === 0 ? (
+                {esRecarga && aptos.length > 0 && !hayRecargadosDisponibles && (
+                  <div className="mb-3 flex items-start gap-2 px-3 py-2.5 rounded-[10px] bg-amber-50 border border-amber-200 text-[12.5px] text-[#B45309]">
+                    <AlertCircle size={14} className="flex-shrink-0 mt-px" /> No hay equipos recargables disponibles en el inventario para dejarle al paciente. Marca uno como recargado en Inventario.
+                  </div>
+                )}
+                {sinMotivo ? (
+                  <div className="py-8 text-center text-[13px] text-slate-400">Elige primero el motivo: según el motivo se muestran los equipos que se pueden cambiar.</div>
+                ) : activos.length === 0 ? (
                   <div className="py-8 text-center text-[13px] text-slate-400">Este préstamo no tiene equipos activos.</div>
+                ) : aptos.length === 0 ? (
+                  <div className="py-8 text-center text-[13px] text-slate-400">Ningún equipo de este préstamo se recarga. Elige otro motivo, o márcalo en Configuración → Tipos → «Se recarga».</div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
-                    {activos.map(oe => {
+                    {aptos.map(oe => {
                       const marcado = sel.includes(oe.id)
                       const ocupado = ocupados.get(oe.id)
                       const nuevo = nuevos[oe.id]
@@ -390,32 +480,12 @@ export default function AccionPrestamo({ orden, accion: accionPedida, preselecci
                     })}
                   </div>
                 )}
+                {!sinMotivo && noAptos.length > 0 && aptos.length > 0 && (
+                  <div className="mt-3 text-[12px] text-slate-400">
+                    No aparece{noAptos.length > 1 ? 'n' : ''} {noAptos.map(oe => `${nombreEquipo(oe.equipo)} (${oe.equipo.codigo})`).join(', ')}: no se recarga{noAptos.length > 1 ? 'n' : ''}. Para cambiarl{noAptos.length > 1 ? 'os' : 'o'}, elige otro motivo.
+                  </div>
+                )}
               </section>
-
-              {accion === 'cambio' && (
-                <section className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 md:p-6">
-                  <div className="text-[15px] font-bold text-slate-800 mb-1">Motivo del cambio <span className="text-[#D81B43]">*</span></div>
-                  <div className="text-[12.5px] text-slate-400 mb-3">Si es una recarga, se firman el acta de cambio de equipo y la de recarga, y el equipo que sale queda «Por recargar».</div>
-                  <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Motivo del cambio">
-                    {MOTIVOS.map(([v, l]) => (
-                      <button key={v} type="button" role="radio" aria-checked={motivoTipo === v} onClick={() => { setMotivoTipo(v); setErrores({}) }}
-                        className={`flex items-center gap-2 px-4 h-10 rounded-full border-2 text-[13px] font-semibold transition-colors ${motivoTipo === v ? 'border-[#D81B43] bg-[#D81B43]/[0.05] text-slate-800' : 'border-slate-200 text-slate-500 hover:border-slate-300'}`}>
-                        {v === 'recarga' && <RefreshCw size={14} className={motivoTipo === v ? 'text-[#D81B43]' : ''} />} {l}
-                      </button>
-                    ))}
-                  </div>
-                  <div className="mt-3 max-w-[560px]">
-                    <input value={motivoDetalle} onChange={e => { setMotivoDetalle(e.target.value); setErrores({}) }}
-                      placeholder={motivoTipo === 'otro' ? 'Escribe el motivo' : 'Detalle (opcional). Ej.: falla en el regulador'} className={inputCls} />
-                  </div>
-                  {errores.motivo && <div className="text-[12px] text-[#D81B43] mt-2">{errores.motivo}</div>}
-                  {esRecarga && seleccionados.some(oe => !seRecarga(oe.equipo.tipo_equipo)) && (
-                    <div className="mt-3 flex items-start gap-2 text-[12px] text-[#B45309]">
-                      <AlertCircle size={14} className="flex-shrink-0 mt-px" /> Algún equipo marcado no es de los que se recargan (Configuración → Tipos → &quot;Se recarga&quot;).
-                    </div>
-                  )}
-                </section>
-              )}
 
               {modo === 'oficina' && (
                 <div className="flex items-start gap-2 px-4 py-3 rounded-xl bg-[#1B3A6B]/[0.04] border border-[#1B3A6B]/10 text-[12.5px] text-slate-600">
@@ -492,7 +562,21 @@ export default function AccionPrestamo({ orden, accion: accionPedida, preselecci
       {/* Barra de acciones */}
       <div className="flex-shrink-0 bg-white border-t border-slate-200 px-3 md:px-6 py-3">
         <div className="max-w-[1100px] mx-auto flex items-center gap-2 flex-wrap">
-          {paso === 1 && sel.length > 0 && <div className="text-[12.5px] text-slate-500"><Package size={13} className="inline -mt-0.5" /> {sel.length} equipo{sel.length !== 1 ? 's' : ''}</div>}
+          {/* Qué falta para seguir (o que ya se puede) */}
+          <div className="min-w-0 flex-1 text-[12.5px]">
+            {faltaAhora.length > 0 ? (
+              <span className="flex items-start gap-1.5 text-[#B45309]">
+                <AlertCircle size={14} className="flex-shrink-0 mt-px" />
+                <span>Para seguir: {faltaAhora.join(' · ')}</span>
+              </span>
+            ) : base && (
+              <span className="flex items-center gap-1.5 text-[#0F7B55]">
+                <Check size={14} className="flex-shrink-0" />
+                {paso === 1 && sel.length > 0 ? `${sel.length} equipo${sel.length !== 1 ? 's' : ''} · ` : ''}
+                {paso < PASOS.length - 1 ? 'Puedes seguir' : 'Listo'}
+              </span>
+            )}
+          </div>
           <div className="ml-auto flex gap-2 flex-shrink-0 flex-wrap justify-end">
             {paso > 0 && <button onClick={() => irA(paso - 1)} disabled={guardando} className={ui.btnSecundario}>Atrás</button>}
             {paso < PASOS.length - 1 ? (
@@ -516,7 +600,7 @@ export default function AccionPrestamo({ orden, accion: accionPedida, preselecci
       {eligiendo && (
         <ModalCambioEquipo soloElegir
           equipoActual={eligiendo.equipo}
-          disponibles={disponibles.filter(eq => eq.id !== eligiendo.equipo_id && !Object.entries(nuevos).some(([k, n]) => k !== eligiendo.id && n.id === eq.id))}
+          disponibles={disponibles.filter(eq => eq.id !== eligiendo.equipo_id && (!esRecarga || seRecargaEq(eq)) && !Object.entries(nuevos).some(([k, n]) => k !== eligiendo.id && n.id === eq.id))}
           categorias={categorias} tiposEquipo={tiposEquipo}
           onConfirmar={({ equipoNuevo }) => { setNuevos(n => ({ ...n, [eligiendo.id]: equipoNuevo })); setEligiendo(null); setErrores({}) }}
           onCancelar={() => setEligiendo(null)} />
