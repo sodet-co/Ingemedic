@@ -52,7 +52,7 @@ export default function RenovarActa({ acta, ordenId, supabase, onCerrar, onHecho
           <div>
             <label className={ui.label}>Fecha de la renovación</label>
             <input type="date" value={fecha} onChange={e => setFecha(e.target.value)} className={ui.input} />
-            <p className={ui.ayudaCampo}>Se mantiene la firma del acta original.</p>
+            <p className={ui.ayudaCampo}>{acta.firma_recibe ? 'Se mantiene la firma del acta original.' : 'Esta acta aún no tiene firma: la renovación queda sin firma.'}</p>
           </div>
           {editables.length > 0 && (
             <div>

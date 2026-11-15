@@ -39,7 +39,8 @@ export default function ActasPrestamo({ ordenId, ordenCodigo, onToast, onCambio,
   const [guardando, setGuardando] = useState(false)
   const [firmando, setFirmando] = useState(null) // { visita, plantillas, tieneActa }
   const [renovables, setRenovables] = useState(new Set()) // plantillas marcadas Renovable (hoy)
-  const [renovando, setRenovando] = useState(null)     // acta firmada que se renueva
+  const [renovando, setRenovando] = useState(null)     // acta que se renueva
+  const [firmandoPrestamo, setFirmandoPrestamo] = useState(false) // firmar después las actas del préstamo
 
   const cargar = useCallback(async () => {
     const [{ data: guardadas }, { data: orden }, { data: hechas }] = await Promise.all([
@@ -186,6 +187,9 @@ export default function ActasPrestamo({ ordenId, ordenCodigo, onToast, onCambio,
                   {g.clave === 'prestamo' && !g.guardadas && base && (
                     <button type="button" onClick={abrirEditar} className="inline-flex items-center gap-1 text-[12.5px] font-semibold text-[#1B3A6B] hover:underline"><PencilLine size={13} /> Llenar datos</button>
                   )}
+                  {g.clave === 'prestamo' && !g.guardadas && base && formatos.length > 0 && (
+                    <button type="button" onClick={() => setFirmandoPrestamo(true)} className="inline-flex items-center gap-1 text-[12.5px] font-semibold text-[#D81B43] hover:underline"><PenLine size={13} /> Firmar</button>
+                  )}
                   {g.visita && !firmada && g.plantillas.length > 0 && (
                     <button type="button" onClick={() => setFirmando({ visita: g.visita, plantillas: g.plantillas, tieneActa: g.guardadas })}
                       className="inline-flex items-center gap-1 text-[12.5px] font-semibold text-[#D81B43] hover:underline"><PenLine size={13} /> Firmar</button>
@@ -211,11 +215,10 @@ export default function ActasPrestamo({ ordenId, ordenCodigo, onToast, onCambio,
                               ? <span className="inline-flex items-center gap-1 text-[11.5px] font-semibold text-[#0F7B55]"><CheckCircle2 size={12} /> Firmada{f.fecha_firma ? ` · ${formatear(f.fecha_firma, { year: undefined })}` : ''}</span>
                               : <span className="text-[11.5px] font-semibold text-[#B45309]">Sin firmas</span>}
                             {renovable && <span className="px-2 py-px rounded-full bg-[#F5F3FF] text-[11px] font-semibold text-[#6D28D9]">Renovable</span>}
-                            {renovable && !f.firma_recibe && <span className="text-[11.5px] text-slate-400">· fírmala para poder renovarla</span>}
                           </div>
                         </div>
                         <div className="flex items-center gap-1 flex-shrink-0">
-                          {renovable && f.firma_recibe && g.guardadas && (
+                          {renovable && (
                             <button type="button" onClick={() => setRenovando(suyas.length ? suyas[suyas.length - 1] : f)}
                               className="inline-flex items-center gap-1.5 h-8 px-3 rounded-[8px] bg-[#6D28D9] text-white text-[12.5px] font-semibold hover:bg-[#5B21B6]">
                               <RefreshCw size={13} /> Renovar
@@ -280,6 +283,11 @@ export default function ActasPrestamo({ ordenId, ordenCodigo, onToast, onCambio,
                       <PencilLine size={12} /> Llenar datos
                     </button>
                   )}
+                  {g.clave === 'prestamo' && !g.guardadas && base && formatos.length > 0 && (
+                    <button type="button" onClick={() => setFirmandoPrestamo(true)} className="inline-flex items-center gap-1 text-[12px] font-semibold text-[#D81B43] hover:underline">
+                      <PenLine size={12} /> Firmar
+                    </button>
+                  )}
                   {g.visita && !firmada && g.plantillas.length > 0 && (
                     <button type="button" onClick={() => setFirmando({ visita: g.visita, plantillas: g.plantillas, tieneActa: g.guardadas })}
                       className="inline-flex items-center gap-1 text-[12px] font-semibold text-[#D81B43] hover:underline">
@@ -300,7 +308,7 @@ export default function ActasPrestamo({ ordenId, ordenCodigo, onToast, onCambio,
                     {f.detalle && <span className="text-[11.5px] text-slate-400 flex-shrink-0">· {f.detalle}</span>}
                   </button>
                   {/* Firmada y de una plantilla renovable: se renueva con fecha nueva y la misma firma */}
-                  {f.firma_recibe && g.guardadas && (esRenovable(f.bloques) || renovables.has(f.plantilla_id)) && (
+                  {esDeRenovable(f) && (
                     <button type="button" onClick={() => setRenovando(f)}
                       className="inline-flex items-center gap-1 text-[12px] font-semibold text-[#6D28D9] hover:underline flex-shrink-0">
                       <RefreshCw size={12} /> Renovar
@@ -339,6 +347,12 @@ export default function ActasPrestamo({ ordenId, ordenCodigo, onToast, onCambio,
             onDiagnostico={v => setEditar(x => ({ ...x, diagnostico: v }))}
             onActa={v => setEditar(x => ({ ...x, acta: v }))} />
         </VentanaLlenarFormatos>
+      )}
+      {/* Préstamo entregado sin firmar sus formatos: se firman ahora (las del préstamo, sin visita) */}
+      {firmandoPrestamo && (
+        <FirmaActas ordenId={ordenId} accion="prestamo" plantillaIds={formatos.map(p => p.id)} titulo="Firmar · Préstamo"
+          onCancelar={() => setFirmandoPrestamo(false)}
+          onHecho={() => { setFirmandoPrestamo(false); onToast?.('Actas firmadas'); cargar(); onCambio?.() }} />
       )}
       {renovando && (
         <RenovarActa acta={renovando} ordenId={ordenId} supabase={supabase} onCerrar={() => setRenovando(null)}

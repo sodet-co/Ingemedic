@@ -17,14 +17,17 @@ export function variablesDeFecha(iso) {
 // Las {{variables}} que usa el acta, en el orden en que aparecen
 export const variablesDelActa = bloques => [...new Set([...JSON.stringify(bloques || []).matchAll(/\{\{\s*([a-z0-9_]+)\s*\}\}/gi)].map(m => m[1]))]
 
-// El acta de la que sale una renovación (la primera firmada, no otra renovación)
+// El acta de la que sale una renovación (la primera, no otra renovación). Un formato aún
+// sin firmar no está guardado (id 'p-<plantilla>'): sus renovaciones van con ese id
 export const actaRaiz = acta => acta?.datos?.renovacion?.de || acta?.id
 
 // Guarda la renovación. acta: la fila de `actas` que se renueva; fecha: 'AAAA-MM-DD';
 // cambios: { variable: valor } escrito en la ventana (fecha incluida).
 export async function renovarActa(supabase, { acta, ordenId, fecha, cambios }) {
   const { data: { user } } = await supabase.auth.getUser()
-  const d = acta.datos || {}
+  // Solo lo del acta (un formato aún sin firmar trae el contexto completo del préstamo)
+  const { variables, equipos, insumos, retirados, manuales } = acta.datos || {}
+  const d = { variables, equipos, insumos, retirados, manuales }
   const fila = {
     orden_id: ordenId,
     // Sin visita: si no, el PDF de esa entrega (Entregas) traería las renovaciones; de
@@ -35,8 +38,9 @@ export async function renovarActa(supabase, { acta, ordenId, fecha, cambios }) {
     nombre: acta.nombre,
     bloques: acta.bloques,
     datos: { ...d, variables: { ...(d.variables || {}), ...variablesDeFecha(fecha), ...cambios }, renovacion: { de: actaRaiz(acta), fecha, entrega_id: acta.entrega_id || null } },
-    firma_recibe: acta.firma_recibe,
-    firma_entrega: acta.firma_entrega,
+    // La misma firma; si el acta aún no tenía, la renovación también queda sin firma
+    firma_recibe: acta.firma_recibe || null,
+    firma_entrega: acta.firma_entrega || null,
     creado_por: user?.id || null,
   }
   const { data, error } = await supabase.from('actas').insert(fila).select('id').single()

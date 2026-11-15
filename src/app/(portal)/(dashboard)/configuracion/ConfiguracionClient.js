@@ -1088,7 +1088,8 @@ export default function ConfiguracionClient({
                         const cat = grupoActivo.categoria
                         const camposTipo = cat?.atributos_extra?.campos_tipo || []
                         const expanded = tipoExpandido === t.id
-                        const nombre = t.atributos?.nombre || t.nombre || '—'
+                        // Grande el nombre del tipo; debajo, el de sus atributos si es otro (igual que Inventario)
+                        const nombre = t.nombre || t.atributos?.nombre || '—'
                         const tieneIcono   = t.imagen_url?.startsWith('icono:')
                         const tieneImagen  = t.imagen_url && !tieneIcono
                         const iconoClave   = tieneIcono ? t.imagen_url.replace('icono:', '') : null
@@ -1110,7 +1111,7 @@ export default function ConfiguracionClient({
                               </div>
                               <div className="flex-1 min-w-0">
                                 <div className="text-[13.5px] font-bold text-slate-700 truncate">{nombre}</div>
-                                {t.nombre && t.nombre !== nombre && <div className="text-[11.5px] text-slate-500 truncate">{t.nombre}</div>}
+                                {t.atributos?.nombre && t.atributos.nombre !== nombre && <div className="text-[11.5px] text-slate-500 truncate">{t.atributos.nombre}</div>}
                                 <div className="text-[11px] mt-0.5 truncate">
                                   {t.lista
                                     ? <span className="font-semibold text-[#0F7B55]">✓ {t.lista.nombre}</span>
