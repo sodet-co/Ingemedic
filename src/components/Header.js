@@ -34,7 +34,7 @@ function WhatsappIcon({ size = 18, className = '' }) {
 // y el botón de acceso ya ocupan casi todo el ancho.
 function PorSodet({ className = '' }) {
   return (
-    <a href="https://sodet.vercel.app" target="_blank" rel="noopener noreferrer"
+    <a href="https://sodet.co" target="_blank" rel="noopener noreferrer"
       aria-label="Desarrollado por Sodet"
       className={`group font-body items-center gap-2 rounded-full border border-[#E7DCF1] bg-[#FAF6FD] pl-1.5 pr-3 py-1 text-[12.5px] text-[#6B5A7B] hover:border-[#C9A9E0] hover:bg-[#F4EBFB] transition-colors ${className}`}>
       <Image src="/images/sodet-icono.png" alt="" width={22} height={22} className="rounded-md" />

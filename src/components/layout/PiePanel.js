@@ -15,7 +15,7 @@ export default function PiePanel() {
         Actualizado: {actualizado}
         <span className="mx-2 text-slate-300">·</span>
         Desarrollado por{' '}
-        <a href="https://sodet.vercel.app" target="_blank" rel="noopener noreferrer"
+        <a href="https://sodet.co" target="_blank" rel="noopener noreferrer"
           className="font-semibold text-slate-500 hover:text-[#D81B43] transition-colors">
           SODET
         </a>

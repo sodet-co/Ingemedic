@@ -90,7 +90,7 @@ export default function Footer() {
           © {new Date().getFullYear()} Ingemedic de Colombia S.A.S.{EMPRESA.nit ? ` · NIT ${EMPRESA.nit}` : ''} · Todos los derechos reservados
           <span className="block md:inline md:before:content-['·'] md:before:mx-2 mt-1.5 md:mt-0">
             Desarrollado por{' '}
-            <a href="https://sodet.vercel.app" target="_blank" rel="noopener noreferrer"
+            <a href="https://sodet.co" target="_blank" rel="noopener noreferrer"
               className="inline-flex items-center gap-1.5 align-middle font-medium text-white hover:text-[#1E9FC4] transition-colors">
               <Image src="/images/sodet-icono.png" alt="" width={18} height={18} className="rounded" />
               SODET

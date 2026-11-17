@@ -16,7 +16,7 @@ const geistMono = Geist_Mono({
 
 // Solo para el sitio público (Header, Footer, landing) — el admin sigue con
 // Geist (font-sans) sin cambios. Ver globals.css: font-display/font-body.
-// Poppins, igual que sodet.vercel.app: títulos en 500, cuerpo en 400, textos
+// Poppins, igual que sodet.co: títulos en 500, cuerpo en 400, textos
 // introductorios en 300. No se carga 700: el sitio no usa negrilla fuerte.
 const poppins = Poppins({
   variable: "--font-poppins",

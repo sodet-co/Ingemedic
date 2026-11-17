@@ -358,7 +358,7 @@ export default function LoginPage() {
 
         <p className="text-center text-[13px] text-slate-400">
           © {new Date().getFullYear()} Ingemedic de Colombia S.A.S. — Desarrollado por{' '}
-          <a href="https://sodet.vercel.app" target="_blank" rel="noopener noreferrer"
+          <a href="https://sodet.co" target="_blank" rel="noopener noreferrer"
             className="font-semibold text-slate-500 hover:text-[#1B3A6B] transition-colors">
             SODET
           </a>
