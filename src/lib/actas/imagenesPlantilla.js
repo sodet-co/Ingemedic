@@ -25,6 +25,10 @@ export async function subirImagenesImportadas(supabase, bloques, imagenes) {
     return urls[imagen] ? { ...resto, url: urls[imagen] } : resto
   }
   return bloques
-    .map(b => ({ ...poner(b), ...(b.logos ? { logos: b.logos.map(poner).filter(l => l.url) } : {}) }))
+    .map(b => ({
+      ...poner(b), ...(b.logos ? { logos: b.logos.map(poner).filter(l => l.url) } : {}),
+      // Logos dentro de las celdas de una tabla del Word (tabla_libre)
+      ...(b.filas ? { filas: b.filas.map(f => f.map(c => c.imagenes ? { ...c, imagenes: c.imagenes.map(poner).filter(i => i.url) } : c)) } : {}),
+    }))
     .filter(b => b.tipo !== 'imagen' || b.url)
 }

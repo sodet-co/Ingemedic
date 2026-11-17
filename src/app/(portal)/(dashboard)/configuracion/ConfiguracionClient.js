@@ -22,8 +22,8 @@ import { equiposDeTipos } from '@/lib/equipos'
 import ModalEliminarEquipos from '@/components/inventario/ModalEliminarEquipos'
 import PreviaActas from '@/components/actas/PreviaActas'
 import ConfigPlantilla from '@/components/actas/ConfigPlantilla'
-import { categoriasDe, esRenovable } from '@/lib/actas/contexto'
-import { ACCIONES, accionDe, seRecarga } from '@/lib/actas/acciones'
+import ListaPlantillas from '@/components/actas/ListaPlantillas'
+import { accionDe, seRecarga } from '@/lib/actas/acciones'
 import EditorPlantilla from '@/components/actas/EditorPlantilla'
 import NuevaPlantilla from '@/components/actas/NuevaPlantilla'
 import AccesoPortal from '@/components/clientes/AccesoPortal'
@@ -1328,54 +1328,8 @@ export default function ConfiguracionClient({
                   </div>
                   <button onClick={() => setNuevaPlantilla(true)} className={ui.btnPrimario}><Plus size={14} strokeWidth={2.5} /> Nueva plantilla</button>
                 </div>
-                {/* Una sección por acción: préstamo, devolución, recarga, cambio de equipo */}
-                <div className="space-y-7">
-                {Object.entries(ACCIONES).map(([accion, etiqueta]) => {
-                  const deAccion = plantillasActa.filter(p => accionDe(p) === accion)
-                  return (
-                  <section key={accion}>
-                    <div className="flex items-baseline gap-2 mb-2.5">
-                      <h3 className="text-[14px] font-bold text-slate-700">Plantillas de {etiqueta.toLowerCase()}</h3>
-                      <span className="text-[12px] text-slate-400">{deAccion.length}</span>
-                    </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-                  {deAccion.map(p => {
-                    const clientesP = (p.clientes || []).map(c => c.cliente?.nombre).filter(Boolean)
-                    return (
-                      <div key={p.id} className="bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col gap-2 px-4 py-3.5 hover:border-slate-300 transition-colors">
-                        <div className="flex items-start gap-3">
-                          <div className="w-8 h-8 rounded-[8px] bg-[#D81B43]/10 flex items-center justify-center flex-shrink-0"><FileText size={15} className="text-[#D81B43]" /></div>
-                          <div className="flex-1 min-w-0">
-                            <div className="text-[13.5px] font-semibold text-slate-700">{p.nombre}</div>
-                            {p.descripcion && <div className="text-[12px] text-slate-400 mt-0.5">{p.descripcion}</div>}
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2 flex-wrap">
-                          {p.es_estandar && <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-[#1B3A6B]/10 text-[#1B3A6B]">De Ingemedic</span>}
-                          {clientesP.map(n => <span key={n} className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-slate-100 text-slate-600">{n}</span>)}
-                          {p.tipo === 'anexo' && <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-700">Anexo opcional</span>}
-                          {p.uso_general && <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-[#0F7B55]/10 text-[#0F7B55]">Uso general</span>}
-                          {!p.uso_general && clientesP.length === 0 && <span className="text-[11px] text-slate-400">Sin cliente asignado</span>}
-                          {esRenovable(p.bloques) && <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-[#F5F3FF] text-[#6D28D9]">Renovable</span>}
-                          {categoriasDe(p.bloques).map(c => <span key={c.id || c.nombre} className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-[#E8F7FB] text-[#0E7490]">{c.nombre}</span>)}
-                        </div>
-                        <div className="flex items-center gap-2 pt-1">
-                          <button onClick={() => setAsignando(p)} className="flex-1 px-3 py-1.5 border border-slate-200 rounded-[7px] text-[12px] font-medium text-slate-600 hover:border-[#1B3A6B] hover:text-[#1B3A6B] transition-all">
-                            Configuración
-                          </button>
-                          <button onClick={() => setVistaActa(p)} className="flex-1 px-3 py-1.5 border border-slate-200 rounded-[7px] text-[12px] font-medium text-slate-600 hover:border-[#D81B43] hover:text-[#D81B43] transition-all">
-                            Previsualizar
-                          </button>
-                        </div>
-                      </div>
-                    )
-                  })}
-                  {deAccion.length === 0 && <div className="col-span-full rounded-xl border border-dashed border-slate-300 text-center py-6 text-[12.5px] text-slate-400">Aún no hay plantillas de {etiqueta.toLowerCase()}</div>}
-                </div>
-                  </section>
-                  )
-                })}
-                </div>
+                <ListaPlantillas plantillas={plantillasActa} onCambiar={setPlantillasActa} onToast={showToast}
+                  onConfigurar={setAsignando} onPrevisualizar={setVistaActa} />
               </div>
             )}
 
@@ -1842,19 +1796,19 @@ export default function ConfiguracionClient({
           onEditar={guardado => setEditorPlantilla({ plantilla: { ...asignando, ...guardado } })}
           onDesactivada={() => {
             registrarBitacora({ modulo: 'configuracion', accion: 'desactivar', entidad: 'plantilla de acta', entidad_id: asignando.id, detalle: { nombre: asignando.nombre } })
-            setPlantillasActa(l => l.filter(p => p.id !== asignando.id)); setAsignando(null); showToast('Plantilla desactivada')
+            setPlantillasActa(l => l.map(p => p.id === asignando.id ? { ...p, activo: false } : p)); setAsignando(null); showToast('Plantilla desactivada')
           }} />
       )}
 
       {nuevaPlantilla && (
-        <NuevaPlantilla plantillas={plantillasActa} onCerrar={() => setNuevaPlantilla(false)}
+        <NuevaPlantilla plantillas={plantillasActa.filter(p => p.activo !== false)} onCerrar={() => setNuevaPlantilla(false)}
           onListo={x => { setNuevaPlantilla(false); setEditorPlantilla(x) }} />
       )}
       {editorPlantilla && (
         <EditorPlantilla {...editorPlantilla} empresa={empresa} onCerrar={() => setEditorPlantilla(null)}
           onGuardado={(fila, nueva) => {
             setEditorPlantilla(null)
-            if (fila.activo === false) { setPlantillasActa(l => l.filter(p => p.id !== fila.id)); showToast('Plantilla desactivada'); return }
+            if (fila.activo === false) { setPlantillasActa(l => l.map(p => p.id === fila.id ? { ...p, activo: false } : p)); showToast('Plantilla desactivada'); return }
             setPlantillasActa(l => nueva ? [...l, { ...fila, clientes: [] }] : l.map(p => p.id === fila.id ? { ...p, ...fila, clientes: p.clientes } : p))
             // Una nueva sigue en su Configuración: a qué clientes va, equipos, renovable
             if (nueva) setAsignando({ ...fila, clientes: [] })

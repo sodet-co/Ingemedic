@@ -91,8 +91,8 @@ export default function ConfigPlantilla({ plantilla, clientes, onCerrar, onGuard
       const { error } = await supabase.from('cliente_plantillas_acta').insert(filas)
       if (error) return falla(error.message)
     }
-    if (estandar) {
-      // Solo una de Ingemedic por acción
+    if (estandar && plantilla.activo !== false) {
+      // Solo una de Ingemedic por acción (entre las activas)
       const { error } = await supabase.from('plantillas_acta').update({ es_estandar: false }).eq('accion', accion).neq('id', plantilla.id)
       if (error) return falla(error.message)
     }
@@ -114,10 +114,10 @@ export default function ConfigPlantilla({ plantilla, clientes, onCerrar, onGuard
 
   async function desactivar() {
     setGuardando(true)
-    const { error: err } = await supabase.from('plantillas_acta').update({ activo: false }).eq('id', plantilla.id)
-    if (!err) await supabase.from('cliente_plantillas_acta').delete().eq('plantilla_id', plantilla.id)
+    // Conserva sus clientes: al reactivarla (Configuración → Plantillas → Inactivas) vuelve como estaba
+    const { data, error: err } = await supabase.from('plantillas_acta').update({ activo: false }).eq('id', plantilla.id).select('id').maybeSingle()
     setGuardando(false); setConfirmarDesactivar(false)
-    if (err) { setError('No se desactivó: ' + err.message); return }
+    if (err || !data) { setError('No se desactivó: ' + (err?.message || 'sin permiso.')); return }
     onDesactivada()
   }
 
@@ -127,7 +127,7 @@ export default function ConfigPlantilla({ plantilla, clientes, onCerrar, onGuard
     <Modal onCerrar={onCerrar} icono={<Settings2 size={16} />} titulo="Configuración de la plantilla" subtitulo={plantilla.nombre}
       z="z-[60]" tamano="xl" bloqueado={guardando}
       pie={<>
-        {!plantilla.es_estandar && (
+        {!plantilla.es_estandar && plantilla.activo !== false && (
           <button onClick={() => setConfirmarDesactivar(true)} disabled={guardando}
             className="mr-auto inline-flex items-center gap-1.5 h-[38px] px-2.5 rounded-[9px] text-[13px] font-semibold text-[#D81B43] hover:bg-red-50">
             <Trash2 size={14} /> <span className="max-sm:hidden">Desactivar</span>
@@ -270,7 +270,7 @@ export default function ConfigPlantilla({ plantilla, clientes, onCerrar, onGuard
 
       {error && <div className="mt-4 px-3 py-2.5 bg-red-50 border border-red-200 rounded-[8px] text-[12.5px] text-red-700">{error}</div>}
 
-      <ConfirmDialog abierto={confirmarDesactivar} titulo="¿Desactivar esta plantilla?" mensaje="Deja de ofrecerse en los préstamos nuevos. Las actas firmadas no cambian."
+      <ConfirmDialog abierto={confirmarDesactivar} titulo="¿Desactivar esta plantilla?" mensaje="Deja de ofrecerse en los préstamos nuevos. Las actas firmadas no cambian y la puedes volver a activar."
         textoConfirmar="Desactivar" tipo="peligro" onConfirmar={desactivar} onCancelar={() => setConfirmarDesactivar(false)} />
     </Modal>
   )

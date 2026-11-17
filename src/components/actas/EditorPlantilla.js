@@ -5,7 +5,7 @@ import {
   PenLine, Image as IconoImagen, MoveVertical, PanelBottom, FileStack, Upload, Undo2, Redo2,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase'
-import { NOMBRES, aTexto, aVariables, mapearTextos, propiosDe, variableDe } from '@/lib/actas/nombres'
+import { NOMBRES, NOMBRE_FIRMA, aTexto, aVariables, mapearTextos, propiosDe, variableDe } from '@/lib/actas/nombres'
 import { contextoEjemplo } from '@/lib/actas/ejemplo'
 import { categoriasDe } from '@/lib/actas/contexto'
 import { COLUMNAS_ESTANDAR, columnasEstandar, ANCHO_PAGINA } from '@/lib/actas/render'
@@ -34,6 +34,8 @@ const TIPOS = {
   espacio: { label: 'Espacio', icono: MoveVertical, nuevo: () => ({ alto: 16 }) },
   pie: { label: 'Pie de página', icono: PanelBottom, nuevo: () => ({ texto: '' }) },
   salto_pagina: { label: 'Hoja nueva', icono: FileStack, nuevo: () => ({}) },
+  // Tabla de un Word, tal cual (importarWord.js → tablaLibre)
+  tabla_libre: { label: 'Tabla', icono: LayoutGrid, nuevo: () => ({ anchos: [50, 50], filas: [[{ texto: '' }, { texto: '' }], [{ texto: '' }, { texto: '' }]] }) },
   // Se pone con doble clic en la vista previa (Firma fija), no desde "Agregar bloque"
   firma_libre: { label: 'Firma fija', icono: PenLine, oculto: true },
 }
@@ -351,6 +353,38 @@ function FormBloque({ b, set, bi }) {
           )} />
       </div>
     )
+    // Tabla tal cual del Word: cada celda se edita aquí o con doble clic en la vista previa
+    case 'tabla_libre': {
+      const filas = b.filas || []
+      const setCelda = (ri, ci, c) => campo('filas', filas.map((f, r) => r !== ri ? f : f.map((x, k) => k === ci ? c : x)))
+      const nueva = () => (filas[filas.length - 1] || [{}]).map(c => ({ texto: '', ...(c.span ? { span: c.span } : {}) }))
+      return (
+        <div className="space-y-3">
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse table-fixed min-w-[420px]">
+              {b.anchos?.length > 0 && <colgroup>{b.anchos.map((a, i) => <col key={i} style={{ width: `${a}%` }} />)}</colgroup>}
+              <tbody>
+                {filas.map((f, ri) => (
+                  <tr key={ri}>
+                    {f.map((c, ci) => (
+                      <td key={ci} colSpan={c.span || 1} rowSpan={c.rowspan || 1} className="border border-slate-200 p-1 align-top">
+                        <CampoTexto multilinea filas={Math.min(4, Math.max(1, (c.texto || '').split('\n').length))} value={c.texto || ''}
+                          placeholder={c.imagenes?.length ? '(imagen)' : c.firma ? '(firma)' : ''} onChange={v => setCelda(ri, ci, { ...c, texto: v })} />
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="flex flex-wrap items-center gap-3 text-[12.5px] text-slate-600">
+            <button type="button" onClick={() => campo('filas', [...filas, nueva()])} className="inline-flex items-center gap-1 font-semibold text-[#1B3A6B]"><Plus size={13} /> Fila</button>
+            {filas.length > 1 && <button type="button" onClick={() => campo('filas', filas.slice(0, -1))} className="font-semibold text-slate-500 hover:text-[#D81B43]">Quitar última fila</button>}
+            <label className="flex items-center gap-1.5 cursor-pointer ml-auto"><input type="checkbox" checked={!b.sin_bordes} onChange={e => campo('sin_bordes', e.target.checked ? undefined : true)} /> Con bordes</label>
+          </div>
+        </div>
+      )
+    }
     case 'tabla': return b.agrupar === 'tipo_equipo' ? (
       <div className="space-y-3">
         <p className="px-3 py-2 rounded-[9px] bg-[#E8F7FB] text-[12.5px] text-[#0E7490]">Una fila por tipo de equipo del préstamo. Si van varios del mismo tipo, se suma la cantidad y sus seriales (y lo demás que cambie) van separados por comas.</p>
@@ -463,6 +497,7 @@ function resumen(b) {
     case 'imagen': return b.url ? 'Con imagen' : 'Sin imagen'
     case 'espacio': return `${b.alto || 16} px`
     case 'firma_libre': return 'Encima de la hoja'
+    case 'tabla_libre': return quitar((b.filas || []).flat().map(c => c.texto).filter(Boolean)[0]) || `${(b.filas || []).length} filas`
     default: return ''
   }
 }
@@ -588,6 +623,7 @@ export default function EditorPlantilla({ plantilla, inicial, empresa, avisos = 
       dato = `{{${variable}}}`
     } else if (eleccion.tipo === 'blanco') dato = '_'.repeat(ANCHOS[eleccion.ancho] || ANCHOS.medio)
     else if (eleccion.tipo === 'texto') dato = eleccion.texto.trim()
+    else if (eleccion.tipo === 'firma_aqui') dato = `[${NOMBRE_FIRMA[eleccion.rol] || NOMBRE_FIRMA.recibe}]`
     let antes = s.slice(0, o), despues = s.slice(o + (info.len || 0))
     // Uno nuevo en medio del texto: con espacios alrededor para que no quede pegado
     if (dato && !info.len) {
@@ -826,7 +862,9 @@ const TIPOS_ESPACIO = [
   { tipo: 'sis', titulo: 'Lo llena el sistema', detalle: 'Nombre del paciente, fecha, equipo…', color: 'bg-[#DBEAFE] ring-[#93C5FD]' },
   { tipo: 'libre', titulo: 'Se escribe al prestar', detalle: 'Se pide al llenar los datos del préstamo', color: 'bg-[#FEF3C7] ring-[#FCD34D]' },
   { tipo: 'blanco', titulo: 'En blanco', detalle: 'Raya para llenar a mano en el papel', color: 'bg-slate-100 ring-slate-400' },
+  { tipo: 'firma_aqui', titulo: 'Firma', detalle: 'Se firma aquí mismo, junto al texto', color: 'bg-[#EDE9FE] ring-[#C4B5FD]' },
 ]
+const FIRMA_DE = { recibe: 'Quien recibe', entrega: 'Quien entrega', responsable: 'Responsable del paciente' }
 // Lo que se agrega fijo en la plantilla (solo al poner algo nuevo, no al cambiar un espacio)
 const TIPOS_FIJOS = [
   { tipo: 'texto', titulo: 'Texto', detalle: 'Queda escrito en la plantilla', icono: Type },
@@ -854,6 +892,7 @@ function VentanaEspacio({ info, propios, onGuardar, onCerrar }) {
   const [nombre, setNombre] = useState(info.tipo === 'libre' ? propios[info.var] || '' : '')
   const [ancho, setAncho] = useState(info.tipo === 'blanco' ? anchoDe(info.len) : 'medio')
   const [texto, setTexto] = useState('')
+  const [rol, setRol] = useState(info.tipo === 'firma_aqui' && info.var ? info.var : 'recibe')
   const [firma, setFirma] = useState(null) // imagen (data URL) dibujada en el pad o subida
   const [modoFirma, setModoFirma] = useState('dibujar')
   const [guardando, setGuardando] = useState(false)
@@ -867,7 +906,7 @@ function VentanaEspacio({ info, propios, onGuardar, onCerrar }) {
   async function guardar() {
     if (!listo || guardando) return
     setGuardando(true)
-    try { await onGuardar({ tipo, variable, nombre, ancho, texto, firma }) } finally { setGuardando(false) }
+    try { await onGuardar({ tipo, variable, nombre, ancho, texto, firma, rol }) } finally { setGuardando(false) }
   }
   // Junto al punto tocado, sin salirse de la pantalla
   const ANCHO = 320
@@ -958,6 +997,14 @@ function VentanaEspacio({ info, propios, onGuardar, onCerrar }) {
                 onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); guardar() } }} className={ui.input} autoFocus={!movil} />
               <datalist id="propios-plantilla">{Object.values(propios).map(n => <option key={n} value={n} />)}</datalist>
             </>
+          )}
+          {tipo === 'firma_aqui' && (
+            <div className="grid grid-cols-3 gap-1 p-1 bg-slate-100 rounded-[10px]">
+              {Object.entries(FIRMA_DE).map(([r, l]) => (
+                <button key={r} type="button" onClick={() => setRol(r)}
+                  className={`py-1.5 px-1 rounded-[8px] text-[12px] font-semibold leading-tight ${rol === r ? 'bg-white shadow-sm text-slate-800' : 'text-slate-500'}`}>{l}</button>
+              ))}
+            </div>
           )}
           {tipo === 'blanco' && (
             <div className="grid grid-cols-3 gap-1 p-1 bg-slate-100 rounded-[10px]">

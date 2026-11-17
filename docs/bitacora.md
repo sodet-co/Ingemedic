@@ -60,6 +60,27 @@ Lo que está sin resolver, ordenado por prioridad.
 
 # Entradas
 
+## 2026-11-17 — Importar desde Word: se copia tal cual
+**Qué se hizo:** el importador ya no adivina qué es cada tabla. Lo que está en el Word se copia igual y solo los corchetes tienen significado (`[Dato]`, `[Equipos]`/`[Insumos]`, `[Firma de quien recibe]`).
+- Bloque nuevo `tabla_libre` (render.js): tabla con sus anchos de columna, celdas unidas a lo ancho y a lo alto, negrita, alineación, fondo, logos y firma por celda. Todas las tablas del Word que no son de equipos (también el encabezado con logo/código/versión) quedan así. En el editor se ve como "Tabla": cada celda se edita en la tarjeta o con doble clic en la vista previa, y se puede agregar desde "Agregar bloque".
+- Lee los estilos del Word (Título 1 en negrita, etc.), las rayas hechas con tabulación subrayada (`NOMBRE: ____`) y dos renglones `____   ____` / `Firma de quien devuelve   Firma de quien recibe` como firmas lado a lado (la de "quien recibe" se firma en la app).
+- Firma en la línea: `[Firma de quien recibe]` (o de quien entrega / del responsable) escrito en cualquier texto, campo o celda se dibuja ahí mismo, junto al texto (render.js → firmaEnLinea; sin firma, una raya). En el editor es un cuadro violeta y se pone con doble clic → "Firma". Al importar, "FIRMA DE RECIBIDO: ____" o "FIRMA DE QUIEN ENTREGA: ____" se vuelven esa firma; un renglón que es solo la marca sigue siendo bloque de firmas. Ninguna plantilla ni acta guardada tenía esa marca en un texto (revisado), así que no cambian.
+- La descarga en Word escribe la tabla_libre igual y las firmas en ese formato de rayas, así el Word descargado se reimporta igual.
+**Por qué:** con `docs/Acta_Entrega_Formato_Mejorado EQUIPOS CPAP.docx` (Solidaridad) el encabezado de 5 columnas quedaba aplastado en una columna, se perdían las rayas y las firmas quedaban una debajo de otra.
+**Archivos:** `src/lib/actas/importarWord.js`, `render.js`, `exportarWord.js`, `imagenesPlantilla.js`, `src/components/actas/EditorPlantilla.js`, `NuevaPlantilla.js`.
+**Pendiente:** probar en la app importar ese Word y firmar un acta con él. Una tabla del Word con "Etiqueta: [Dato]" ahora queda como tabla_libre, no como bloque de campos: los renglones vacíos no se llenan desde la app (se vuelven dato con doble clic en el editor). Las plantillas ya guardadas no cambian.
+
+## 2026-11-17 — Plantillas: lista compacta, activar/desactivar y borrar
+**Qué se hizo:** Configuración → Plantillas pasó de cuatro secciones de tarjetas a una lista (tabla en PC, tarjetas cortas en celular) con buscador, filtro por acción y por estado (Activas / Inactivas / Todas). Cada fila tiene interruptor de activa, previsualizar, configuración y, solo en las inactivas, borrar.
+**Por qué:** desactivar estaba escondido en Configuración de la plantilla y las inactivas desaparecían: no había cómo reactivarlas ni borrarlas.
+- Al desactivar ya no se quitan los clientes asignados, así al reactivarla vuelve como estaba (todas las consultas de préstamos/firmas filtran `activo = true`). Las que se desactivaron antes de este cambio ya perdieron sus clientes.
+- La de Ingemedic de una acción no se puede desactivar (primero se marca otra).
+- Borrar solo si nunca se usó (sin filas en `actas` ni en `ordenes_servicio.plantillas_acta`); si se usó, queda inactiva.
+- Botón "Descargar en Word" en cada fila (`src/lib/actas/exportarWord.js`): arma el .docx con los datos como `[Nombre del paciente]`, las tablas con `[Equipos]`/`[Insumos]` y las firmas con `[Firma de quien recibe]`, que es como lo lee "Importar desde Word". Probado con las 18 plantillas: abren en Word sin error y al reimportarlas conservan encabezado, recuadros, tablas, firmas y saltos (se pierden las filas fijas del F-FAM-11 y los encabezados distintos por página quedan como recuadro).
+**Archivos:** `src/components/actas/ListaPlantillas.js` (nuevo), `src/lib/actas/exportarWord.js` (nuevo), `ConfigPlantilla.js`, `configuracion/ConfiguracionClient.js`, `configuracion/page.js`.
+**SQL:** ninguno obligatorio. Si borrar dice "sin permiso", falta la política DELETE de `plantillas_acta` / `cliente_plantillas_acta`.
+**Pendiente:** probar en el navegador activar, desactivar y borrar (la única borrable hoy es "Entrega Oxígeno (F-FAM-11) (copia)").
+
 ## 2026-11-15 — Edad en número, quien recibe vacío y recarga solo de recargables
 **Qué se hizo:** `{{paciente_edad}}` ya no pide fecha de nacimiento: se escribe la
 edad en años (`datos_acta.edad`); si está vacía, se calcula de `pacientes.fecha_nacimiento`.

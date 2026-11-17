@@ -9,7 +9,7 @@ const ALTO_A4 = Math.round(ANCHO_PAGINA * 297 / 210)
 // puntero (data-o de cada pedazo + la posición dentro de él). Sin texto (un renglón
 // vacío), o = Infinity: al final de ese renglón.
 function dondeCayo(doc, ev, dato) {
-  const tipo = d => d.classList.contains('ed-sis') ? 'sis' : d.classList.contains('ed-libre') ? 'libre' : 'blanco'
+  const tipo = d => d.classList.contains('ed-sis') ? 'sis' : d.classList.contains('ed-libre') ? 'libre' : d.classList.contains('ed-firma') ? 'firma_aqui' : 'blanco'
   if (dato) return { ruta: dato.closest('[data-src]')?.dataset.src, o: Number(dato.dataset.o), len: Number(dato.dataset.len), var: dato.dataset.var || null, tipo: tipo(dato) }
   let nodo = null, pos = 0
   if (doc.caretRangeFromPoint) { const r = doc.caretRangeFromPoint(ev.clientX, ev.clientY); nodo = r?.startContainer; pos = r?.startOffset || 0 }

@@ -60,7 +60,7 @@ export default function NuevaPlantilla({ plantillas, onCerrar, onListo }) {
           </span>
           <span className="min-w-0">
             <span className="block text-[14px] font-semibold text-slate-800">{leyendo ? 'Leyendo el Word…' : 'Importar desde Word'}</span>
-            <span className="block text-[12.5px] text-slate-500 mt-0.5">Escribe los datos entre corchetes, p. ej. [Nombre del paciente]. Después lo ajustas en el editor.</span>
+            <span className="block text-[12.5px] text-slate-500 mt-0.5">Se copia tal cual: textos, tablas y logos. Los datos van entre corchetes, p. ej. [Nombre del paciente], y una tabla con [Equipos] lista los del préstamo.</span>
           </span>
           <input type="file" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" className="hidden"
             onChange={e => { const f = e.target.files[0]; e.target.value = ''; if (f) desdeWord(f) }} />

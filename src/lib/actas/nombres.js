@@ -57,7 +57,9 @@ const ALIAS = {
 export const TABLAS = { equipos: 'equipos', insumos: 'insumos', 'equipos insumos': 'ambos', 'equipos y insumos': 'ambos' }
 export const FIRMAS = {
   'firma quien recibe': 'recibe', 'firma recibe': 'recibe', 'firma paciente': 'recibe', 'firma quien recibe paciente': 'recibe',
-  'firma quien entrega': 'entrega', 'firma entrega': 'entrega', 'firma responsable': 'responsable',
+  'firma recibido': 'recibe', 'firma quien recibio': 'recibe',
+  'firma quien entrega': 'entrega', 'firma entrega': 'entrega', 'firma entregado': 'entrega', 'firma quien entrego': 'entrega',
+  'firma responsable': 'responsable',
 }
 export const NOMBRE_FIRMA = { recibe: 'Firma de quien recibe', entrega: 'Firma de quien entrega', responsable: 'Firma del responsable' }
 

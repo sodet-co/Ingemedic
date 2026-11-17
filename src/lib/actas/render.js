@@ -17,6 +17,10 @@
 //                (filas preimpresas: cada una toma la primera fila cuya descripción,
 //                categoría, modelo o marca coincide con la expresión `coincide`, o todas
 //                con `juntar`; la de `resto` junta las que sobran)
+//   tabla_libre  tabla copiada tal cual de un Word (importarWord.js): anchos [% por columna],
+//                filas [[{ texto, span?, rowspan?, alineacion?, negrita?, fondo?, tamano?, firma?, imagenes? [{url, alto}] }]],
+//                sin_bordes?. Cada celda es texto con {{variables}} y **negrita**; firma 'recibe' |
+//                'entrega' | 'responsable' pone esa firma en la celda
 //   firmas       firmas [{rol 'recibe' | 'entrega' | 'vacia', titulo, lineas [{etiqueta, valor}]}]
 //   imagen       url, alto (px), alineacion (logos o sellos sueltos, p. ej. de un Word importado)
 //   espacio      alto (px)
@@ -32,7 +36,18 @@
 // Valores: texto libre con {{variable}}. Una variable vacía se dibuja como raya
 // para llenar a mano, igual que en los formatos impresos.
 
+import { FIRMAS, normalizar } from './nombres.js'
+
 export const ANCHO_PAGINA = 760 // px de render; html2canvas lo escala a A4
+
+// [Firma de quien recibe] escrito en cualquier texto: la firma va ahí mismo, en la
+// línea, junto al texto (FIRMA DE RECIBIDO: [Firma de quien recibe]). Sin firma, una raya
+export const rolDeFirma = nombre => FIRMAS[normalizar(nombre)] || null
+const MARCA = /\[([^\[\]\n]{1,60})\]/g
+const firmaEnLinea = (rol, firmas) => {
+  const img = firmas?.[rol]
+  return `<span class="firma-en-linea">${img ? `<img src="${esc(img)}">` : '&nbsp;'}</span>`
+}
 
 const esc = s => String(s ?? '')
   .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
@@ -42,7 +57,10 @@ const esc = s => String(s ?? '')
 // (ctx.editor) se usa para saber dónde se hizo doble clic (interpolarEditor).
 function interpolar(texto, vars, { marcar = false, raya = 14, ruta = null } = {}) {
   if (vars.__editor && ruta != null) return interpolarEditor(texto, vars, ruta)
-  return esc(texto).replace(/\{\{\s*([a-z0-9_]+)\s*\}\}/gi, (_, k) => {
+  return esc(texto).replace(MARCA, (todo, n) => {
+    const rol = rolDeFirma(n)
+    return rol ? firmaEnLinea(rol, vars.__firmas) : todo
+  }).replace(/\{\{\s*([a-z0-9_]+)\s*\}\}/gi, (_, k) => {
     const v = vars[k]
     const html = v == null || v === ''
       ? `<span class="raya">${'&nbsp;'.repeat(raya)}</span>`
@@ -64,10 +82,15 @@ function interpolarEditor(texto, vars, ruta) {
   for (const m of s.matchAll(/\*\*(.+?)\*\*/g)) { negritas.add(m.index); negritas.add(m.index + m[0].length - 2) }
   const pedazo = (o, t) => t ? `<span data-o="${o}">${esc(t)}</span>` : ''
   let html = '', ultimo = 0, abierta = false
-  for (const m of s.matchAll(/\{\{\s*([a-z0-9_]+)\s*\}\}|_{2,}|\*\*|\n/g)) {
+  for (const m of s.matchAll(/\{\{\s*([a-z0-9_]+)\s*\}\}|\[([^\[\]\n]{1,60})\]|_{2,}|\*\*|\n/g)) {
     html += pedazo(ultimo, s.slice(ultimo, m.index))
     const t = m[0], k = m[1]
-    if (k) {
+    const rol = m[2] && rolDeFirma(m[2])
+    if (m[2] && !rol) html += pedazo(m.index, t)
+    else if (rol) {
+      // Firma en la línea: un cuadro violeta con su nombre
+      html += `<span class="ed-dato ed-firma" data-o="${m.index}" data-len="${t.length}" data-var="${rol}" title="Firma">✍ ${esc(m[2])}</span>`
+    } else if (k) {
       const libre = k in propios
       const nombre = nombres[k] || propios[k] || k.replace(/_/g, ' ')
       const v = vars[k]
@@ -358,6 +381,20 @@ function filasAutomaticas(b, filas) {
   })
 }
 
+// Tabla de un Word, tal cual: columnas con su ancho, celdas unidas, negrita y logos
+function tablaLibre(b, ctx, bi) {
+  const vars = ctx.variables || {}
+  const col = (b.anchos || []).map(a => `<col style="width:${a}%">`).join('')
+  const filas = (b.filas || []).map((fila, ri) => `<tr>${fila.map((c, ci) => {
+    const imgs = (c.imagenes || []).filter(i => i.url).map(i => `<img src="${esc(i.url)}" style="max-height:${i.alto || 60}px;max-width:100%">`).join(' ')
+    const firma = c.firma ? `<div>${imgFirma(c.firma, ctx) || '<span class="raya" style="min-width:140px">&nbsp;</span>'}</div>` : ''
+    const texto = c.texto ? formato(interpolar(c.texto, vars, { raya: 10, ruta: `${bi}.filas.${ri}.${ci}.texto` })) : ''
+    const estilo = [`text-align:${alinear(c.alineacion || 'izquierda')}`, c.negrita && 'font-weight:bold', c.fondo && `background:#${esc(c.fondo)}`, c.tamano && `font-size:${c.tamano}px`].filter(Boolean).join(';')
+    return `<td${(c.span || 1) > 1 ? ` colspan="${c.span}"` : ''}${(c.rowspan || 1) > 1 ? ` rowspan="${c.rowspan}"` : ''} style="${estilo}">${imgs}${imgs && (texto || firma) ? '<br>' : ''}${firma}${texto || (imgs || firma ? '' : '&nbsp;')}</td>`
+  }).join('')}</tr>`).join('')
+  return `<table class="libre${b.sin_bordes ? ' sin-bordes' : ''}">${col ? `<colgroup>${col}</colgroup>` : ''}${filas}</table>`
+}
+
 function firmas(b, ctx, bi) {
   const lista = b.firmas || []
   return `<div class="firmas" style="grid-template-columns:repeat(${Math.max(lista.length, 1)},1fr)">${lista.map((f, fi) => {
@@ -394,6 +431,7 @@ function bloque(b, ctx, bi) {
       return caja(b, claves.length ? `<div data-campo="${claves.join(' ')}" class="cmp-tabla">${html}</div>` : html)
     }
     case 'firmas': return caja(b, firmas(b, ctx, bi))
+    case 'tabla_libre': return caja(b, tablaLibre(b, ctx, bi))
     case 'imagen': return b.url
       ? `<div style="text-align:${alinear(b.alineacion || 'centro')}"><img src="${esc(b.url)}" style="max-height:${b.alto || 60}px;max-width:100%"></div>`
       : ''
@@ -443,9 +481,14 @@ body{font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#111;background
 .linea-arriba .llenar{border-bottom:1px solid #111;min-height:17px;padding-left:4px;font-weight:bold}
 .firma-linea{max-height:42px;max-width:200px;display:inline-block;vertical-align:bottom;margin-right:6px}
 .firma-sobre{display:block}
+.firma-en-linea{display:inline-block;min-width:150px;height:38px;border-bottom:1px solid #111;vertical-align:bottom;text-align:center;line-height:38px}
+.firma-en-linea img{max-height:44px;max-width:200px;vertical-align:bottom;margin-bottom:-4px}
 .grilla{width:100%;border-collapse:collapse}
 .grilla td{border:1px solid #222;padding:4px 6px;font-size:11px;vertical-align:top}
 .grilla .et{font-weight:bold}
+.libre{width:100%;border-collapse:collapse;table-layout:fixed}
+.libre td{border:1px solid #222;padding:3px 5px;font-size:11px;vertical-align:middle;line-height:1.3;overflow-wrap:anywhere}
+.libre.sin-bordes td{border:0;padding:2px 4px}
 .grupo-eq{margin-bottom:6px}
 .grupo-titulo{font-size:10.5px;font-weight:bold;margin:0 0 2px 1px}
 .grilla-acc{margin-top:2px}
@@ -468,6 +511,7 @@ body{font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#111;background
 .cmp-tabla:hover{outline-color:rgba(46,181,212,.6)}
 .ed-dato{border-radius:3px;padding:0 2px;cursor:pointer}
 .ed-sis{background:#DBEAFE;box-shadow:inset 0 0 0 1px #93C5FD}
+.ed-firma{background:#EDE9FE;box-shadow:inset 0 0 0 1px #C4B5FD;color:#5B21B6;font-weight:bold}
 .ed-libre{background:#FEF3C7;box-shadow:inset 0 0 0 1px #FCD34D}
 .ed-blanco{background:#F1F5F9;box-shadow:inset 0 0 0 1px #94A3B8;display:inline-block;min-height:1em}
 .activo{background:#FDE68A!important;outline:2px solid #F59E0B!important;outline-offset:1px}
@@ -507,6 +551,8 @@ export function renderPaginas(bloques, ctx) {
   if (ctx?.marcar) ctx = { ...ctx, variables: { ...ctx.variables, __marcar: ctx.marcar } }
   // editor: { propios, nombres } — los espacios como cuadros y el texto con su posición (interpolarEditor)
   if (ctx?.editor) ctx = { ...ctx, variables: { ...ctx.variables, __editor: ctx.editor } }
+  // Las firmas, para las que van dentro de un texto ([Firma de quien recibe])
+  if (ctx?.firmas) ctx = { ...ctx, variables: { ...ctx.variables, __firmas: ctx.firmas } }
   // Cada bloque guarda su posición en la plantilla: es la clave de sus renglones en blanco
   const paginas = [[]]
   ;(bloques || []).forEach((b, bi) => {
