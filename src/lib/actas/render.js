@@ -32,6 +32,13 @@
 //   renovable       — no se dibuja: sus actas firmadas se pueden renovar (components/actas/RenovarActa.js)
 //   firma_libre     url, x, dy, ancho (px) — firma fija encima de la hoja, anclada al bloque
 //                   anterior (paginaHtml); en el editor se mueve y se agranda sobre la vista previa
+//   hoja_fija       url (imagen de una página de PDF), proporcion (alto/ancho), original? (el PDF),
+//                   campos [{ tipo 'texto' | 'firma' | 'tabla', x, y, w, h (% de la hoja), valor
+//                   (texto con {{variables}}), tamano (sin él, según el alto: letraHojaFija), alineacion, negrita, rol, fuente, filas,
+//                   columnas [{ clave, w (% del recuadro, una tras otra) }] }]. La hoja va sola en su página,
+//                   tal cual, y los datos se escriben encima donde se ubicaron (lib/actas/pdfPaginas.js,
+//                   components/actas/EditorHojaFija.js). Si los equipos no caben en los renglones
+//                   de la tabla, se agrega una hoja de anexo con todos.
 //
 // Valores: texto libre con {{variable}}. Una variable vacía se dibuja como raya
 // para llenar a mano, igual que en los formatos impresos.
@@ -413,6 +420,81 @@ function firmas(b, ctx, bi) {
   }).join('')}</div>`
 }
 
+// ── Hoja fija (plantilla desde PDF) ──
+// La página del PDF es la imagen de fondo, en una hoja A4; encima, cada campo en su
+// recuadro (en % de la imagen). Una hoja más alta que A4 se achica para caber.
+export const ALTO_HOJA = Math.round(ANCHO_PAGINA * 297 / 210)
+export function cajaHojaFija(proporcion) {
+  const p = Number(proporcion) || ALTO_HOJA / ANCHO_PAGINA
+  if (p <= ALTO_HOJA / ANCHO_PAGINA) return { left: 0, top: 0, ancho: ANCHO_PAGINA, alto: ANCHO_PAGINA * p }
+  const ancho = ALTO_HOJA / p
+  return { left: (ANCHO_PAGINA - ancho) / 2, top: 0, ancho, alto: ALTO_HOJA }
+}
+
+// Filas de una tabla de la hoja fija: equipos agrupados por tipo (con cantidad), o
+// insumos / ambos uno por fila. Cada fila: clave → texto
+export function filasHojaFija(c, ctx) {
+  if ((c.fuente || 'equipos') === 'equipos' || c.fuente === 'retirados') {
+    return filasEstandar((c.fuente === 'retirados' ? ctx.retirados : ctx.equipos) || [])
+      .map((g, i) => clave => clave === 'item' ? String(i + 1) : clave === 'cantidad' ? String(g.cantidad) : g.de(clave))
+  }
+  const lista = c.fuente === 'insumos' ? ctx.insumos || []
+    : [...(ctx.equipos || []), ...(ctx.insumos || []).map(x => ({ ...x, estado: x.estado || 'Nuevo' }))]
+  return lista.map((f, i) => clave => clave === 'item' ? String(i + 1) : clave === 'cantidad' ? String(f.cantidad ?? 1) : String(f[clave] ?? ''))
+}
+export const desbordaHojaFija = (b, ctx) => (b.campos || []).some(c => c.tipo === 'tabla' && filasHojaFija(c, ctx).length > (c.filas || 1))
+
+// Letra de un recuadro: la elegida, o automática según el alto del recuadro (de cada
+// renglón en una tabla). Un recuadro alto (varios renglones, p. ej. observaciones) va a 12
+export function letraHojaFija(c, caja) {
+  if (Number(c.tamano)) return Number(c.tamano)
+  const alto = (Number(c.h) || 0) / 100 * caja.alto / (c.tipo === 'tabla' ? (c.filas || 1) : 1)
+  if (c.tipo !== 'tabla' && alto > 44) return 12
+  // Nunca menos que la letra normal de un formato: un recuadro delgado sobre la raya
+  // también se lee (el texto sale por encima del recuadro, no se corta)
+  return Math.min(Math.max(Math.round(alto * 0.8 * 2) / 2, c.tipo === 'tabla' ? 10 : 12), c.tipo === 'tabla' ? 15 : 16)
+}
+
+// ¿Recuadro de un solo renglón? (si no, es un texto largo que se escribe desde arriba)
+export const esRenglonHojaFija = (c, caja, letra) => (Number(c.h) || 0) / 100 * caja.alto < letra * 2.4
+// Con line-height 1, la base de la letra (Arial) queda 0.15em por encima del borde de abajo
+// de su renglón: se baja eso para que la base caiga justo en el borde del recuadro
+export const BAJAR_BASE = 0.15
+
+const pct = n => `${Math.round((Number(n) || 0) * 100) / 100}%`
+function hojaFija(b, ctx) {
+  const vars = ctx.variables || {}
+  const caja = cajaHojaFija(b.proporcion)
+  const campos = (b.campos || []).map(c => {
+    const pos = `left:${pct(c.x)};top:${pct(c.y)};width:${pct(c.w)};height:${pct(c.h)}`
+    const tam = letraHojaFija(c, caja)
+    if (c.tipo === 'firma') {
+      const img = ctx.firmas?.[c.rol]
+      return `<div class="hf-c hf-firma" style="${pos}">${img ? `<img src="${esc(img)}">` : ''}</div>`
+    }
+    if (c.tipo === 'tabla') {
+      const filas = filasHojaFija(c, ctx).slice(0, c.filas || 1)
+      const alto = 100 / (c.filas || 1)
+      // Columnas una tras otra: cada una empieza donde termina la anterior (ancho w en %)
+      let x = 0
+      const cols = (c.columnas || []).map(col => { const r = { ...col, x }; x += Number(col.w) || 0; return r })
+      const celdas = filas.flatMap((get, ri) => cols.map(col =>
+        `<div class="hf-celda" style="left:${pct(col.x)};width:${pct(col.w)};top:${pct(ri * alto)};height:${pct(alto)};font-size:${tam}px">${esc(get(col.clave))}</div>`)).join('')
+      return `<div class="hf-c hf-tabla" style="${pos}"${ctx.marcar && (c.fuente === 'insumos' || c.fuente === 'ambos') ? ' data-campo="insumos"' : ''}>${celdas}</div>`
+    }
+    // Texto de un renglón: el borde de abajo del recuadro es la línea sobre la que se
+    // apoya la letra (la base, no la parte de abajo de la g o la p), como en el editor.
+    // Un recuadro grande (varios renglones) se escribe desde arriba
+    const renglon = esRenglonHojaFija(c, caja, tam)
+    const estilo = [pos, `font-size:${tam}px`, `text-align:${alinear(c.alineacion || 'izquierda')}`, c.negrita && 'font-weight:bold'].filter(Boolean).join(';')
+    const texto = formato(interpolar(c.valor || '', vars, { raya: 0 }))
+    return renglon
+      ? `<div class="hf-c hf-renglon" style="${estilo}"><span class="hf-base">${texto}</span></div>`
+      : `<div class="hf-c" style="${estilo}"><span>${texto}</span></div>`
+  }).join('')
+  return `<div class="hf" style="left:${caja.left}px;top:${caja.top}px;width:${caja.ancho}px;height:${caja.alto}px"><img class="hf-fondo" src="${esc(b.url)}">${campos}</div>`
+}
+
 function bloque(b, ctx, bi) {
   const vars = ctx.variables || {}
   switch (b.tipo) {
@@ -436,6 +518,7 @@ function bloque(b, ctx, bi) {
       ? `<div style="text-align:${alinear(b.alineacion || 'centro')}"><img src="${esc(b.url)}" style="max-height:${b.alto || 60}px;max-width:100%"></div>`
       : ''
     case 'espacio': return `<div style="height:${b.alto || 16}px"></div>`
+    case 'hoja_fija': return hojaFija(b, ctx)
     case 'pie': return `<div class="pie">${formato(interpolar(b.texto, vars, { ruta: `${bi}.texto` }))}</div>`
     default: return ''
   }
@@ -515,6 +598,19 @@ body{font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#111;background
 .ed-libre{background:#FEF3C7;box-shadow:inset 0 0 0 1px #FCD34D}
 .ed-blanco{background:#F1F5F9;box-shadow:inset 0 0 0 1px #94A3B8;display:inline-block;min-height:1em}
 .activo{background:#FDE68A!important;outline:2px solid #F59E0B!important;outline-offset:1px}
+.hf-body{padding:0;height:${Math.round(ANCHO_PAGINA * 297 / 210)}px;overflow:hidden}
+.hf-body .bloque{margin:0;position:static}
+.hf{position:absolute}
+.hf-fondo{position:absolute;inset:0;width:100%;height:100%}
+.hf-c{position:absolute;display:flex;overflow:hidden;line-height:1.15;padding:0 2px;color:#0a0a0a;overflow-wrap:anywhere}
+.hf-c .raya{border:0;min-width:0}
+.hf-renglon{display:block;overflow:visible}
+.hf-base{position:absolute;left:2px;right:2px;bottom:-${BAJAR_BASE}em;line-height:1;white-space:nowrap}
+.hf-c .cmp.vacio{display:inline-block;min-width:36px;min-height:1em}
+.hf-firma{align-items:flex-end;justify-content:center;padding:0}
+.hf-firma img{max-width:100%;max-height:100%;object-fit:contain}
+.hf-tabla{display:block;padding:0}
+.hf-celda{position:absolute;display:flex;align-items:flex-end;padding:0 2px 1px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;line-height:1.1}
 `
 
 // ── Firma fija (firma_libre) ──
@@ -547,6 +643,11 @@ function paginaHtml(items, ctx) {
 
 // Divide los bloques en páginas (por salto_pagina) y devuelve un documento HTML por página
 export function renderPaginas(bloques, ctx) {
+  return renderPaginasDetalle(bloques, ctx).map(p => p.html)
+}
+// Igual, con la hoja fija de cada página ({ html, hoja }): el PDF dibuja esas hojas
+// directo en un canvas (hojaFijaCanvas.js), sin pasar por html2canvas
+export function renderPaginasDetalle(bloques, ctx) {
   // marcar: true, o un mapa variable → clave (campos.js → CLAVES_HOJA)
   if (ctx?.marcar) ctx = { ...ctx, variables: { ...ctx.variables, __marcar: ctx.marcar } }
   // editor: { propios, nombres } — los espacios como cuadros y el texto con su posición (interpolarEditor)
@@ -557,12 +658,26 @@ export function renderPaginas(bloques, ctx) {
   const paginas = [[]]
   ;(bloques || []).forEach((b, bi) => {
     if (b.tipo === 'salto_pagina') paginas.push([])
+    // La hoja fija va sola en su página (si comparte, se abre una para ella)
+    else if (b.tipo === 'hoja_fija') { if (paginas[paginas.length - 1].length) paginas.push([]); paginas[paginas.length - 1].push({ b, bi }); paginas.push([]) }
     else if (!['campos_propios', 'para_equipos', 'renovable'].includes(b.tipo)) paginas[paginas.length - 1].push({ b, bi })
   })
+  // Equipos que no cupieron en los renglones de una hoja fija: anexo con todos
+  const hojas = (bloques || []).filter(b => b.tipo === 'hoja_fija' && desbordaHojaFija(b, ctx || {}))
+  const tablaAnexo = hojas.flatMap(b => b.campos || []).find(c => c.tipo === 'tabla')
+  if (tablaAnexo) {
+    const fuente = tablaAnexo.fuente || 'equipos'
+    paginas.push([
+      { b: { tipo: 'titulo', texto: fuente === 'insumos' ? 'ANEXO: INSUMOS ENTREGADOS' : 'ANEXO: EQUIPOS ENTREGADOS', alineacion: 'centro' }, bi: -1 },
+      { b: fuente === 'equipos' || fuente === 'retirados'
+        ? { tipo: 'tabla', fuente, agrupar: 'tipo_equipo', columnas: columnasEstandar([{ clave: 'item' }, { clave: 'descripcion' }, { clave: 'marca' }, { clave: 'modelo' }, { clave: 'serie' }, { clave: 'codigo' }]) }
+        : { tipo: 'tabla', fuente, columnas: ['item', 'descripcion', 'cantidad', 'marca', 'lote', 'invima'].map(clave => ({ clave })) }, bi: -2 },
+    ])
+  }
   return paginas
     .filter(p => p.length)
-    .map(p => `<!DOCTYPE html><html><head><meta charset="utf-8"><style>${CSS}</style></head><body>${
+    .map(p => ({ hoja: p.find(x => x.b.tipo === 'hoja_fija')?.b || null, html: `<!DOCTYPE html><html><head><meta charset="utf-8"><style>${CSS}</style></head><body${p.some(x => x.b.tipo === 'hoja_fija') ? ' class="hf-body"' : ''}>${
       // data-bi / data-ed: qué bloque y qué renglón es (el editor lleva ahí al tocar la vista previa)
       paginaHtml(p, ctx)
-    }</body></html>`)
+    }</body></html>` }))
 }

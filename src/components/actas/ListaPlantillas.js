@@ -8,6 +8,7 @@ import { registrarBitacora } from '@/lib/bitacora'
 import { ACCIONES, accionDe } from '@/lib/actas/acciones'
 import { categoriasDe, esRenovable } from '@/lib/actas/contexto'
 import { descargarWord } from '@/lib/actas/exportarWord'
+import { esHojaFija } from '@/lib/actas/pdfPaginas'
 
 // Lista de plantillas de actas (Configuración → Plantillas). Una fila por plantilla,
 // con filtros por acción y por estado, para no tener que bajar por cuatro secciones.
@@ -49,9 +50,11 @@ function QuienUsa({ p }) {
 // Marcas de la plantilla (anexo, renovable, categorías)
 function Marcas({ p }) {
   const cats = categoriasDe(p.bloques)
-  if (p.tipo !== 'anexo' && !esRenovable(p.bloques) && !cats.length) return null
+  const pdf = esHojaFija(p.bloques)
+  if (p.tipo !== 'anexo' && !esRenovable(p.bloques) && !cats.length && !pdf) return null
   return (
     <span className="flex flex-wrap items-center gap-1 mt-1">
+      {pdf && <span className="px-1.5 py-px rounded text-[10.5px] font-semibold bg-red-50 text-[#D81B43]">PDF</span>}
       {p.tipo === 'anexo' && <span className="px-1.5 py-px rounded text-[10.5px] font-semibold bg-amber-50 text-amber-700">Anexo</span>}
       {esRenovable(p.bloques) && <span className="px-1.5 py-px rounded text-[10.5px] font-semibold bg-[#F5F3FF] text-[#6D28D9]">Renovable</span>}
       {cats.map(c => <span key={c.id || c.nombre} className="px-1.5 py-px rounded text-[10.5px] font-semibold bg-[#E8F7FB] text-[#0E7490]">{c.nombre}</span>)}
@@ -70,12 +73,22 @@ export default function ListaPlantillas({ plantillas, onCambiar, onToast, onConf
   const [buscar, setBuscar] = useState('')
   const [accion, setAccion] = useState('todas')
   const [estado, setEstado] = useState('activas')
+  const [cliente, setCliente] = useState('')         // '' todos · 'ninguno' sin cliente · id del cliente
   const [ocupado, setOcupado] = useState(null)        // id de la plantilla que se está guardando
   const [desactivando, setDesactivando] = useState(null)
   const [borrando, setBorrando] = useState(null)
 
+  // Clientes que tienen alguna plantilla asignada, para el filtro
+  const clientesConPlantilla = useMemo(() => {
+    const m = new Map()
+    plantillas.forEach(p => (p.clientes || []).forEach(c => c.cliente_id && m.set(c.cliente_id, c.cliente?.nombre || 'Cliente')))
+    return [...m].sort((a, b) => a[1].localeCompare(b[1]))
+  }, [plantillas])
+  const deCliente = p => !cliente
+    || (cliente === 'ninguno' ? !(p.clientes || []).length : (p.clientes || []).some(c => String(c.cliente_id) === cliente))
+
   const q = buscar.trim().toLowerCase()
-  const delEstado = plantillas.filter(p => estado === 'todas' || (estado === 'activas') === activa(p))
+  const delEstado = plantillas.filter(p => estado === 'todas' || (estado === 'activas') === activa(p)).filter(deCliente)
   const visibles = delEstado
     .filter(p => accion === 'todas' || accionDe(p) === accion)
     .filter(p => !q || `${p.nombre} ${p.descripcion || ''} ${(p.clientes || []).map(c => c.cliente?.nombre).join(' ')}`.toLowerCase().includes(q))
@@ -140,7 +153,10 @@ export default function ListaPlantillas({ plantillas, onCambiar, onToast, onConf
   const botones = p => (
     <>
       <button onClick={() => onPrevisualizar(p)} className={ui.btnIcono} title="Previsualizar" aria-label={`Previsualizar ${p.nombre}`}><Eye size={15} /></button>
-      <button onClick={() => bajarWord(p)} disabled={ocupado === p.id} className={ui.btnIcono} title="Descargar en Word" aria-label={`Descargar ${p.nombre} en Word`}><FileDown size={15} /></button>
+      {/* Desde PDF: se descarga el PDF original; las demás, en Word */}
+      {esHojaFija(p.bloques)
+        ? p.bloques.find(b => b.original)?.original && <a href={p.bloques.find(b => b.original).original} target="_blank" rel="noreferrer" className={ui.btnIcono} title="Descargar el PDF original" aria-label={`Descargar el PDF de ${p.nombre}`}><FileDown size={15} /></a>
+        : <button onClick={() => bajarWord(p)} disabled={ocupado === p.id} className={ui.btnIcono} title="Descargar en Word" aria-label={`Descargar ${p.nombre} en Word`}><FileDown size={15} /></button>}
       <button onClick={() => onConfigurar(p)} className={ui.btnIcono} title="Configuración" aria-label={`Configuración de ${p.nombre}`}><Settings2 size={15} /></button>
       {!activa(p) && (
         <button onClick={() => pedirBorrar(p)} disabled={ocupado === p.id} className={`${ui.btnIcono} hover:!text-[#D81B43] hover:!bg-red-50`} title="Borrar" aria-label={`Borrar ${p.nombre}`}><Trash2 size={15} /></button>
@@ -160,6 +176,12 @@ export default function ListaPlantillas({ plantillas, onCambiar, onToast, onConf
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           <input value={buscar} onChange={e => setBuscar(e.target.value)} placeholder="Buscar plantilla o cliente…" className={`${ui.input} pl-9`} />
         </div>
+        <select value={cliente} onChange={e => setCliente(e.target.value)} aria-label="Filtrar por cliente"
+          className={`${ui.input} md:w-[220px] ${cliente ? '!border-[#D81B43] text-[#D81B43]' : ''}`}>
+          <option value="">Todos los clientes</option>
+          <option value="ninguno">Sin cliente asignado</option>
+          {clientesConPlantilla.map(([id, nombre]) => <option key={id} value={id}>{nombre}</option>)}
+        </select>
         <div className="inline-flex self-start p-0.5 rounded-[9px] bg-slate-100 md:ml-auto md:order-last">
           {[['activas', `Activas ${nActivas}`], ['inactivas', `Inactivas ${plantillas.length - nActivas}`], ['todas', 'Todas']].map(([v, l]) => (
             <button key={v} onClick={() => setEstado(v)} aria-pressed={estado === v}
@@ -175,7 +197,7 @@ export default function ListaPlantillas({ plantillas, onCambiar, onToast, onConf
 
       {visibles.length === 0 ? (
         <div className="rounded-xl border border-dashed border-slate-300 text-center py-8 text-[12.5px] text-slate-400">
-          {q ? 'Ninguna plantilla coincide.' : estado === 'inactivas' ? 'No hay plantillas inactivas.' : 'No hay plantillas aquí.'}
+          {q || cliente ? 'Ninguna plantilla coincide.' : estado === 'inactivas' ? 'No hay plantillas inactivas.' : 'No hay plantillas aquí.'}
         </div>
       ) : (<>
         {/* PC: tabla */}

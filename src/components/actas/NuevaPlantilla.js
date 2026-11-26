@@ -1,20 +1,22 @@
 'use client'
 import { useMemo, useState } from 'react'
-import { FileUp, FilePlus2, Copy, Loader2, ChevronDown, Check } from 'lucide-react'
+import { FileUp, FilePlus2, Copy, Loader2, ChevronDown, Check, FileText } from 'lucide-react'
 import { createClient } from '@/lib/supabase'
 import { importarWord } from '@/lib/actas/importarWord'
 import { subirImagenesImportadas } from '@/lib/actas/imagenesPlantilla'
+import { bloquesDesdePdf } from '@/lib/actas/pdfPaginas'
 import { NOMBRES, NOMBRE_FIRMA } from '@/lib/actas/nombres'
 import { RECUADRO_INICIAL } from '@/components/actas/EditorPlantilla'
 import Modal from '@/components/ui/Modal'
 import { ui } from '@/lib/ui'
 import { ACCIONES } from '@/lib/actas/acciones'
 
-// Punto de partida de una plantilla nueva: un Word, una copia o en blanco.
+// Punto de partida de una plantilla nueva: un PDF (queda tal cual y los datos se ubican
+// encima, EditorHojaFija), un Word (se convierte a bloques), una copia o en blanco.
 // Devuelve { inicial: { nombre, descripcion, bloques }, avisos } para el editor.
 export default function NuevaPlantilla({ plantillas, onCerrar, onListo }) {
   const supabase = useMemo(() => createClient(), [])
-  const [leyendo, setLeyendo] = useState(false)
+  const [leyendo, setLeyendo] = useState(false) // 'pdf' | 'word' | false
   const [error, setError] = useState(null)
   const [copiaDe, setCopiaDe] = useState('')
   const [verNombres, setVerNombres] = useState(false)
@@ -25,7 +27,7 @@ export default function NuevaPlantilla({ plantillas, onCerrar, onListo }) {
 
   async function desdeWord(archivo) {
     if (!/\.docx$/i.test(archivo.name)) { setError('Sube un archivo .docx (en Word: Archivo → Guardar como → Documento de Word).'); return }
-    setLeyendo(true); setError(null)
+    setLeyendo('word'); setError(null)
     try {
       const { bloques, imagenes, avisos } = await importarWord(archivo)
       if (!bloques.length) throw new Error('El documento está vacío')
@@ -33,6 +35,18 @@ export default function NuevaPlantilla({ plantillas, onCerrar, onListo }) {
       listo({ inicial: { nombre: archivo.name.replace(/\.docx$/i, ''), bloques: conUrls }, avisos })
     } catch (e) {
       setError('No se pudo leer el Word: ' + (e.message || e))
+      setLeyendo(false)
+    }
+  }
+
+  async function desdePdf(archivo) {
+    if (!/\.pdf$/i.test(archivo.name)) { setError('Sube un archivo .pdf (en Word: Archivo → Guardar como → PDF).'); return }
+    setLeyendo('pdf'); setError(null)
+    try {
+      const bloques = await bloquesDesdePdf(supabase, archivo)
+      listo({ inicial: { nombre: archivo.name.replace(/\.pdf$/i, ''), bloques } })
+    } catch (e) {
+      setError('No se pudo leer el PDF: ' + (e.message || e))
       setLeyendo(false)
     }
   }
@@ -54,13 +68,26 @@ export default function NuevaPlantilla({ plantillas, onCerrar, onListo }) {
             ))}
           </div>
         </div>
-        <label className={`${opcion} cursor-pointer ${leyendo ? 'pointer-events-none opacity-60' : ''}`}>
-          <span className="w-9 h-9 rounded-[9px] bg-[#1B3A6B]/10 text-[#1B3A6B] flex items-center justify-center flex-shrink-0">
-            {leyendo ? <Loader2 size={17} className="animate-spin" /> : <FileUp size={17} />}
+        <label className={`${opcion} cursor-pointer border-[#1B3A6B]/30 ${leyendo ? 'pointer-events-none opacity-60' : ''}`}>
+          <span className="w-9 h-9 rounded-[9px] bg-[#D81B43]/10 text-[#D81B43] flex items-center justify-center flex-shrink-0">
+            {leyendo === 'pdf' ? <Loader2 size={17} className="animate-spin" /> : <FileText size={17} />}
           </span>
           <span className="min-w-0">
-            <span className="block text-[14px] font-semibold text-slate-800">{leyendo ? 'Leyendo el Word…' : 'Importar desde Word'}</span>
-            <span className="block text-[12.5px] text-slate-500 mt-0.5">Se copia tal cual: textos, tablas y logos. Los datos van entre corchetes, p. ej. [Nombre del paciente], y una tabla con [Equipos] lista los del préstamo.</span>
+            <span className="flex items-center gap-2 text-[14px] font-semibold text-slate-800">{leyendo === 'pdf' ? 'Leyendo el PDF…' : 'Subir PDF'}
+              <span className="px-1.5 py-px rounded text-[10.5px] font-semibold bg-[#0F7B55]/10 text-[#0F7B55]">Recomendado</span></span>
+            <span className="block text-[12.5px] text-slate-500 mt-0.5">El formato queda idéntico al original. Después marcas sobre la hoja dónde va cada dato y la firma. Desde Word: Archivo → Guardar como → PDF.</span>
+          </span>
+          <input type="file" accept=".pdf,application/pdf" className="hidden"
+            onChange={e => { const f = e.target.files[0]; e.target.value = ''; if (f) desdePdf(f) }} />
+        </label>
+
+        <label className={`${opcion} cursor-pointer ${leyendo ? 'pointer-events-none opacity-60' : ''}`}>
+          <span className="w-9 h-9 rounded-[9px] bg-[#1B3A6B]/10 text-[#1B3A6B] flex items-center justify-center flex-shrink-0">
+            {leyendo === 'word' ? <Loader2 size={17} className="animate-spin" /> : <FileUp size={17} />}
+          </span>
+          <span className="min-w-0">
+            <span className="block text-[14px] font-semibold text-slate-800">{leyendo === 'word' ? 'Leyendo el Word…' : 'Importar desde Word'}</span>
+            <span className="block text-[12.5px] text-slate-500 mt-0.5">Se convierte en bloques que se pueden editar. Los datos van entre corchetes, p. ej. [Nombre del paciente]. Un Word muy elaborado puede no quedar igual.</span>
           </span>
           <input type="file" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" className="hidden"
             onChange={e => { const f = e.target.files[0]; e.target.value = ''; if (f) desdeWord(f) }} />

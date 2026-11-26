@@ -26,6 +26,8 @@ import ListaPlantillas from '@/components/actas/ListaPlantillas'
 import { accionDe, seRecarga } from '@/lib/actas/acciones'
 import EditorPlantilla from '@/components/actas/EditorPlantilla'
 import NuevaPlantilla from '@/components/actas/NuevaPlantilla'
+import EditorHojaFija from '@/components/actas/EditorHojaFija'
+import { esHojaFija } from '@/lib/actas/pdfPaginas'
 import AccesoPortal from '@/components/clientes/AccesoPortal'
 import { contextoEjemplo } from '@/lib/actas/ejemplo'
 
@@ -1804,8 +1806,11 @@ export default function ConfiguracionClient({
         <NuevaPlantilla plantillas={plantillasActa.filter(p => p.activo !== false)} onCerrar={() => setNuevaPlantilla(false)}
           onListo={x => { setNuevaPlantilla(false); setEditorPlantilla(x) }} />
       )}
-      {editorPlantilla && (
-        <EditorPlantilla {...editorPlantilla} empresa={empresa} onCerrar={() => setEditorPlantilla(null)}
+      {editorPlantilla && (() => {
+        // Una plantilla desde PDF se edita sobre la hoja (EditorHojaFija); las demás, por bloques
+        const Editor = esHojaFija((editorPlantilla.plantilla || editorPlantilla.inicial)?.bloques) ? EditorHojaFija : EditorPlantilla
+        return (
+        <Editor {...editorPlantilla} empresa={empresa} onCerrar={() => setEditorPlantilla(null)}
           onGuardado={(fila, nueva) => {
             setEditorPlantilla(null)
             if (fila.activo === false) { setPlantillasActa(l => l.map(p => p.id === fila.id ? { ...p, activo: false } : p)); showToast('Plantilla desactivada'); return }
@@ -1815,7 +1820,8 @@ export default function ConfiguracionClient({
             showToast(nueva ? 'Plantilla creada. Ahora configúrala.' : 'Plantilla guardada')
             router.refresh()
           }} />
-      )}
+        )
+      })()}
 
       {vistaActa && (() => {
         const ej = contextoEjemplo(empresa)

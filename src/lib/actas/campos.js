@@ -68,7 +68,8 @@ export function variablesUsadas(plantillas) {
 }
 
 const usaInsumos = plantillas => (plantillas || []).some(p =>
-  (p.bloques || []).some(b => b.tipo === 'tabla' && (b.fuente === 'insumos' || b.fuente === 'ambos'))
+  (p.bloques || []).some(b => (b.tipo === 'tabla' && (b.fuente === 'insumos' || b.fuente === 'ambos'))
+    || (b.tipo === 'hoja_fija' && (b.campos || []).some(c => c.tipo === 'tabla' && (c.fuente === 'insumos' || c.fuente === 'ambos'))))
   || JSON.stringify(p.bloques || []).includes('insumos_resumen'))
 
 // Lo que piden las plantillas: campos conocidos, insumos y campos propios
@@ -177,6 +178,16 @@ export function camposDelFormato(plantilla, { conPaciente = true } = {}) {
       return
     }
     if (b.tipo === 'texto' || b.tipo === 'pie') { agregarVars(b.texto); return }
+    // Hoja fija (PDF): los datos de cada recuadro, en el orden de la hoja (de arriba abajo)
+    if (b.tipo === 'hoja_fija') {
+      ;[...(b.campos || [])].sort((x, y) => x.y - y.y || x.x - y.x).forEach(c => {
+        if (c.tipo === 'texto') agregarVars(c.valor, c.etiqueta)
+        else if (c.tipo === 'tabla' && (c.fuente === 'insumos' || c.fuente === 'ambos') && !vistos.has('insumos')) {
+          vistos.add('insumos'); out.push({ clave: 'insumos', tipo: 'insumos', etiqueta: 'Insumos', seccion, pagina })
+        }
+      })
+      return
+    }
     if (b.tipo === 'campos') {
       const sec = limpio(b.titulo) || seccion
       const antes = seccion; seccion = sec

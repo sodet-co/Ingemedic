@@ -1,4 +1,5 @@
-import { renderPaginas, ANCHO_PAGINA } from './render.js'
+import { renderPaginasDetalle, ANCHO_PAGINA } from './render.js'
+import { dibujarHojaFija } from './hojaFijaCanvas.js'
 import { contextoDeActa } from './firmar.js'
 import { capturarHTML } from '../capturar.js'
 
@@ -35,8 +36,12 @@ function cortesSeguros(doc) {
 export async function armarHojas(actas) {
   const hojas = []
   for (const acta of actas) {
-    for (const html of renderPaginas(acta.bloques, contextoDeActa(acta))) {
-      const canvas = await capturarHTML(html, { ancho: ANCHO_PAGINA, altoMinimo: ALTO_A4, medir: cortesSeguros })
+    const ctx = contextoDeActa(acta)
+    for (const { html, hoja } of renderPaginasDetalle(acta.bloques, ctx)) {
+      // Hoja de una plantilla desde PDF: se dibuja directo (la letra cae justo sobre la raya)
+      const canvas = hoja
+        ? await dibujarHojaFija(hoja, ctx)
+        : await capturarHTML(html, { ancho: ANCHO_PAGINA, altoMinimo: ALTO_A4, medir: cortesSeguros })
       const escala = canvas.width / ANCHO_PAGINA
       const altoDoc = canvas.height / escala
       // Se pasa poco (hasta 8 %): se achica un poco y cabe en una sola hoja
