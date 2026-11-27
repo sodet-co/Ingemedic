@@ -28,7 +28,7 @@ const HERRAMIENTAS = {
     },
   },
 }
-const ROLES = { recibe: 'Quien recibe', entrega: 'Quien entrega', responsable: 'Responsable del paciente' }
+const ROLES = { recibe: 'Quien recibe', entrega: 'Quien entrega', responsable: 'Responsable del paciente', otra: 'Otra persona (escribe quién)' }
 const FUENTES = { equipos: 'Equipos del préstamo', insumos: 'Insumos', ambos: 'Equipos e insumos', retirados: 'Equipos que se retiran (cambio)' }
 const COLUMNAS = { ...COLUMNAS_ESTANDAR, lote: 'LOTE', invima: 'REG. INVIMA' }
 const COLOR = { texto: '#2563EB', firma: '#7C3AED', tabla: '#0F7B55' }
@@ -316,7 +316,7 @@ function Recuadro({ c, ctx, escala, caja, elegido, bloqueado, onEmpezar }) {
   const renglon = esRenglonHojaFija(c, caja, letra)
   let contenido
   if (c.tipo === 'firma') {
-    contenido = <span className="text-[11px] font-bold opacity-80" style={{ color }}>✍ {NOMBRE_FIRMA[c.rol] || 'Firma'}</span>
+    contenido = <span className="text-[11px] font-bold opacity-80" style={{ color }}>✍ {c.rol === 'otra' ? `Firma: ${c.quien || 'otra persona'}` : NOMBRE_FIRMA[c.rol] || 'Firma'}</span>
   } else if (c.tipo === 'tabla') {
     const filas = filasHojaFija(c, ctx).slice(0, c.filas || 1)
     const alto = 100 / (c.filas || 1)
@@ -426,6 +426,13 @@ function PanelCampo({ c, letra, onCambio, onDuplicar, onQuitar }) {
           <select className={ui.input} value={c.rol} onChange={e => onCambio({ rol: e.target.value })}>
             {Object.entries(ROLES).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
           </select>
+          {c.rol === 'otra' && (
+            <div className="mt-3">
+              <label className={ui.label}>¿Quién firma?</label>
+              <input className={ui.input} value={c.quien || ''} onChange={e => onCambio({ quien: e.target.value })} placeholder="Funcionario Dusakawi IPSI" />
+              <p className={ui.ayudaCampo}>Al firmar, el repartidor ve este nombre y le pide la firma. Si no la consigue, queda en blanco para firmar en papel.</p>
+            </div>
+          )}
         </div>
       )}
 

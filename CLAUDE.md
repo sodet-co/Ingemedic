@@ -87,7 +87,9 @@ portal. **Al agregar un módulo al panel, sumarlo a `RUTAS_PORTAL` en
 - Contenido `p-3 md:p-6 pb-20 md:pb-6` — la nav móvil ya la reserva el layout
   (`--mobile-nav-space`); no volver a sumar `pb-28`
 - Ventanas: `<Modal>` para formularios, `<VentanaDetalle>` + `<EncabezadoDetalle>`
-  para detalles, `<ConfirmDialog>` para confirmar
+  para detalles, `<ConfirmDialog>` para confirmar. En el celular las ventanas
+  ocupan toda la pantalla y los avisos salen centrados: nada de hojas que suben
+  desde abajo
 - Botones, campos, rótulos y toasts: clases de `src/lib/ui.js` (`ui.btnPrimario`,
   `ui.input`, `ui.toast`…), no clases escritas a mano
 - Tablas: `hidden md:block` en desktop, cards en móvil

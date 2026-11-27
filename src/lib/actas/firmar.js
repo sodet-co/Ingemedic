@@ -2,6 +2,7 @@
 // (components/actas/FirmaActas.js) —en Entregas, en la vista del repartidor y al
 // crear un préstamo en oficina— y la descarga del PDF.
 import { plantillasSugeridas } from './acciones.js'
+import { firmasOtrasDe } from './render.js'
 import { paraPlantilla } from './contexto.js'
 
 const SELECT_ORDEN = `
@@ -58,7 +59,9 @@ export async function guardarActas(supabase, { ordenId, entregaId = null, accion
     accion: p.accion || accion,
     nombre: p.nombre,
     bloques: p.bloques,
-    datos: { variables: c.variables, equipos: c.equipos, insumos: c.insumos, retirados: c.retirados, manuales: c.manuales },
+    datos: { variables: c.variables, equipos: c.equipos, insumos: c.insumos, retirados: c.retirados, manuales: c.manuales,
+      // Firmas de otras personas (render.js → claveFirma, 'otra:…'), solo las que pide esta plantilla
+      firmas_otras: Object.fromEntries(firmasOtrasDe([p]).filter(f => firmas[f.clave]).map(f => [f.clave, firmas[f.clave]])) },
     firma_recibe: firmas.recibe || null,
     firma_entrega: firmas.entrega || null,
     creado_por: user?.id || null,
@@ -77,6 +80,7 @@ export function contextoDeActa(acta) {
     retirados: d.retirados || [],
     manuales: d.manuales || {},
     firmas: {
+      ...(d.firmas_otras || {}),
       recibe: acta.firma_recibe, entrega: acta.firma_entrega,
       [responsable ? 'responsable' : 'paciente']: acta.firma_recibe,
     },

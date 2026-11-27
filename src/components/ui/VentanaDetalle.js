@@ -17,9 +17,9 @@ export default function VentanaDetalle({ onCerrar, children, ancho = 1200, z = '
   }, [onCerrar])
 
   return (
-    <div className={`fixed inset-0 ${z} flex items-end md:items-center justify-center md:p-6`} role="dialog" aria-modal="true">
+    <div className={`fixed inset-0 ${z} flex items-stretch md:items-center justify-center md:p-6`} role="dialog" aria-modal="true">
       <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-[2px]" onClick={onCerrar} />
-      <div className="relative w-full h-[92vh] md:h-auto md:max-h-[calc(100vh-3rem)] rounded-t-2xl md:rounded-2xl bg-white flex flex-col shadow-2xl overflow-hidden"
+      <div className="relative w-full h-[100dvh] md:h-auto md:max-h-[calc(100vh-3rem)] md:rounded-2xl bg-white flex flex-col shadow-2xl overflow-hidden"
         style={{ maxWidth: `min(${ancho}px, 100%)` }}>
         {children}
       </div>

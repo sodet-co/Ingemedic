@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import { Truck, MapPin, Phone, Navigation, Package, User, Clock, CheckCircle2, ArrowRight } from 'lucide-react'
 import { NOMBRE_ACCION, accionDeEntrega, nombreVisita } from '@/lib/accionesPrestamo'
+import { urlGoogleMaps, urlWaze } from '@/lib/mapas'
 
 // Entrega "En progreso": camión animado sobre la ruta, cronómetro y todo lo que
 // necesita quien va en camino (destino, teléfono, equipos). La barra avanza con
@@ -103,11 +104,16 @@ export default function EntregaEnCurso({ entrega, onRegistrar }) {
           <MapPin size={16} className="text-[#D81B43] mt-0.5 flex-shrink-0" />
           <span>{destino || 'Sin dirección registrada'}</span>
         </div>
-        <div className="grid grid-cols-2 gap-2 mt-3">
-          <a href={destino ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(destino)}` : undefined}
+        <div className="grid grid-cols-3 gap-2 mt-3">
+          <a href={destino ? urlWaze(direccion, ciudad) : undefined}
             target="_blank" rel="noopener noreferrer" aria-disabled={!destino}
             className={`flex items-center justify-center gap-1.5 py-2.5 rounded-[10px] text-[13px] font-semibold ${destino ? 'bg-[#1B3A6B] text-white' : 'bg-slate-100 text-slate-400 pointer-events-none'}`}>
-            <Navigation size={14} /> Cómo llegar
+            <Navigation size={14} /> Waze
+          </a>
+          <a href={destino ? urlGoogleMaps(direccion, ciudad) : undefined}
+            target="_blank" rel="noopener noreferrer" aria-disabled={!destino}
+            className={`flex items-center justify-center gap-1.5 py-2.5 rounded-[10px] text-[13px] font-semibold ${destino ? 'bg-[#1B3A6B] text-white' : 'bg-slate-100 text-slate-400 pointer-events-none'}`}>
+            <MapPin size={14} /> Maps
           </a>
           <a href={telefono ? `tel:${String(telefono).replace(/\s/g, '')}` : undefined} aria-disabled={!telefono}
             className={`flex items-center justify-center gap-1.5 py-2.5 rounded-[10px] text-[13px] font-semibold border ${telefono ? 'border-slate-200 text-slate-700' : 'border-slate-100 text-slate-300 pointer-events-none'}`}>

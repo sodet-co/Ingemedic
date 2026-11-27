@@ -12,6 +12,7 @@ import EntregaEnCurso, { RutaAnimada } from '@/components/entregas/EntregaEnCurs
 import ConfirmDialog from '@/components/ui/ConfirmDialog'
 import DescargarActas from '@/components/actas/DescargarActas'
 import { ui } from '@/lib/ui'
+import { urlGoogleMaps, urlWaze } from '@/lib/mapas'
 import {
   Package, MapPin, Clock, CheckCircle2, Truck, Phone, Navigation, StickyNote, ChevronLeft, Download, Loader2,
 } from 'lucide-react'
@@ -36,9 +37,8 @@ function destino(orden) {
     direccion,
     ciudad,
     telefono: p?.telefono || c?.telefono || '',
-    mapsUrl: direccion
-      ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([direccion, ciudad, 'Colombia'].filter(Boolean).join(', '))}`
-      : null,
+    mapsUrl: direccion ? urlGoogleMaps(direccion, ciudad) : null,
+    wazeUrl: direccion ? urlWaze(direccion, ciudad) : null,
   }
 }
 
@@ -387,8 +387,8 @@ function EntregaExitosa({ exito, descarga, onCerrar }) {
     ['Hora', new Date(fin).toLocaleTimeString('es-CO', { hour: 'numeric', minute: '2-digit', hour12: true }), Truck],
   ].filter(Boolean)
   return (
-    <div className="fixed inset-0 z-[70] bg-black/50 flex items-end md:items-center justify-center md:p-4" role="dialog" aria-modal="true" aria-label="Entrega completada">
-      <div className="w-full md:max-w-[420px] bg-white rounded-t-3xl md:rounded-2xl shadow-2xl px-6 pt-8 pb-6 text-center animate-[aparecer_.25s_ease-out]"
+    <div className="fixed inset-0 z-[70] bg-black/50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="Entrega completada">
+      <div className="w-full max-w-[420px] bg-white rounded-2xl shadow-2xl px-6 pt-8 pb-6 text-center animate-[aparecer_.25s_ease-out]"
         style={{ paddingBottom: 'max(24px, env(safe-area-inset-bottom, 24px))' }}>
         <div className="mx-auto w-20 h-20 rounded-full bg-[#ECFDF5] flex items-center justify-center animate-[pop_.4s_ease-out]">
           <div className="w-14 h-14 rounded-full bg-[#0F7B55] text-white flex items-center justify-center"><CheckCircle2 size={32} strokeWidth={2.5} /></div>
@@ -421,7 +421,7 @@ function TarjetaEntrega({ item, saving, hoy, manana, onIniciar, onAbrir }) {
   const orden      = item.orden
   const cliente    = orden?.cliente?.nombre || 'Cliente desconocido'
   const paciente   = orden?.paciente?.nombre || null
-  const { direccion, ciudad, telefono, mapsUrl } = destino(orden)
+  const { direccion, ciudad, telefono, mapsUrl, wazeUrl } = destino(orden)
   const accionE    = item.entrega && esAccion(item.entrega) ? item.entrega : null
   const equipos    = accionE ? equiposDeAccion(accionE) : orden?.equipos || []
   const enProgreso = item._tipo === 'en_progreso'
@@ -485,8 +485,8 @@ function TarjetaEntrega({ item, saving, hoy, manana, onIniciar, onAbrir }) {
         <div className="text-[11px] font-mono text-slate-400 mt-3">{orden?.codigo}</div>
       </div>
 
-      {/* Acciones: llamar y cómo llegar arriba, acción principal abajo a todo el ancho */}
-      <div className="grid grid-cols-2 border-t border-slate-100">
+      {/* Acciones: llamar e ir (Waze o Maps) arriba, acción principal abajo a todo el ancho */}
+      <div className="grid grid-cols-3 border-t border-slate-100">
         {telefono ? (
           <a href={`tel:${telefono.replace(/\s+/g, '')}`} className="py-3 flex items-center justify-center gap-1.5 text-[14px] font-semibold text-[#1B3A6B] border-r border-slate-100 active:bg-slate-50">
             <Phone size={16} /> Llamar
@@ -494,12 +494,15 @@ function TarjetaEntrega({ item, saving, hoy, manana, onIniciar, onAbrir }) {
         ) : (
           <span className="py-3 flex items-center justify-center gap-1.5 text-[13px] text-slate-300 border-r border-slate-100"><Phone size={16} /> Sin teléfono</span>
         )}
-        {mapsUrl ? (
-          <a href={mapsUrl} target="_blank" rel="noopener noreferrer" className="py-3 flex items-center justify-center gap-1.5 text-[14px] font-semibold text-[#1B3A6B] active:bg-slate-50">
-            <Navigation size={16} /> Cómo llegar
+        {mapsUrl ? (<>
+          <a href={wazeUrl} target="_blank" rel="noopener noreferrer" className="py-3 flex items-center justify-center gap-1.5 text-[14px] font-semibold text-[#1B3A6B] border-r border-slate-100 active:bg-slate-50">
+            <Navigation size={16} /> Waze
           </a>
-        ) : (
-          <span className="py-3 flex items-center justify-center gap-1.5 text-[13px] text-slate-300"><Navigation size={16} /> Sin dirección</span>
+          <a href={mapsUrl} target="_blank" rel="noopener noreferrer" className="py-3 flex items-center justify-center gap-1.5 text-[14px] font-semibold text-[#1B3A6B] active:bg-slate-50">
+            <MapPin size={16} /> Maps
+          </a>
+        </>) : (
+          <span className="col-span-2 py-3 flex items-center justify-center gap-1.5 text-[13px] text-slate-300"><Navigation size={16} /> Sin dirección</span>
         )}
       </div>
       <div className="px-4 pb-4">

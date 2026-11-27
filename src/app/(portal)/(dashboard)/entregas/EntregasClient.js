@@ -6,12 +6,13 @@ import { createClient } from '@/lib/supabase'
 import {
   Package, CheckCircle2, Clock, Truck, X, Search,
   MapPin, Phone, FileText, User, AlertTriangle,
-  ArrowUpRight, ArrowDownLeft, Filter, Calendar, Lock, Loader2
+  ArrowUpRight, ArrowDownLeft, Filter, Calendar, Lock, Loader2, Navigation
 } from 'lucide-react'
 import LimpiarFiltros from '@/components/ui/LimpiarFiltros'
 import EncabezadoModulo from '@/components/ui/EncabezadoModulo'
 import Modal from '@/components/ui/Modal'
 import { ui } from '@/lib/ui'
+import { urlGoogleMaps, urlWaze } from '@/lib/mapas'
 import { formatear, soloDia, hoyBogota } from '@/lib/fechas'
 import FirmaActas from '@/components/actas/FirmaActas'
 import { capturarHTML } from '@/lib/capturar'
@@ -668,14 +669,14 @@ export default function EntregasClient({ entregasIniciales, ordenesEnReparto, es
         )}
 
         {/* Tablero: Por iniciar → En ruta → Completadas */}
-        <div className="flex-1 min-h-0 overflow-y-auto lg:overflow-hidden grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-5">
+        <div className="flex-1 min-h-0 overflow-y-auto lg:overflow-hidden grid grid-cols-1 content-start lg:content-stretch lg:grid-cols-3 gap-4 lg:gap-5">
           {[
             { id: 'porIniciar', titulo: 'Por iniciar', items: carriles.porIniciar, color: '#64748B', vacio: 'Nada programado por iniciar' },
             { id: 'enRuta', titulo: 'En ruta', items: carriles.enRuta, color: '#0E86A0', vacio: 'Nadie en ruta ahora' },
             { id: 'completadas', titulo: 'Completadas', items: verCompletadas === 'hoy' ? carriles.completadasHoy : carriles.completadasTodas, color: '#0F7B55',
               vacio: verCompletadas === 'hoy' ? 'Aún no se completa ninguna hoy' : 'Sin entregas completadas' },
           ].map(col => (
-            <section key={col.id} className="flex flex-col min-h-0 lg:bg-slate-100/60 lg:rounded-2xl lg:p-3">
+            <section key={col.id} className="flex flex-col lg:min-h-0 lg:bg-slate-100/60 lg:rounded-2xl lg:p-3">
               <div className="flex items-center gap-2 mb-2.5 px-1 flex-shrink-0">
                 <span className="w-2 h-2 rounded-full" style={{ background: col.color }} />
                 <span className="text-[13px] font-bold text-slate-700">{col.titulo}</span>
@@ -770,6 +771,32 @@ export default function EntregasClient({ entregasIniciales, ordenesEnReparto, es
                 )}
           </>}>
               <div className="divide-y divide-slate-100">
+                {/* A dónde va: el paciente (si no hay, el cliente), con Waze, Maps y llamar */}
+                {(() => {
+                  const p = modalOrden.paciente, c = modalOrden.cliente
+                  const direccion = p?.direccion || c?.direccion
+                  const ciudad = p?.direccion ? p?.ciudad : c?.municipio?.nombre
+                  const tel = p?.telefono || c?.telefono
+                  const btn = 'flex items-center justify-center gap-1.5 h-10 rounded-[10px] text-[13px] font-semibold'
+                  return (
+                    <div className="p-5">
+                      <div className="text-[10.5px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-2">Destino</div>
+                      {p?.nombre && <div className="text-[14px] font-bold text-slate-800">{p.nombre}</div>}
+                      <div className="flex items-start gap-1.5 text-[13px] text-slate-600 mt-0.5">
+                        <MapPin size={14} className="text-[#D81B43] mt-0.5 flex-shrink-0" />
+                        <span>{[direccion, ciudad].filter(Boolean).join(', ') || 'Sin dirección registrada'}</span>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2 mt-3">
+                        <a href={urlWaze(direccion, ciudad) || undefined} target="_blank" rel="noopener noreferrer" aria-disabled={!direccion}
+                          className={`${btn} ${direccion ? 'bg-[#1B3A6B] text-white' : 'bg-slate-100 text-slate-400 pointer-events-none'}`}><Navigation size={14} /> Waze</a>
+                        <a href={urlGoogleMaps(direccion, ciudad) || undefined} target="_blank" rel="noopener noreferrer" aria-disabled={!direccion}
+                          className={`${btn} ${direccion ? 'bg-[#1B3A6B] text-white' : 'bg-slate-100 text-slate-400 pointer-events-none'}`}><MapPin size={14} /> Maps</a>
+                        <a href={tel ? `tel:${String(tel).replace(/\s/g, '')}` : undefined} aria-disabled={!tel}
+                          className={`${btn} border ${tel ? 'border-slate-200 text-slate-700' : 'border-slate-100 text-slate-300 pointer-events-none'}`}><Phone size={14} /> Llamar</a>
+                      </div>
+                    </div>
+                  )
+                })()}
                 <div className="p-5">
                   <div className="text-[10.5px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-3">Cliente</div>
                   <div className="space-y-2">

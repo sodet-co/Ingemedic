@@ -4,7 +4,7 @@
 // cada letra cae exactamente en el borde de abajo del recuadro, igual que en el
 // editor y en la vista previa (render.js → hojaFija, .hf-base).
 
-import { ANCHO_PAGINA, ALTO_HOJA, cajaHojaFija, filasHojaFija, letraHojaFija, esRenglonHojaFija } from './render.js'
+import { ANCHO_PAGINA, ALTO_HOJA, cajaHojaFija, filasHojaFija, letraHojaFija, esRenglonHojaFija, claveFirma } from './render.js'
 
 const FUENTE = 'Arial, Helvetica, sans-serif'
 
@@ -68,7 +68,7 @@ export async function dibujarHojaFija(b, ctx, escala = 2) {
     const tam = letraHojaFija(c, caja)
 
     if (c.tipo === 'firma') {
-      const src = ctx.firmas?.[c.rol]
+      const src = ctx.firmas?.[claveFirma(c)]
       if (!src) continue
       const img = await cargar(src)
       // Contenida en el recuadro, abajo y al centro (como .hf-firma)

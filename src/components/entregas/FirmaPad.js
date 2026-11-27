@@ -19,7 +19,9 @@ const MARGEN   = 12
 //   WhatsApp, galería y algunos PDF).
 // - Solo se reporta la firma si de verdad se trazó algo (un toque o que el
 //   mouse saliera del recuadro enviaba una firma en blanco).
-export default function FirmaPad({ onFirma, onLimpiar, fullscreen = false }) {
+// girado: el pad se ve rotado 90° con CSS (FirmaHorizontal.js, celular vertical que no
+// gira la pantalla): el toque se pasa a coordenadas del pad, así la firma sale derecha.
+export default function FirmaPad({ onFirma, onLimpiar, fullscreen = false, girado = false }) {
   const canvasRef = useRef(null)
   const drawing   = useRef(false)
   const bbox      = useRef(null)   // límites del trazo en px de pantalla
@@ -30,7 +32,8 @@ export default function FirmaPad({ onFirma, onLimpiar, fullscreen = false }) {
   useEffect(() => {
     const canvas = canvasRef.current
     function ajustar() {
-      const r = canvas.getBoundingClientRect()
+      // Tamaño del pad sin rotar (getBoundingClientRect daría la caja ya girada)
+      const r = { width: canvas.clientWidth, height: canvas.clientHeight }
       const dpr = window.devicePixelRatio || 1
       const w = Math.round(r.width * dpr), h = Math.round(r.height * dpr)
       if (!w || !h || (canvas.width === w && canvas.height === h)) return
@@ -51,6 +54,8 @@ export default function FirmaPad({ onFirma, onLimpiar, fullscreen = false }) {
   function getPos(e) {
     const r = canvasRef.current.getBoundingClientRect()
     const src = e.touches ? e.touches[0] : e
+    // Rotado 90° a la derecha: x del pad = y en pantalla, y del pad = alto − x en pantalla
+    if (girado) return { x: src.clientY - r.top, y: canvasRef.current.clientHeight - (src.clientX - r.left) }
     return { x: src.clientX - r.left, y: src.clientY - r.top }
   }
   function ampliarBbox({ x, y }) {
@@ -105,7 +110,7 @@ export default function FirmaPad({ onFirma, onLimpiar, fullscreen = false }) {
 
   function limpiar() {
     const canvas = canvasRef.current
-    const r = canvas.getBoundingClientRect()
+    const r = { width: canvas.clientWidth, height: canvas.clientHeight }
     const ctx = canvas.getContext('2d')
     ctx.fillStyle = '#FFFFFF'
     ctx.fillRect(0, 0, r.width, r.height)

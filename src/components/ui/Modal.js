@@ -7,7 +7,8 @@ const ANCHOS = { sm: 480, md: 720, lg: 960, xl: 1180 }
 
 // Ventana emergente estándar del panel. Todas tienen la misma forma:
 //  - PC: centrada, rounded-2xl, alto máximo de la pantalla menos 3rem.
-//  - Celular: hoja que sube desde abajo (rounded-t-2xl, hasta 92% del alto).
+//  - Celular: pantalla completa (así lo prefiere Ingemedic; antes era una hoja
+//    que subía desde abajo).
 //  - Encabezado (título, subtítulo opcional, X), cuerpo con scroll y pie fijo
 //    con los botones alineados a la derecha (Cancelar a la izquierda del principal).
 // Esc cierra, salvo que `bloqueado` (guardando…).
@@ -22,10 +23,10 @@ export default function Modal({
   }, [onCerrar, bloqueado])
 
   return (
-    <div className={`fixed inset-0 ${z} flex items-end md:items-center justify-center md:p-6`} role="dialog" aria-modal="true">
+    <div className={`fixed inset-0 ${z} flex items-stretch md:items-center justify-center md:p-6`} role="dialog" aria-modal="true">
       <div className="absolute inset-0 bg-slate-900/45" onClick={cerrarConFondo && !bloqueado ? onCerrar : undefined} />
-      <div className="relative w-full max-h-[92dvh] md:max-h-[calc(100dvh-3rem)] rounded-t-2xl md:rounded-2xl bg-white flex flex-col shadow-2xl overflow-hidden"
-        style={{ maxWidth: `min(${ANCHOS[tamano] || tamano}px, 100%)` }}>
+      <div className="relative w-full h-[100dvh] md:h-auto md:max-h-[calc(100dvh-3rem)] md:rounded-2xl bg-white flex flex-col shadow-2xl overflow-hidden max-md:!max-w-full"
+        style={{ maxWidth: `min(${ANCHOS[tamano] || tamano}px, 100%)`, paddingTop: 'env(safe-area-inset-top)' }}>
         {titulo !== undefined && (
           <div className="flex items-start gap-3 px-5 md:px-6 py-4 border-b border-slate-200 flex-shrink-0">
             {icono && <div className="w-9 h-9 rounded-[10px] bg-slate-100 text-slate-500 flex items-center justify-center flex-shrink-0">{icono}</div>}

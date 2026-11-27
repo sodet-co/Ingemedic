@@ -687,7 +687,7 @@ export default function OrdenesClient({
                     className="w-full pl-9 pr-4 h-[38px] border border-slate-200 rounded-[9px] text-[13px] text-slate-800 bg-white outline-none focus:border-[#D81B43] focus:ring-2 focus:ring-[#D81B43]/10 placeholder:text-slate-400" />
                 </div>
                 <div className="flex items-center gap-2 md:gap-3 md:flex-1 min-w-0">
-                  <div className="flex items-center gap-2 overflow-x-auto flex-1 min-w-0">
+                  <div className="flex items-center gap-2 overflow-x-auto overflow-y-hidden sin-barra flex-1 min-w-0">
                     {[
                       { key: 'todos',    label: 'Todos'    },
                       { key: 'en_curso', label: 'En curso' },
@@ -1030,7 +1030,7 @@ export default function OrdenesClient({
                 </div>
 
                 {/* Pestañas: el resumen y, aparte, equipos, actas e historial (menos scroll) */}
-                <div className="sticky top-0 z-10 bg-white border-b border-slate-200 px-3 md:px-5 flex gap-1 overflow-x-auto" role="tablist">
+                <div className="sticky top-0 z-10 bg-white border-b border-slate-200 px-3 md:px-5 flex gap-1 overflow-x-auto overflow-y-hidden sin-barra" role="tablist">
                   {[['resumen', 'Resumen'], ['equipos', `Equipos (${equiposDrawer.length})`], ['actas', 'Actas'], ['historial', 'Historial']].map(([k, l]) => (
                     <button key={k} type="button" role="tab" aria-selected={pestanaDrawer === k} onClick={() => setPestana({ id: drawer.id, p: k })}
                       className={`px-3 py-3 text-[13px] font-semibold whitespace-nowrap border-b-2 -mb-px transition-colors ${pestanaDrawer === k ? 'border-[#D81B43] text-[#D81B43]' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>

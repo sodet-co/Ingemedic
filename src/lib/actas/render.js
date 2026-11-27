@@ -455,6 +455,20 @@ export function letraHojaFija(c, caja) {
   return Math.min(Math.max(Math.round(alto * 0.8 * 2) / 2, c.tipo === 'tabla' ? 10 : 12), c.tipo === 'tabla' ? 15 : 16)
 }
 
+// Firma de otra persona (rol 'otra', con su nombre en `quien`: "Funcionario Dusakawi
+// IPSI"): se recoge en el paso de firma con ese nombre y se guarda con esta clave
+export const claveFirma = c => c.rol === 'otra'
+  ? `otra:${String(c.quien || 'Otra persona').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '')}`
+  : c.rol
+// Firmas de otras personas que piden las plantillas: [{ clave, quien }] sin repetir
+export function firmasOtrasDe(plantillas) {
+  const out = new Map()
+  for (const p of plantillas || []) for (const b of p.bloques || []) for (const c of b.campos || []) {
+    if (b.tipo === 'hoja_fija' && c.tipo === 'firma' && c.rol === 'otra') out.set(claveFirma(c), c.quien?.trim() || 'Otra persona')
+  }
+  return [...out].map(([clave, quien]) => ({ clave, quien }))
+}
+
 // ¿Recuadro de un solo renglón? (si no, es un texto largo que se escribe desde arriba)
 export const esRenglonHojaFija = (c, caja, letra) => (Number(c.h) || 0) / 100 * caja.alto < letra * 2.4
 // Con line-height 1, la base de la letra (Arial) queda 0.15em por encima del borde de abajo
@@ -469,7 +483,7 @@ function hojaFija(b, ctx) {
     const pos = `left:${pct(c.x)};top:${pct(c.y)};width:${pct(c.w)};height:${pct(c.h)}`
     const tam = letraHojaFija(c, caja)
     if (c.tipo === 'firma') {
-      const img = ctx.firmas?.[c.rol]
+      const img = ctx.firmas?.[claveFirma(c)]
       return `<div class="hf-c hf-firma" style="${pos}">${img ? `<img src="${esc(img)}">` : ''}</div>`
     }
     if (c.tipo === 'tabla') {

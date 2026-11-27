@@ -1,13 +1,15 @@
 'use client'
 import { useEffect, useMemo, useState } from 'react'
-import { X, Loader2, FileText, ChevronLeft } from 'lucide-react'
+import { X, Loader2, FileText, ChevronLeft, RotateCw } from 'lucide-react'
 import { createClient } from '@/lib/supabase'
 import { cargarParaFirma, guardarActas } from '@/lib/actas/firmar'
 import { construirContexto, paraPlantilla, edadDe } from '@/lib/actas/contexto'
 import VistaActa from '@/components/actas/VistaActa'
 import { EditorInsumos } from '@/components/actas/LlenarFormatos'
 import { leerDatosActa, camposPedidos } from '@/lib/actas/campos'
+import { firmasOtrasDe } from '@/lib/actas/render'
 import FirmaPad from '@/components/entregas/FirmaPad'
+import FirmaHorizontal from '@/components/entregas/FirmaHorizontal'
 import { ui } from '@/lib/ui'
 
 const inputCls = 'w-full px-3 py-2.5 border border-slate-200 rounded-[9px] text-[16px] md:text-[13.5px] text-slate-800 outline-none focus:border-[#D81B43] bg-white placeholder:text-slate-400'
@@ -21,7 +23,10 @@ const TIPOS_DOC = ['CC', 'TI', 'RC', 'CE', 'PA']
 //           el préstamo (ordenes_servicio.datos_acta); aquí solo se corrige.
 //   1..N    revisión de cada formato ya lleno
 //   N+1     firma de quien recibe (el paciente o su familiar, primero y sola)
-//   N+2     firma de quien entrega (el repartidor o técnico, después)
+//   N+2..   firmas de otras personas que piden los formatos (p. ej. "Funcionario
+//           Dusakawi IPSI"; render.js → firmasOtrasDe). Se pueden saltar: quedan
+//           en blanco para firmar en papel
+//   último  firma de quien entrega (el repartidor o técnico, después)
 // Al confirmar corre `alFirmar` (p. ej. completar la entrega; si devuelve un
 // error no se guarda nada) y luego guarda una fila de `actas` por formato.
 // alFirmar puede devolver { entregaId } (la fila de entregas que creó) para
@@ -64,6 +69,7 @@ export default function FirmaActas({ ordenId, entregaId = null, titulo = 'Firmar
   // Firma que se está trazando ahora: el pad sigue abierto aunque ya haya trazos.
   // Al volver a un paso ya firmado se muestra la firma con "Volver a firmar".
   const [trazando, setTrazando] = useState(null)
+  const [horizontal, setHorizontal] = useState(null) // { rol, quien }: firma de lado a pantalla completa
 
   useEffect(() => {
     let cancelado = false
@@ -113,8 +119,10 @@ export default function FirmaActas({ ordenId, entregaId = null, titulo = 'Firmar
   const plantillas = useMemo(() => base?.plantillas || [], [base])
   const pedidos = useMemo(() => camposPedidos(plantillas), [plantillas])
   const camposExtra = pedidos.campos.filter(c => c.grupo === 'Otros datos')
+  const otras = useMemo(() => firmasOtrasDe(plantillas), [plantillas])
   const pasoFirma = plantillas.length + 1       // firma de quien recibe
-  const pasoFirmaEntrega = plantillas.length + 2 // firma de quien entrega (último)
+  const pasoFirmaEntrega = plantillas.length + 2 + otras.length // firma de quien entrega (último)
+  const otraDelPaso = paso > pasoFirma && paso < pasoFirmaEntrega ? otras[paso - pasoFirma - 1] : null
   const docActual = paso >= 1 && paso <= plantillas.length ? plantillas[paso - 1] : null
 
   function validarDatos() {
@@ -183,8 +191,9 @@ export default function FirmaActas({ ordenId, entregaId = null, titulo = 'Firmar
   return (
     <>
       <div className="fixed inset-0 bg-black/50 z-[60]" onClick={guardando ? undefined : onCancelar} />
-      <div className="fixed inset-x-0 bottom-0 h-[92vh] rounded-t-2xl md:inset-y-6 md:inset-x-auto md:left-1/2 md:-translate-x-1/2 md:h-auto md:w-[min(1120px,calc(100vw-3rem))] md:rounded-2xl bg-white z-[60] flex flex-col shadow-2xl overflow-hidden">
-        <div className="px-5 py-3.5 border-b flex items-center gap-3 flex-shrink-0">
+      <div className="fixed inset-0 h-[100dvh] md:inset-y-6 md:inset-x-auto md:left-1/2 md:-translate-x-1/2 md:h-auto md:w-[min(1120px,calc(100vw-3rem))] md:rounded-2xl bg-white z-[60] flex flex-col shadow-2xl overflow-hidden"
+        style={{ paddingTop: 'env(safe-area-inset-top)' }}>
+        <div className="px-4 md:px-5 py-3 md:py-3.5 border-b border-slate-200 flex items-center gap-2 md:gap-3 flex-shrink-0">
           {paso > 0 && (
             <button onClick={() => { setError(null); setTrazando(null); setPaso(p => p - 1) }} disabled={guardando}
               className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100"><ChevronLeft size={18} /></button>
@@ -335,18 +344,19 @@ export default function FirmaActas({ ordenId, entregaId = null, titulo = 'Firmar
             </div>
           )}
 
-          {base && (paso === pasoFirma || paso === pasoFirmaEntrega) && (() => {
-            const rol = paso === pasoFirma ? 'recibe' : 'entrega'
-            const quien = rol === 'recibe' ? datosRecibe.nombre : entrega.nombre
+          {base && (paso === pasoFirma || paso === pasoFirmaEntrega || otraDelPaso) && (() => {
+            const rol = paso === pasoFirma ? 'recibe' : otraDelPaso ? otraDelPaso.clave : 'entrega'
+            const quien = rol === 'recibe' ? datosRecibe.nombre : otraDelPaso ? otraDelPaso.quien : entrega.nombre
             return (
               <div className="p-5 md:p-6 flex flex-col flex-1 min-h-[340px]">
                 <div className="text-[11px] font-bold uppercase tracking-[0.08em] text-[#D81B43] mb-1">
-                  {rol === 'recibe' ? roles.firmaPaciente : roles.firmaIngemedic}
+                  {rol === 'recibe' ? roles.firmaPaciente : otraDelPaso ? 'Otra firma' : roles.firmaIngemedic}
                 </div>
                 <div className="text-[18px] font-bold text-slate-800 leading-tight">{quien}</div>
                 <div className="text-[12.5px] text-slate-500 mt-1 mb-4">
                   {rol === 'recibe'
                     ? 'Pásale el dispositivo para que firme con el dedo.'
+                    : otraDelPaso ? 'Pídele que firme aquí. Si no está, sigue sin su firma y queda en blanco para firmar en papel.'
                     : `Ahora firma tú para cerrar ${accion === 'prestamo' ? 'la entrega' : 'el acta'}.`}
                   {' '}Aplica a {plantillas.length === 1 ? 'el documento' : `los ${plantillas.length} documentos`}.
                 </div>
@@ -362,9 +372,19 @@ export default function FirmaActas({ ordenId, entregaId = null, titulo = 'Firmar
                       onLimpiar={() => setFirmas(x => ({ ...x, [rol]: null }))} />
                   </div>
                 )}
+                {/* En el celular: firmar de lado, más espacio */}
+                <button type="button" onClick={() => setHorizontal({ rol, quien })}
+                  className="md:hidden mt-3 self-center inline-flex items-center gap-1.5 text-[13px] font-semibold text-[#1B3A6B]">
+                  <RotateCw size={14} /> Firmar en horizontal
+                </button>
               </div>
             )
           })()}
+
+          {horizontal && (
+            <FirmaHorizontal titulo={`Firma · ${horizontal.quien || ''}`} onCerrar={() => setHorizontal(null)}
+              onListo={f => { setFirmas(x => ({ ...x, [horizontal.rol]: f })); setTrazando(null); setHorizontal(null) }} />
+          )}
 
           {error && <div className="mx-5 my-3 px-3 py-2.5 bg-red-50 border border-red-200 rounded-[8px] text-[12.5px] text-red-700">{error}</div>}
         </div>
@@ -376,7 +396,8 @@ export default function FirmaActas({ ordenId, entregaId = null, titulo = 'Firmar
             {paso < pasoFirmaEntrega
               ? <button onClick={siguiente} disabled={paso === pasoFirma && !firmas.recibe}
                   className={ui.btnAzul}>
-                  {paso === pasoFirma ? `Listo, sigue ${accion === 'prestamo' ? 'quien entrega' : 'Ingemedic'} →` : 'Siguiente →'}
+                  {otraDelPaso ? (firmas[otraDelPaso.clave] ? 'Siguiente →' : 'Seguir sin esta firma →')
+                    : paso === pasoFirma ? (otras.length ? 'Listo, siguiente firma →' : `Listo, sigue ${accion === 'prestamo' ? 'quien entrega' : 'Ingemedic'} →`) : 'Siguiente →'}
                 </button>
               : <button onClick={confirmar} disabled={guardando || !firmas.recibe || !firmas.entrega}
                   className={ui.btnPrimario}>
