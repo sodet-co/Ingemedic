@@ -84,6 +84,7 @@ export default async function EntregasPage() {
   if (esRepartidor) {
     return (
       <EntregasRepartidorClient
+        repartidorId={usuario?.id}
         nombreRepartidor={usuario?.nombre || ''}
         entregasIniciales={entregas || []}
         ordenesAsignadas={ordenes || []}

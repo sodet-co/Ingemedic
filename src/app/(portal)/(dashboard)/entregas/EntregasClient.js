@@ -2,6 +2,7 @@
 import { registrarBitacora } from '@/lib/bitacora'
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import dynamic from 'next/dynamic'
 import { createClient } from '@/lib/supabase'
 import {
   Package, CheckCircle2, Clock, Truck, X, Search,
@@ -14,6 +15,7 @@ import Modal from '@/components/ui/Modal'
 import { ui } from '@/lib/ui'
 import { urlGoogleMaps, urlWaze, urlPunto } from '@/lib/mapas'
 import { puntoDe } from '@/lib/ubicacion'
+import { ultimasUbicaciones, haceCuanto } from '@/lib/seguimiento'
 import { formatear, soloDia, hoyBogota } from '@/lib/fechas'
 import FirmaActas from '@/components/actas/FirmaActas'
 import { capturarHTML } from '@/lib/capturar'
@@ -24,6 +26,9 @@ import DescargarActas from '@/components/actas/DescargarActas'
 import { crearEntrega, finalizarEntrega } from '@/lib/entregas'
 import { completarAccion, iniciarAccion, accionDeEntrega, equiposDelActa, NOMBRE_ACCION, nombreVisita } from '@/lib/accionesPrestamo'
 import { useUsuarioActual } from '@/lib/usuario-context'
+
+// Leaflet solo en el navegador
+const MapaRepartidores = dynamic(() => import('@/components/entregas/MapaRepartidores'), { ssr: false })
 
 const TL_STEPS = ['Programada', 'En ruta', 'Entregada']
 
@@ -123,6 +128,16 @@ export default function EntregasClient({ entregasIniciales, ordenesEnReparto, es
   // actualización local que ACABAMOS de hacer nosotros mismos.
   const skipSyncUntil = useRef(0)
   const [ordenes, setOrdenes]             = useState(ordenesEnReparto)
+  // Seguimiento: última ubicación de cada repartidor (lib/seguimiento.js), cada minuto
+  const [ubicaciones, setUbicaciones]     = useState({})
+  const [verMapa, setVerMapa]             = useState(false)
+  useEffect(() => {
+    let vivo = true
+    const leer = () => ultimasUbicaciones(createClient()).then(u => { if (vivo) setUbicaciones(u) })
+    leer()
+    const t = setInterval(leer, 60_000)
+    return () => { vivo = false; clearInterval(t) }
+  }, [])
 
   // Mantener el estado local sincronizado cuando el servidor manda datos frescos
   // (esto se dispara después de router.refresh(), incluido el que llega por realtime)
@@ -682,6 +697,11 @@ export default function EntregasClient({ entregasIniciales, ordenesEnReparto, es
                 <span className="w-2 h-2 rounded-full" style={{ background: col.color }} />
                 <span className="text-[13px] font-bold text-slate-700">{col.titulo}</span>
                 <span className="text-[12px] font-bold tabular-nums px-1.5 rounded-full bg-white text-slate-500 border border-slate-200">{col.items.length}</span>
+                {col.id === 'enRuta' && (
+                  <button onClick={() => setVerMapa(true)} className="ml-auto flex items-center gap-1 px-2.5 py-1 rounded-[8px] bg-white border border-slate-200 text-[11.5px] font-semibold text-[#0E86A0] hover:border-[#0E86A0]/40">
+                    <MapPin size={12} /> Mapa
+                  </button>
+                )}
                 {col.id === 'completadas' && (
                   <div className="ml-auto flex bg-white border border-slate-200 rounded-[8px] p-0.5">
                     {[['hoy', 'Hoy'], ['todas', `Historial (${carriles.completadasTodas.length})`]].map(([v, l]) => (
@@ -736,6 +756,13 @@ export default function EntregasClient({ entregasIniciales, ordenesEnReparto, es
                       {item.estado?.nombre === 'En progreso' && (
                         <div className="mt-2.5">
                           <RutaAnimada inicio={item.fecha_inicio} compacto />
+                          {/* Última señal del repartidor (seguimiento) */}
+                          {ubicaciones[item.repartidor_id] && (
+                            <button onClick={e => { e.stopPropagation(); setVerMapa(true) }}
+                              className="mt-1.5 flex items-center gap-1 text-[11.5px] font-semibold text-[#0E86A0] hover:underline">
+                              <MapPin size={11} /> Última señal {haceCuanto(ubicaciones[item.repartidor_id].creado)}
+                            </button>
+                          )}
                           {retrasada && <div className="mt-1 text-[11px] font-bold text-[#D81B43] flex items-center gap-1"><AlertTriangle size={11} /> Retraso detectado</div>}
                         </div>
                       )}
@@ -758,6 +785,25 @@ export default function EntregasClient({ entregasIniciales, ordenesEnReparto, es
           ))}
         </div>
       </div>
+
+      {/* ── MAPA DE REPARTIDORES (seguimiento: última ubicación conocida) ── */}
+      {verMapa && (() => {
+        const enRuta = entregas.filter(e => e.estado?.nombre === 'En progreso')
+        const puntos = Object.values(ubicaciones).map(u => {
+          const e = enRuta.find(x => x.repartidor_id === u.repartidor_id)
+          return { id: u.repartidor_id, nombre: e?.repartidor?.nombre || 'Repartidor', lat: u.lat, lng: u.lng, creado: u.creado, precision: u.precision,
+            codigo: e?.orden?.codigo || e?.codigo, destino: e ? (e.orden?.paciente?.nombre || e.orden?.cliente?.nombre || e.cliente?.nombre) : 'Sin entrega en curso' }
+        }).filter(p => enRuta.some(e => e.repartidor_id === p.id))
+        return (
+          <Modal onCerrar={() => setVerMapa(false)} titulo="Repartidores en ruta" tamano="xl" sinPadding
+            subtitulo="Última ubicación conocida. Si usan Waze o apagan la pantalla, la señal se queda quieta hasta que vuelvan a abrir la app.">
+            <div className="h-[70dvh] md:h-[65vh]">
+              {puntos.length ? <MapaRepartidores puntos={puntos} />
+                : <div className="h-full flex items-center justify-center text-[13px] text-slate-400 px-6 text-center">Aún no hay señal de ningún repartidor en ruta. Llega cuando abren la app con una entrega en curso.</div>}
+            </div>
+          </Modal>
+        )
+      })()}
 
       {/* ── DETALLE DE LA ORDEN (antes de iniciar) ── */}
       {modalOrden && (

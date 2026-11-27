@@ -60,6 +60,13 @@ Lo que está sin resolver, ordenado por prioridad.
 
 # Entradas
 
+## 2026-11-26 — Seguimiento del repartidor (última ubicación conocida)
+**Qué se hizo:** mientras el repartidor tiene una entrega en curso y la app abierta, su celular manda la ubicación a `ubicaciones_repartidor` (como mucho una por minuto, o antes si se movió 150 m; una de una al volver a la app). En Entregas (admin), la columna "En ruta" tiene **Mapa** (Leaflet + OpenStreetMap, `MapaRepartidores.js`) con la última ubicación de cada repartidor en ruta, y cada tarjeta en ruta dice "Última señal hace X min". Se refresca cada minuto. Gris si lleva más de 15 min sin señal.
+**Por qué así:** desde el navegador el celular no manda la ubicación con la app minimizada o la pantalla apagada (Waze abierto). Seguimiento continuo de verdad necesita una app instalada; esto es la última ubicación conocida.
+**Archivos:** `src/lib/seguimiento.js` (nuevo), `src/components/entregas/MapaRepartidores.js` (nuevo), `entregas/{page,EntregasClient,EntregasRepartidorClient}.js`.
+**SQL:** tabla `ubicaciones_repartidor` con RLS (`autenticados_todo`). El código se subió antes del SQL a propósito: sin la tabla no se guarda nada y el mapa dice que no hay señal, sin errores.
+**Pendiente:** correr el SQL · probar con un repartidor en la calle · la tabla crece (≈ 1 fila/min por repartidor en ruta): borrar lo de más de 30 días de vez en cuando (consulta en el SQL) · no se vio el mapa en el navegador.
+
 ## 2026-11-26 — Ubicación exacta de la entrega
 **Qué se hizo:** cuando el repartidor finaliza una entrega o una visita (vista del repartidor), el celular da su ubicación (si hay permiso; se pide al abrir el cierre para que el GPS alcance). Queda en la entrega (`entregas.ubicacion_*`, la prueba: en el tablero de admin, "Ver" junto a quien recibió) y, si la precisión es de 100 m o menos, en el paciente (o el cliente si no hay paciente) en `ubicacion_lat/lng/precision/fecha`. Desde ahí Waze y Maps van al punto exacto en vez de buscar la dirección escrita (`lib/mapas.js` con `punto`). Desde la oficina (vista de admin) no se guarda: sería la ubicación de la oficina. Lógica en `src/lib/ubicacion.js`.
 **Archivos:** `src/lib/ubicacion.js` (nuevo), `src/lib/mapas.js`, `entregas/{page,EntregasClient,EntregasRepartidorClient}.js`, `src/components/entregas/EntregaEnCurso.js`.

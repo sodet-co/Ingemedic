@@ -14,6 +14,7 @@ import DescargarActas from '@/components/actas/DescargarActas'
 import { ui } from '@/lib/ui'
 import { urlGoogleMaps, urlWaze } from '@/lib/mapas'
 import { pedirUbicacion, conTope, guardarUbicacionEntrega, puntoDe } from '@/lib/ubicacion'
+import { iniciarSeguimiento } from '@/lib/seguimiento'
 import {
   Package, MapPin, Clock, CheckCircle2, Truck, Phone, Navigation, StickyNote, ChevronLeft, Download, Loader2,
 } from 'lucide-react'
@@ -50,7 +51,7 @@ const fechaCorta = iso => formatear(iso, { weekday: 'short', day: 'numeric', mon
 // Vista de Entregas del rol Repartidor — mobile-first. Reutiliza la lógica de
 // negocio de lib/entregas.js (crearEntrega, finalizarEntrega) y FirmaPad; solo
 // cambia la presentación respecto a la vista de admin (EntregasClient.js).
-export default function EntregasRepartidorClient({ nombreRepartidor = '', entregasIniciales, ordenesAsignadas, estadosEquipo }) {
+export default function EntregasRepartidorClient({ repartidorId, nombreRepartidor = '', entregasIniciales, ordenesAsignadas, estadosEquipo }) {
   const router = useRouter()
   const supabase = createClient()
 
@@ -224,6 +225,14 @@ export default function EntregasRepartidorClient({ nombreRepartidor = '', entreg
     if (erroresFirma > 0) showToast(`Entrega completada, pero ${erroresFirma} firma(s) no se guardaron`, 'error')
     return null
   }
+
+  // Seguimiento: mientras tenga una entrega en curso, su ubicación va al mapa del admin
+  // (solo con la app abierta; lib/seguimiento.js)
+  const idEnCurso = entregas.find(e => e.estado?.nombre === 'En progreso')?.id
+  useEffect(() => {
+    if (!idEnCurso) return
+    return iniciarSeguimiento(createClient(), { repartidorId, entregaId: idEnCurso })
+  }, [idEnCurso, repartidorId])
 
   const primerNombre = (nombreRepartidor || '').trim().split(/\s+/)[0]
   // "viernes, 25 de septiembre" → "Viernes, 25 de septiembre" (solo la primera letra;
