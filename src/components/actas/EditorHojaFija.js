@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { X, Type, PenLine, Table2, Trash2, Copy, Loader2, FileUp, MousePointerClick, Plus, Minus, Eye } from 'lucide-react'
+import { X, Type, PenLine, Table2, Trash2, Copy, CopyPlus, ClipboardPaste, Loader2, FileUp, MousePointerClick, Plus, Minus, Eye } from 'lucide-react'
 import { createClient } from '@/lib/supabase'
 import { NOMBRES, NOMBRE_FIRMA, aTexto, aVariables, propiosDe } from '@/lib/actas/nombres'
 import { contextoEjemplo } from '@/lib/actas/ejemplo'
@@ -37,6 +37,9 @@ const conX = cols => { let x = 0; return cols.map(c => { const r = { ...c, x }; 
 const limitar = (v, a, b) => Math.min(Math.max(v, a), b)
 const redondo = n => Math.round(n * 100) / 100
 let siguiente = 1
+// Recuadro copiado (Ctrl+C / Copiar). Se guarda en el navegador: también se pega en otra plantilla
+const COPIADO = 'ingemedic.plantilla.recuadro'
+const leerCopiado = () => { try { return JSON.parse(localStorage.getItem(COPIADO)) } catch { return null } }
 
 // Bloques guardados → hojas para editar (los datos como [Nombre], igual que en Word)
 function paraEditar(bloques) {
@@ -65,6 +68,11 @@ export default function EditorHojaFija({ plantilla, inicial, empresa, avisos = [
   const [error, setError] = useState(null)
   const [confirmar, setConfirmar] = useState(false)
   const [previa, setPrevia] = useState(null)        // bloques para la vista previa
+  // Recuadro copiado (sin _k). El editor solo se abre en el navegador: se lee de una vez
+  const [copiado, setCopiado] = useState(() => (typeof window === 'undefined' ? null : leerCopiado()))
+  const [hojaActiva, setHojaActiva] = useState(0)   // dónde se pega si no hay uno elegido
+  const [aviso, setAviso] = useState(null)          // "Copiado" / "Pegado" un momento
+  const pegados = useRef(0)                         // cada pegada un poco más abajo y a la derecha
   const nombreRef = useRef(null)
   const ctx = useMemo(() => contextoEjemplo(empresa), [empresa])
   const ocultos = useMemo(() => (origen.bloques || []).filter(b => ['para_equipos', 'renovable'].includes(b.tipo)), [origen.bloques])
@@ -80,10 +88,35 @@ export default function EditorHojaFija({ plantilla, inicial, empresa, avisos = [
     setSel({ h, k: nuevo._k })
   }
 
-  // Supr borra el recuadro elegido; las flechas lo corren un poco (Shift: más)
+  const avisar = t => { setAviso(t); setTimeout(() => setAviso(a => (a === t ? null : a)), 1400) }
+  function copiar() {
+    if (!campoSel) return
+    const { _k, ...c } = campoSel
+    setCopiado(c); pegados.current = 0
+    try { localStorage.setItem(COPIADO, JSON.stringify(c)) } catch { /* sin espacio: solo en esta pantalla */ }
+    avisar('Copiado')
+  }
+  // Se pega en la hoja del recuadro elegido (o la última que se tocó), corrido un poco
+  function pegar() {
+    const c = copiado || leerCopiado()
+    if (!c) return
+    const h = sel?.h ?? Math.min(hojaActiva, hojas.length - 1)
+    pegados.current += 1
+    const d = 1.5 * pegados.current
+    agregar(h, { ...c, x: redondo(limitar(c.x + d, 0, 100 - c.w)), y: redondo(limitar(c.y + d, 0, 100 - c.h)) })
+    avisar('Pegado')
+  }
+
+  // Ctrl+C / Ctrl+V copian y pegan recuadros; Supr borra el elegido; las flechas lo
+  // corren un poco (Shift: más)
   useEffect(() => {
     const onTecla = e => {
-      if (!campoSel || ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName)) return
+      if (['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName)) return
+      const mod = e.ctrlKey || e.metaKey
+      if (mod && e.key.toLowerCase() === 'v') { e.preventDefault(); pegar(); return }
+      if (!campoSel) return
+      if (mod && e.key.toLowerCase() === 'c') { e.preventDefault(); copiar(); return }
+      if (mod && e.key.toLowerCase() === 'd') { e.preventDefault(); agregar(sel.h, { ...campoSel, y: limitar(campoSel.y + campoSel.h + 0.5, 0, 100 - campoSel.h) }); return }
       if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); quitar(sel.h, sel.k); return }
       if (e.key === 'Escape') { setSel(null); return }
       const paso = e.shiftKey ? 1 : 0.15
@@ -181,11 +214,20 @@ export default function EditorHojaFija({ plantilla, inicial, empresa, avisos = [
             <MousePointerClick size={14} className="flex-shrink-0 mt-px text-slate-400" />
             {herramienta ? 'Ahora arrastra sobre la hoja donde va.' : 'Elige qué agregar y arrastra sobre la hoja. Toca un recuadro para cambiarlo.'}
           </p>
+          {/* Pegar el recuadro copiado (también Ctrl+V) */}
+          <div className="flex items-center gap-2 mt-3">
+            <button type="button" onClick={pegar} disabled={!copiado} className={ui.btnChico} title="Pegar (Ctrl+V)">
+              <ClipboardPaste size={13} /> Pegar recuadro
+            </button>
+            {aviso ? <span className="text-[12px] font-semibold text-[#0F7B55]">{aviso}</span>
+              : <span className="text-[11.5px] text-slate-400">Ctrl+C copia · Ctrl+V pega</span>}
+          </div>
 
           <div className="mt-5">
             {campoSel ? (
               <PanelCampo key={campoSel._k} c={campoSel} letra={letraHojaFija(campoSel, cajaHojaFija(hojas[sel.h].proporcion))} onCambio={x => cambiarCampo(sel.h, sel.k, x)}
                 onDuplicar={() => agregar(sel.h, { ...campoSel, y: limitar(campoSel.y + campoSel.h + 0.5, 0, 100 - campoSel.h) })}
+                onCopiar={copiar}
                 onQuitar={() => quitar(sel.h, sel.k)} />
             ) : (
               <div className="text-[12.5px] text-slate-500 space-y-2">
@@ -203,8 +245,8 @@ export default function EditorHojaFija({ plantilla, inicial, empresa, avisos = [
               <div key={h}>
                 {hojas.length > 1 && <div className={`${ui.tituloSeccion} mb-1.5`}>Hoja {h + 1}</div>}
                 <Hoja hoja={hoja} ctx={ctx} herramienta={herramienta} sel={sel?.h === h ? sel.k : null}
-                  onElegir={k => { setSel(k == null ? null : { h, k }) }}
-                  onCrear={pos => { agregar(h, { ...HERRAMIENTAS[herramienta].nuevo, ...pos }); setHerramienta(null) }}
+                  onElegir={k => { setHojaActiva(h); setSel(k == null ? null : { h, k }) }}
+                  onCrear={pos => { setHojaActiva(h); agregar(h, { ...HERRAMIENTAS[herramienta].nuevo, ...pos }); setHerramienta(null) }}
                   onCambio={(k, x) => cambiarCampo(h, k, x)} />
               </div>
             ))}
@@ -361,7 +403,7 @@ function Recuadro({ c, ctx, escala, caja, elegido, bloqueado, onEmpezar }) {
 }
 
 // Panel del recuadro elegido
-function PanelCampo({ c, letra, onCambio, onDuplicar, onQuitar }) {
+function PanelCampo({ c, letra, onCambio, onDuplicar, onCopiar, onQuitar }) {
   const titulo = { texto: 'Dato o texto', firma: 'Firma', tabla: 'Tabla de equipos' }[c.tipo]
   const tamano = (
     <div>
@@ -381,7 +423,8 @@ function PanelCampo({ c, letra, onCambio, onDuplicar, onQuitar }) {
       <div className="flex items-center gap-2">
         <span className="w-2.5 h-2.5 rounded-sm" style={{ background: COLOR[c.tipo] }} />
         <div className="flex-1 text-[14px] font-bold text-slate-800">{titulo}</div>
-        <button type="button" onClick={onDuplicar} className={ui.btnIcono} title="Duplicar" aria-label="Duplicar"><Copy size={15} /></button>
+        <button type="button" onClick={onCopiar} className={ui.btnIcono} title="Copiar (Ctrl+C)" aria-label="Copiar"><Copy size={15} /></button>
+        <button type="button" onClick={onDuplicar} className={ui.btnIcono} title="Duplicar (Ctrl+D)" aria-label="Duplicar"><CopyPlus size={15} /></button>
         <button type="button" onClick={onQuitar} className={`${ui.btnIcono} hover:!text-[#D81B43] hover:!bg-red-50`} title="Quitar" aria-label="Quitar"><Trash2 size={15} /></button>
       </div>
 

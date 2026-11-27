@@ -170,27 +170,32 @@ export default function ListaPlantillas({ plantillas, onCambiar, onToast, onConf
 
   return (
     <div>
-      {/* Filtros */}
-      <div className="flex flex-col md:flex-row md:items-center gap-2.5 mb-3">
-        <div className="relative md:w-[280px]">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input value={buscar} onChange={e => setBuscar(e.target.value)} placeholder="Buscar plantilla o cliente…" className={`${ui.input} pl-9`} />
+      {/* Filtros: arriba buscar, cliente y estado (se acomodan solos si no caben);
+          abajo la acción en chips que bajan de renglón (en el celular se deslizan de lado) */}
+      <div className="space-y-2.5 mb-3">
+        <div className="flex flex-wrap items-center gap-2.5">
+          <div className="relative flex-1 min-w-[220px]">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+            <input value={buscar} onChange={e => setBuscar(e.target.value)} placeholder="Buscar plantilla o cliente…" className={`${ui.input} pl-9`} />
+          </div>
+          <select value={cliente} onChange={e => setCliente(e.target.value)} aria-label="Filtrar por cliente"
+            className={`${ui.input} w-full sm:w-[220px] ${cliente ? '!border-[#D81B43] text-[#D81B43]' : ''}`}>
+            <option value="">Todos los clientes</option>
+            <option value="ninguno">Sin cliente asignado</option>
+            {clientesConPlantilla.map(([id, nombre]) => <option key={id} value={id}>{nombre}</option>)}
+          </select>
+          <div className="grid grid-cols-3 w-full sm:w-auto p-0.5 rounded-[9px] bg-slate-100 flex-shrink-0">
+            {[['activas', 'Activas', nActivas], ['inactivas', 'Inactivas', plantillas.length - nActivas], ['todas', 'Todas', plantillas.length]].map(([v, l, n]) => (
+              <button key={v} onClick={() => setEstado(v)} aria-pressed={estado === v}
+                className={`px-3 h-9 rounded-[7px] text-[12.5px] font-semibold whitespace-nowrap transition-colors ${estado === v ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+                {l} <span className="opacity-60 font-medium">{n}</span>
+              </button>
+            ))}
+          </div>
         </div>
-        <select value={cliente} onChange={e => setCliente(e.target.value)} aria-label="Filtrar por cliente"
-          className={`${ui.input} md:w-[220px] ${cliente ? '!border-[#D81B43] text-[#D81B43]' : ''}`}>
-          <option value="">Todos los clientes</option>
-          <option value="ninguno">Sin cliente asignado</option>
-          {clientesConPlantilla.map(([id, nombre]) => <option key={id} value={id}>{nombre}</option>)}
-        </select>
-        <div className="inline-flex self-start p-0.5 rounded-[9px] bg-slate-100 md:ml-auto md:order-last">
-          {[['activas', `Activas ${nActivas}`], ['inactivas', `Inactivas ${plantillas.length - nActivas}`], ['todas', 'Todas']].map(([v, l]) => (
-            <button key={v} onClick={() => setEstado(v)} aria-pressed={estado === v}
-              className={`px-3 h-8 rounded-[7px] text-[12.5px] font-semibold transition-colors ${estado === v ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>{l}</button>
-          ))}
-        </div>
-        <div className="flex gap-1.5 overflow-x-auto -mx-1 px-1 pb-0.5">
+        <div className="flex gap-1.5 max-sm:overflow-x-auto max-sm:-mx-3 max-sm:px-3 sm:flex-wrap sin-barra">
           {[['todas', 'Todas'], ...Object.entries(ACCIONES)].map(([v, l]) => (
-            <button key={v} onClick={() => setAccion(v)} aria-pressed={accion === v} className={chip(accion === v)}>{l} <span className="opacity-70">{cuantas(v)}</span></button>
+            <button key={v} onClick={() => setAccion(v)} aria-pressed={accion === v} className={`${chip(accion === v)} flex-shrink-0`}>{l} <span className="opacity-70">{cuantas(v)}</span></button>
           ))}
         </div>
       </div>
