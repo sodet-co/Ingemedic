@@ -12,7 +12,8 @@ import LimpiarFiltros from '@/components/ui/LimpiarFiltros'
 import EncabezadoModulo from '@/components/ui/EncabezadoModulo'
 import Modal from '@/components/ui/Modal'
 import { ui } from '@/lib/ui'
-import { urlGoogleMaps, urlWaze } from '@/lib/mapas'
+import { urlGoogleMaps, urlWaze, urlPunto } from '@/lib/mapas'
+import { puntoDe } from '@/lib/ubicacion'
 import { formatear, soloDia, hoyBogota } from '@/lib/fechas'
 import FirmaActas from '@/components/actas/FirmaActas'
 import { capturarHTML } from '@/lib/capturar'
@@ -741,6 +742,11 @@ export default function EntregasClient({ entregasIniciales, ordenesEnReparto, es
                       {item.estado?.nombre === 'Completada' && (
                         <div className="mt-2 flex items-center justify-between gap-2 text-[11.5px]">
                           <span className="text-[#0F7B55] font-medium flex items-center gap-1 truncate"><CheckCircle2 size={11} /> {item.recibido_por || 'Entregada'}</span>
+                          {/* Dónde la cerró el repartidor (lib/ubicacion.js) */}
+                          {item.ubicacion_lat != null && (
+                            <a href={urlPunto(item.ubicacion_lat, item.ubicacion_lng)} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
+                              title={`Dónde se cerró (±${item.ubicacion_precision ?? '?'} m)`} className="flex items-center gap-0.5 text-[#1B3A6B] font-semibold flex-shrink-0 hover:underline"><MapPin size={11} /> Ver</a>
+                          )}
                           <span className="text-slate-400 flex-shrink-0">{formatear(item.fecha_completada, { hour: '2-digit', minute: '2-digit' })}{item.duracion_minutos != null && ` · ${item.duracion_minutos} min`}</span>
                         </div>
                       )}
@@ -787,9 +793,9 @@ export default function EntregasClient({ entregasIniciales, ordenesEnReparto, es
                         <span>{[direccion, ciudad].filter(Boolean).join(', ') || 'Sin dirección registrada'}</span>
                       </div>
                       <div className="grid grid-cols-3 gap-2 mt-3">
-                        <a href={urlWaze(direccion, ciudad) || undefined} target="_blank" rel="noopener noreferrer" aria-disabled={!direccion}
+                        <a href={urlWaze(direccion, ciudad, p ? puntoDe(p) : puntoDe(c)) || undefined} target="_blank" rel="noopener noreferrer" aria-disabled={!direccion}
                           className={`${btn} ${direccion ? 'bg-[#1B3A6B] text-white' : 'bg-slate-100 text-slate-400 pointer-events-none'}`}><Navigation size={14} /> Waze</a>
-                        <a href={urlGoogleMaps(direccion, ciudad) || undefined} target="_blank" rel="noopener noreferrer" aria-disabled={!direccion}
+                        <a href={urlGoogleMaps(direccion, ciudad, p ? puntoDe(p) : puntoDe(c)) || undefined} target="_blank" rel="noopener noreferrer" aria-disabled={!direccion}
                           className={`${btn} ${direccion ? 'bg-[#1B3A6B] text-white' : 'bg-slate-100 text-slate-400 pointer-events-none'}`}><MapPin size={14} /> Maps</a>
                         <a href={tel ? `tel:${String(tel).replace(/\s/g, '')}` : undefined} aria-disabled={!tel}
                           className={`${btn} border ${tel ? 'border-slate-200 text-slate-700' : 'border-slate-100 text-slate-300 pointer-events-none'}`}><Phone size={14} /> Llamar</a>

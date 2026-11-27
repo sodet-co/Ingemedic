@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { Truck, MapPin, Phone, Navigation, Package, User, Clock, CheckCircle2, ArrowRight } from 'lucide-react'
 import { NOMBRE_ACCION, accionDeEntrega, nombreVisita } from '@/lib/accionesPrestamo'
 import { urlGoogleMaps, urlWaze } from '@/lib/mapas'
+import { puntoDe } from '@/lib/ubicacion'
 
 // Entrega "En progreso": camión animado sobre la ruta, cronómetro y todo lo que
 // necesita quien va en camino (destino, teléfono, equipos). La barra avanza con
@@ -78,6 +79,7 @@ export default function EntregaEnCurso({ entrega, onRegistrar }) {
   const ciudad = p?.ciudad || c.municipio?.nombre
   const telefono = p?.telefono || c.telefono
   const destino = [direccion, ciudad].filter(Boolean).join(', ')
+  const punto = p ? puntoDe(p) : puntoDe(c) // punto exacto de una entrega anterior
   // En una recogida, recarga o cambio, solo los equipos de esa acción
   const accion = accionDeEntrega(entrega)
   const nombre = accion === 'prestamo' ? NOMBRE_ACCION.prestamo : nombreVisita(entrega)
@@ -105,12 +107,12 @@ export default function EntregaEnCurso({ entrega, onRegistrar }) {
           <span>{destino || 'Sin dirección registrada'}</span>
         </div>
         <div className="grid grid-cols-3 gap-2 mt-3">
-          <a href={destino ? urlWaze(direccion, ciudad) : undefined}
+          <a href={destino || punto ? urlWaze(direccion, ciudad, punto) : undefined}
             target="_blank" rel="noopener noreferrer" aria-disabled={!destino}
             className={`flex items-center justify-center gap-1.5 py-2.5 rounded-[10px] text-[13px] font-semibold ${destino ? 'bg-[#1B3A6B] text-white' : 'bg-slate-100 text-slate-400 pointer-events-none'}`}>
             <Navigation size={14} /> Waze
           </a>
-          <a href={destino ? urlGoogleMaps(direccion, ciudad) : undefined}
+          <a href={destino || punto ? urlGoogleMaps(direccion, ciudad, punto) : undefined}
             target="_blank" rel="noopener noreferrer" aria-disabled={!destino}
             className={`flex items-center justify-center gap-1.5 py-2.5 rounded-[10px] text-[13px] font-semibold ${destino ? 'bg-[#1B3A6B] text-white' : 'bg-slate-100 text-slate-400 pointer-events-none'}`}>
             <MapPin size={14} /> Maps

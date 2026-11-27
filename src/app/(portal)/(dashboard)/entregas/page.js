@@ -24,8 +24,8 @@ export default async function EntregasPage() {
       *,
       orden:ordenes_servicio(
         id, codigo, fecha_vigencia, fecha_entrega, observaciones, paciente_id, cliente_id,
-        cliente:clientes(id, nombre, tipo_persona, nit_cc, direccion, telefono, municipio:municipios(nombre)),
-        paciente:pacientes(id, nombre, direccion, telefono, ciudad),
+        cliente:clientes(id, nombre, tipo_persona, nit_cc, direccion, telefono, ubicacion_lat, ubicacion_lng, municipio:municipios(nombre)),
+        paciente:pacientes(id, nombre, direccion, telefono, ciudad, ubicacion_lat, ubicacion_lng),
         equipos:orden_equipos(
           id, equipo_id, fecha_devolucion,
           equipo:equipos(id, codigo,
@@ -45,8 +45,8 @@ export default async function EntregasPage() {
   // Órdenes en estado "Programada" sin entrega activa aún
   let ordenesQuery = supabase.from('ordenes_servicio').select(`
       id, codigo, fecha_vigencia, fecha_entrega, observaciones, paciente_id, cliente_id,
-      cliente:clientes(id, nombre, tipo_persona, nit_cc, direccion, telefono, municipio:municipios(nombre)),
-      paciente:pacientes(id, nombre, direccion, telefono, ciudad),
+      cliente:clientes(id, nombre, tipo_persona, nit_cc, direccion, telefono, ubicacion_lat, ubicacion_lng, municipio:municipios(nombre)),
+      paciente:pacientes(id, nombre, direccion, telefono, ciudad, ubicacion_lat, ubicacion_lng),
       repartidor:usuarios!ordenes_servicio_repartidor_id_fkey(id, nombre),
       estado:estados_orden(id, nombre),
       equipos:orden_equipos(

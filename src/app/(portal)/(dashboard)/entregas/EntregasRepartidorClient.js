@@ -13,6 +13,7 @@ import ConfirmDialog from '@/components/ui/ConfirmDialog'
 import DescargarActas from '@/components/actas/DescargarActas'
 import { ui } from '@/lib/ui'
 import { urlGoogleMaps, urlWaze } from '@/lib/mapas'
+import { pedirUbicacion, conTope, guardarUbicacionEntrega, puntoDe } from '@/lib/ubicacion'
 import {
   Package, MapPin, Clock, CheckCircle2, Truck, Phone, Navigation, StickyNote, ChevronLeft, Download, Loader2,
 } from 'lucide-react'
@@ -37,8 +38,9 @@ function destino(orden) {
     direccion,
     ciudad,
     telefono: p?.telefono || c?.telefono || '',
-    mapsUrl: direccion ? urlGoogleMaps(direccion, ciudad) : null,
-    wazeUrl: direccion ? urlWaze(direccion, ciudad) : null,
+    // Con el punto exacto guardado de una entrega anterior, Waze y Maps van ahí
+    mapsUrl: urlGoogleMaps(direccion, ciudad, p ? puntoDe(p) : puntoDe(c)),
+    wazeUrl: urlWaze(direccion, ciudad, p ? puntoDe(p) : puntoDe(c)),
   }
 }
 
@@ -169,8 +171,17 @@ export default function EntregasRepartidorClient({ nombreRepartidor = '', entreg
     showToast('Entrega iniciada — vas en camino')
   }
 
+  // Al abrir el cierre se pide la ubicación (el GPS tarda): al finalizar ya está lista
+  const ubicacionRef = useRef(null)
   function abrirCompletar(entrega) {
+    ubicacionRef.current = pedirUbicacion()
     setModalRegistro(entrega)
+  }
+  // Después de completar: dónde se entregó (prueba) y el punto exacto del destino
+  async function guardarUbicacion(entrega) {
+    const ubicacion = await conTope(ubicacionRef.current)
+    ubicacionRef.current = null
+    await guardarUbicacionEntrega(supabase, { entrega, orden: entrega.orden, ubicacion })
   }
 
   // Actas firmadas en una entrega (las de esa entrega; si es de antes de guardar
@@ -197,6 +208,7 @@ export default function EntregasRepartidorClient({ nombreRepartidor = '', entreg
       const { error, cambios } = await completarAccion(supabase, { entrega, orden: entrega.orden, recibidoPor, firma, observaciones, datos: { datos_acta: datosActa } })
       if (error) return error
       registrarBitacora({ modulo: 'entregas', accion: 'cerrar', entidad: nombreVisita(entrega).toLowerCase(), entidad_id: entrega.id, detalle: { codigo: entrega.codigo, recibido_por: recibidoPor } })
+      await guardarUbicacion(entrega)
       skipSyncUntil.current = Date.now() + 2500
       setEntregas(prev => prev.map(e => e.id === entrega.id ? { ...e, ...cambios } : e))
       return null
@@ -206,6 +218,7 @@ export default function EntregasRepartidorClient({ nombreRepartidor = '', entreg
     })
     if (error) return error
     registrarBitacora({ modulo: 'entregas', accion: 'cerrar', entidad: 'entrega', entidad_id: entrega.id, detalle: { codigo: entrega.codigo, recibido_por: recibidoPor } })
+    await guardarUbicacion(entrega)
     skipSyncUntil.current = Date.now() + 2500 // protege el estado local por 2.5s tras completar
     setEntregas(prev => prev.map(e => e.id === entrega.id ? { ...e, ...cambios } : e))
     if (erroresFirma > 0) showToast(`Entrega completada, pero ${erroresFirma} firma(s) no se guardaron`, 'error')
